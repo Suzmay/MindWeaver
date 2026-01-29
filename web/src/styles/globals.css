@@ -1,0 +1,401 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@custom-variant dark (&:is(.dark *));
+
+:root {
+  --font-size: 16px;
+  /* Deep Sea Theme - Light Mode */
+  --background: #FFFFFF;
+  --foreground: #0F172A;
+  --card: #FFFFFF;
+  --card-foreground: #0F172A;
+  --popover: #FFFFFF;
+  --popover-foreground: #0F172A;
+  /* Primary Teal/Ocean Blue */
+  --primary: #14B8A6;
+  --primary-foreground: #FFFFFF;
+  --primary-light: #CCFBF1;
+  --primary-dark: #0D9488;
+  /* Secondary Ocean Blue */
+  --secondary: #0EA5E9;
+  --secondary-foreground: #FFFFFF;
+  --secondary-light: #E0F2FE;
+  --secondary-dark: #0284C7;
+  /* Accent Deep Blue */
+  --accent: #E0F2FE;
+  --accent-foreground: #0F172A;
+  /* Muted Ocean Tones */
+  --muted: #F1F5F9;
+  --muted-foreground: #64748B;
+  /* Semantic Colors */
+  --destructive: #EF4444;
+  --destructive-foreground: #FFFFFF;
+  --success: #10B981;
+  --warning: #F59E0B;
+  --info: #06B6D4;
+  /* UI Elements */
+  --border: #E2E8F0;
+  --input: #E2E8F0;
+  --input-background: #FFFFFF;
+  --switch-background: #CBD5E1;
+  --ring: #14B8A6;
+  /* Typography */
+  --font-weight-medium: 500;
+  --font-weight-normal: 400;
+  --font-weight-semibold: 600;
+  --font-weight-bold: 700;
+  /* Radius - More rounded for playful feel */
+  --radius: 1rem;
+  /* Sidebar - Ocean gradient */
+  --sidebar: linear-gradient(180deg, #0EA5E9 0%, #06B6D4 100%);
+  --sidebar-foreground: #FFFFFF;
+  --sidebar-primary: #14B8A6;
+  --sidebar-primary-foreground: #FFFFFF;
+  --sidebar-accent: rgba(20, 184, 166, 0.35);
+  --sidebar-accent-foreground: #FFFFFF;
+  --sidebar-border: rgba(255, 255, 255, 0.2);
+  --sidebar-ring: #FFFFFF;
+  /* Ocean wave colors */
+  --wave-1: #0EA5E9;
+  --wave-2: #06B6D4;
+  --wave-3: #14B8A6;
+  /* Chart colors - Ocean themed */
+  --chart-1: #14B8A6;
+  --chart-2: #0EA5E9;
+  --chart-3: #06B6D4;
+  --chart-4: #22D3EE;
+  --chart-5: #67E8F9;
+}
+
+.dark {
+  /* Deep Sea Theme - Dark Mode (Deep Ocean) */
+  --background: #0A1929;
+  --foreground: #E0F2FE;
+  --card: #0F2942;
+  --card-foreground: #E0F2FE;
+  --popover: #0F2942;
+  --popover-foreground: #E0F2FE;
+  /* Primary Teal (brighter for dark) */
+  --primary: #2DD4BF;
+  --primary-foreground: #0A1929;
+  --primary-light: #134E4A;
+  --primary-dark: #5EEAD4;
+  /* Secondary Ocean Blue (brighter) */
+  --secondary: #38BDF8;
+  --secondary-foreground: #0A1929;
+  --secondary-light: #0C4A6E;
+  --secondary-dark: #7DD3FC;
+  /* Accent Cyan */
+  --accent: #22D3EE;
+  --accent-foreground: #0A1929;
+  /* Muted Deep Ocean */
+  --muted: #0F2942;
+  --muted-foreground: #94A3B8;
+  /* Semantic Colors */
+  --destructive: #FB7185;
+  --destructive-foreground: #FFFFFF;
+  --success: #34D399;
+  --warning: #FBBF24;
+  --info: #22D3EE;
+  /* UI Elements */
+  --border: #1E3A5F;
+  --input: #1E3A5F;
+  --input-background: #0F2942;
+  --switch-background: #475569;
+  --ring: #2DD4BF;
+  /* Typography */
+  --font-weight-medium: 500;
+  --font-weight-normal: 400;
+  --font-weight-semibold: 600;
+  --font-weight-bold: 700;
+  /* Sidebar - Deep ocean gradient */
+  --sidebar: linear-gradient(180deg, #134E4A 0%, #0F2942 100%);
+  --sidebar-foreground: #E0F2FE;
+  --sidebar-primary: #2DD4BF;
+  --sidebar-primary-foreground: #0A1929;
+  --sidebar-accent: rgba(45, 212, 191, 0.15);
+  --sidebar-accent-foreground: #E0F2FE;
+  --sidebar-border: rgba(45, 212, 191, 0.2);
+  --sidebar-ring: #2DD4BF;
+  /* Ocean wave colors - darker */
+  --wave-1: #0C4A6E;
+  --wave-2: #0A1929;
+  --wave-3: #134E4A;
+  /* Chart colors - Ocean themed */
+  --chart-1: #2DD4BF;
+  --chart-2: #38BDF8;
+  --chart-3: #22D3EE;
+  --chart-4: #67E8F9;
+  --chart-5: #A5F3FC;
+}
+
+@theme inline {
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --color-card: var(--card);
+  --color-card-foreground: var(--card-foreground);
+  --color-popover: var(--popover);
+  --color-popover-foreground: var(--popover-foreground);
+  --color-primary: var(--primary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-secondary: var(--secondary);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-muted: var(--muted);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-accent: var(--accent);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-destructive: var(--destructive);
+  --color-destructive-foreground: var(--destructive-foreground);
+  --color-border: var(--border);
+  --color-input: var(--input);
+  --color-input-background: var(--input-background);
+  --color-switch-background: var(--switch-background);
+  --color-ring: var(--ring);
+  --color-chart-1: var(--chart-1);
+  --color-chart-2: var(--chart-2);
+  --color-chart-3: var(--chart-3);
+  --color-chart-4: var(--chart-4);
+  --color-chart-5: var(--chart-5);
+  --radius-sm: calc(var(--radius) - 4px);
+  --radius-md: calc(var(--radius) - 2px);
+  --radius-lg: var(--radius);
+  --radius-xl: calc(var(--radius) + 4px);
+  --color-sidebar: var(--sidebar);
+  --color-sidebar-foreground: var(--sidebar-foreground);
+  --color-sidebar-primary: var(--sidebar-primary);
+  --color-sidebar-primary-foreground: var(--sidebar-primary-foreground);
+  --color-sidebar-accent: var(--sidebar-accent);
+  --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
+  --color-sidebar-border: var(--sidebar-border);
+  --color-sidebar-ring: var(--sidebar-ring);
+}
+
+@layer base {
+  * {
+    @apply border-border;
+  }
+
+  body {
+    @apply bg-background text-foreground;
+  }
+}
+
+/**
+ * Base typography. This is not applied to elements which have an ancestor with a Tailwind text class.
+ */
+@layer base {
+  :where(:not(:has([class*=' text-']), :not(:has([class^='text-'])))) {
+    h1 {
+      font-size: var(--text-2xl);
+      font-weight: var(--font-weight-medium);
+      line-height: 1.5;
+    }
+
+    h2 {
+      font-size: var(--text-xl);
+      font-weight: var(--font-weight-medium);
+      line-height: 1.5;
+    }
+
+    h3 {
+      font-size: var(--text-lg);
+      font-weight: var(--font-weight-medium);
+      line-height: 1.5;
+    }
+
+    h4 {
+      font-size: var(--text-base);
+      font-weight: var(--font-weight-medium);
+      line-height: 1.5;
+    }
+
+    p {
+      font-size: var(--text-base);
+      font-weight: var(--font-weight-normal);
+      line-height: 1.5;
+    }
+
+    label {
+      font-size: var(--text-base);
+      font-weight: var(--font-weight-medium);
+      line-height: 1.5;
+    }
+
+    button {
+      font-size: var(--text-base);
+      font-weight: var(--font-weight-medium);
+      line-height: 1.5;
+    }
+
+    input {
+      font-size: var(--text-base);
+      font-weight: var(--font-weight-normal);
+      line-height: 1.5;
+    }
+  }
+}
+
+html {
+  font-size: var(--font-size);
+}
+
+/* MindWeaver 深海主题自定义样式 */
+@layer utilities {
+  .transition-smooth {
+    transition: all 200ms cubic-bezier(0.4, 0, 0.2, 1);
+  }
+
+  .shadow-ocean {
+    box-shadow: 0 4px 12px rgba(6, 182, 212, 0.15);
+  }
+
+  .shadow-ocean-lg {
+    box-shadow: 0 8px 24px rgba(6, 182, 212, 0.2);
+  }
+
+  .bg-ocean-gradient {
+    background: linear-gradient(135deg, #0EA5E9 0%, #06B6D4 50%, #14B8A6 100%);
+  }
+
+  .bg-ocean-wave {
+    background: var(--sidebar);
+  }
+  
+  .dark .bg-ocean-wave {
+    background: linear-gradient(180deg, #0B3D3A 0%, #082332 100%);
+  }
+
+  .text-ocean-gradient {
+    background: linear-gradient(135deg, #14B8A6 0%, #0EA5E9 100%);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+  }
+
+  .bubble-float {
+    animation: float 3s ease-in-out infinite;
+  }
+
+  @keyframes float {
+    0%, 100% {
+      transform: translateY(0px);
+    }
+    50% {
+      transform: translateY(-10px);
+    }
+  }
+
+  .wave-animate {
+    animation: wave 2s ease-in-out infinite;
+  }
+
+  @keyframes wave {
+    0%, 100% {
+      transform: rotate(0deg);
+    }
+    25% {
+      transform: rotate(5deg);
+    }
+    75% {
+      transform: rotate(-5deg);
+    }
+  }
+
+  .swim-animate {
+    animation: swim 4s ease-in-out infinite;
+  }
+
+  @keyframes swim {
+    0%, 100% {
+      transform: translateX(0) translateY(0);
+    }
+    25% {
+      transform: translateX(5px) translateY(-3px);
+    }
+    50% {
+      transform: translateX(0) translateY(-6px);
+    }
+    75% {
+      transform: translateX(-5px) translateY(-3px);
+    }
+  }
+
+  .pulse-soft {
+    animation: pulse-soft 3s ease-in-out infinite;
+  }
+
+  @keyframes pulse-soft {
+    0%, 100% {
+      opacity: 0.15;
+      transform: scale(1);
+    }
+    50% {
+      opacity: 0.25;
+      transform: scale(1.05);
+    }
+  }
+
+  .scrollbar-hide::-webkit-scrollbar {
+    display: none;
+  }
+
+  .scrollbar-hide {
+    -ms-overflow-style: none;
+    scrollbar-width: none;
+  }
+
+  .scrollbar-thin::-webkit-scrollbar {
+    width: 6px;
+    height: 6px;
+  }
+
+  .scrollbar-thin {
+    scrollbar-width: thin;
+  }
+
+  .scrollbar-thumb-primary\/30::-webkit-scrollbar-thumb {
+    background: rgba(20, 184, 166, 0.3);
+    border-radius: 4px;
+  }
+
+  .scrollbar-thumb-primary\/50::-webkit-scrollbar-thumb {
+    background: rgba(20, 184, 166, 0.5);
+    border-radius: 4px;
+  }
+
+  .scrollbar-track-transparent::-webkit-scrollbar-track {
+    background: transparent;
+  }
+}
+
+/* Smooth scrolling */
+* {
+  scroll-behavior: smooth;
+}
+
+/* Custom scrollbar styling */
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+  background: var(--muted-foreground);
+  border-radius: 4px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: var(--foreground);
+}
+
+/* Focus styles for accessibility */
+*:focus-visible {
+  outline: 2px solid var(--ring);
+  outline-offset: 2px;
+}
