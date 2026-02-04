@@ -1,7 +1,6 @@
 import { useState, useEffect } from 'react';
 import { Outlet, useLocation, useNavigate } from 'react-router-dom';
 import { AppLayout } from './components/AppLayout';
-import { FirstLaunchGuide } from './components/FirstLaunchGuide';
 import { StorageProvider } from './context/StorageContext';
 import { UserProvider } from './context/UserContext';
 import { ThemeProvider } from './context/ThemeContext';
@@ -12,15 +11,6 @@ export default function App() {
   const navigate = useNavigate();
 
   useEffect(() => {
-    // Check if user just logged in via GitHub
-    const justLoggedInViaGitHub = localStorage.getItem('mindweaver_github_login');
-    if (justLoggedInViaGitHub) {
-      console.log('检测到GitHub登录状态，切换到账号页面');
-      setActiveTab('account');
-      // 清除登录状态标记，避免每次刷新都切换
-      localStorage.removeItem('mindweaver_github_login');
-    }
-
     // Update active tab based on current path
     const path = location.pathname;
     if (path.includes('/account')) {

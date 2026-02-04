@@ -69,13 +69,6 @@ export function SettingsPage() {
     await handleSettingChange('enableVersionHistory', checked);
   };
   
-  // 处理侧边栏宽度更改
-  const handleSidebarWidthChange = async (value: number[]) => {
-    const width = value[0];
-    setSidebarWidth(width);
-    await handleSettingChange('sidebarWidth', width);
-  };
-  
   // 处理默认窗口大小更改
   const handleWindowSizeChange = async (value: string) => {
     setDefaultWindowSize(value);

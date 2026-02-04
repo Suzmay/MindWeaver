@@ -61,7 +61,7 @@ class EncryptionWorkerService {
       };
 
       // 监听 Worker 错误
-      this.worker.onerror = (error) => {
+      this.worker.onerror = (_) => {
         // 静默处理错误
       };
 

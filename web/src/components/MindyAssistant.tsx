@@ -117,7 +117,7 @@ export function MindyAssistant({}: MindyAssistantProps) {
     }
   };
 
-  const handleButtonMouseUp = (e: React.MouseEvent<HTMLDivElement>) => {
+  const handleButtonMouseUp = (_: React.MouseEvent<HTMLDivElement>) => {
     // 清除长按定时器
     if (longPressTimer) {
       clearTimeout(longPressTimer);
@@ -128,7 +128,7 @@ export function MindyAssistant({}: MindyAssistantProps) {
     setIsLongPress(false);
   };
 
-  const handleButtonMouseLeave = (e: React.MouseEvent<HTMLDivElement>) => {
+  const handleButtonMouseLeave = (_: React.MouseEvent<HTMLDivElement>) => {
     // 清除长按定时器
     if (longPressTimer) {
       clearTimeout(longPressTimer);

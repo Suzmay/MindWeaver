@@ -1,13 +1,11 @@
 import { FileInterface } from '../interfaces/FileInterface';
-import { EventEmitter, EventType, EventData } from '../interfaces/EventEmitter';
-import { EncryptionService } from '../encryption/EncryptionService';
+import { EventEmitter, EventType } from '../interfaces/EventEmitter';
 import { KeyManager } from '../encryption/KeyManager';
 
 export class IndexedDBAdapter implements FileInterface {
   private static instance: IndexedDBAdapter;
   private db: IDBDatabase | null = null;
   private initialized = false;
-  private encryptionService = EncryptionService.getInstance();
   private keyManager = KeyManager.getInstance();
   private eventEmitter: EventEmitter;
   private dbName = 'MindWeaverDB';
@@ -115,7 +113,7 @@ export class IndexedDBAdapter implements FileInterface {
       };
       
       // 数据库打开失败
-      request.onerror = (event) => {
+      request.onerror = (_) => {
         reject(new Error('Failed to open IndexedDB database'));
       };
     });

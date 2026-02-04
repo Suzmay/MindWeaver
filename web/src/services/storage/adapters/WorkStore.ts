@@ -417,13 +417,11 @@ export class WorkStore implements WorkRepository {
     // 根据格式生成导出内容
     let content: string;
     let mimeType: string;
-    let filename: string;
     
     switch (format) {
       case 'json':
         content = JSON.stringify(workData, null, 2);
         mimeType = 'application/json';
-        filename = `${work.title}.json`;
         break;
       case 'mm':
       case 'xmind':
@@ -434,7 +432,6 @@ export class WorkStore implements WorkRepository {
           data: workData
         }, null, 2);
         mimeType = 'application/json';
-        filename = `${work.title}.${format}`;
         break;
       default:
         throw new Error('Unsupported export format');
