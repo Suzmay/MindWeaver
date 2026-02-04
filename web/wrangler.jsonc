@@ -1,5 +1,5 @@
 {
-  "name": "mindweaver",
+  "name": "mindweaver-auth",
   "compatibility_date": "2026-02-04",
   "assets": {
     "directory": "./dist"
