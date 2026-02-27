@@ -18,7 +18,7 @@ interface UserPreferences {
 }
 
 const DEFAULT_PREFERENCES: UserPreferences = {
-  autoSaveInterval: 5,
+  autoSaveInterval: 10,
   enableVersionHistory: true,
   theme: 'auto',
   sidebarWidth: 280,
@@ -66,11 +66,11 @@ export class UserPreferencesService {
       
       this.eventEmitter.emit(EventType.INITIALIZED, {
         data: {
-          message: 'User preferences service initialized successfully'
+          message: '用户偏好设置服务初始化成功'
         }
       });
     } catch (error) {
-      console.error('Failed to initialize user preferences service:', error);
+      console.error('用户偏好设置服务初始化失败:', error);
       // 使用默认偏好设置
       this.preferences = DEFAULT_PREFERENCES;
       this.initialized = true;
@@ -100,12 +100,12 @@ export class UserPreferencesService {
     await this.savePreferences();
     
     this.eventEmitter.emit(EventType.PREFERENCE_CHANGED, {
-      data: {
-        key,
-        value,
-        message: `Preference ${key} changed to ${value}`
-      }
-    });
+        data: {
+          key,
+          value,
+          message: `偏好设置 ${key} 已更改为 ${value}`
+        }
+      });
   }
 
   async setPreferences(preferences: Partial<UserPreferences>): Promise<void> {
@@ -120,11 +120,11 @@ export class UserPreferencesService {
     await this.savePreferences();
     
     this.eventEmitter.emit(EventType.PREFERENCE_CHANGED, {
-      data: {
-        preferences,
-        message: 'Multiple preferences changed'
-      }
-    });
+        data: {
+          preferences,
+          message: '多个偏好设置已更改'
+        }
+      });
   }
 
   async resetPreferences(): Promise<void> {
@@ -132,17 +132,17 @@ export class UserPreferencesService {
     await this.savePreferences();
     
     this.eventEmitter.emit(EventType.PREFERENCE_CHANGED, {
-      data: {
-        message: 'Preferences reset to default'
-      }
-    });
+        data: {
+          message: '偏好设置已重置为默认值'
+        }
+      });
   }
 
   private async savePreferences(): Promise<void> {
     try {
       localStorage.setItem(STORAGE_KEY, JSON.stringify(this.preferences));
     } catch (error) {
-      console.error('Failed to save preferences:', error);
+      console.error('保存偏好设置失败:', error);
       throw error;
     }
   }

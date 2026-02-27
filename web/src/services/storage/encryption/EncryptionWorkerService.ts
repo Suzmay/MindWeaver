@@ -1,4 +1,4 @@
-// Encryption Worker Service
+// 加密 Worker 服务
 
 interface EncryptionRequest {
   id: string;

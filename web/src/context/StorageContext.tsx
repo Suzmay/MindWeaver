@@ -69,33 +69,65 @@ export const StorageProvider: React.FC<{ children: ReactNode }> = ({ children })
   
   // 初始化服务
   const initializeServices = async () => {
+    console.log('=== StorageContext.initializeServices: 开始初始化存储服务 ===');
     try {
       setIsLoading(true);
+      console.log('1. 开始初始化存储服务');
       
+      console.log('2. 创建存储服务实例');
       const service = StorageService.getInstance();
+      console.log('3. 存储服务实例创建成功');
       
-      await service.initialize();
+      console.log('4. 开始初始化存储服务核心');
+      try {
+        await service.initialize();
+        console.log('5. 存储服务核心初始化成功');
+      } catch (initError) {
+        console.error('5. 存储服务核心初始化失败:', initError);
+        throw new Error(`存储服务初始化失败: ${(initError as Error).message}`);
+      }
       
+      console.log('6. 设置存储服务到状态');
       setStorageService(service);
+      console.log('7. 存储服务设置成功');
       
-      await loadInitialData(service);
+      console.log('8. 开始加载初始数据');
+      try {
+        await loadInitialData(service);
+        console.log('9. 初始数据加载成功');
+      } catch (dataError) {
+        console.error('9. 初始数据加载失败:', dataError);
+        // 初始数据加载失败不阻止初始化过程
+      }
       
+      console.log('10. 开始订阅事件');
       subscribeToEvents(service);
+      console.log('11. 事件订阅成功');
       
+      console.log('12. 设置初始化状态为true');
       setInitialized(true);
+      console.log('13. 重置错误状态');
       setError(null);
+      
+      console.log('=== StorageContext.initializeServices: 存储服务初始化完成 ===');
     } catch (err) {
       const errorMessage = (err as Error).message;
+      console.error('=== StorageContext.initializeServices: 初始化失败 ===:', errorMessage);
+      console.error('错误堆栈:', (err as Error).stack);
       setError(errorMessage);
+      setInitialized(false);
     } finally {
       setIsLoading(false);
+      console.log('=== StorageContext.initializeServices: 加载状态设置为false ===');
     }
   };
   
   // 加载初始数据
   const loadInitialData = async (service: StorageService) => {
+    console.log('StorageContext.loadInitialData: 开始加载初始数据');
     try {
       // 加载作品 - 使用完整的查询选项
+      console.log('StorageContext.loadInitialData: 开始加载作品');
       const worksQueryOptions = {
         page: 1,
         pageSize: 20,
@@ -107,10 +139,14 @@ export const StorageProvider: React.FC<{ children: ReactNode }> = ({ children })
         deletedOnly: false,
         sortOrder: 'desc' as const
       };
+      console.log('StorageContext.loadInitialData: 作品查询选项:', worksQueryOptions);
       const worksResult = await service.listWorks(worksQueryOptions);
+      console.log('StorageContext.loadInitialData: 作品加载结果:', worksResult.works.length, '个作品');
       setWorks(worksResult.works);
+      console.log('StorageContext.loadInitialData: 作品状态更新成功');
       
       // 加载模板 - 使用完整的查询选项
+      console.log('StorageContext.loadInitialData: 开始加载模板');
       const templatesQueryOptions = {
         page: 1,
         pageSize: 20,
@@ -122,24 +158,39 @@ export const StorageProvider: React.FC<{ children: ReactNode }> = ({ children })
         deletedOnly: false,
         sortOrder: 'desc' as const
       };
+      console.log('StorageContext.loadInitialData: 模板查询选项:', templatesQueryOptions);
       const templatesResult = await service.listTemplates(templatesQueryOptions);
+      console.log('StorageContext.loadInitialData: 模板加载结果:', templatesResult.works.length, '个模板');
       setTemplates(templatesResult.works as Template[]);
+      console.log('StorageContext.loadInitialData: 模板状态更新成功');
       
       // 检查默认模板
+      console.log('StorageContext.loadInitialData: 开始检查默认模板');
       const defaultTemplates = await service.getDefaultTemplates();
+      console.log('StorageContext.loadInitialData: 默认模板数量:', defaultTemplates.length);
       if (defaultTemplates.length === 0) {
+        console.log('StorageContext.loadInitialData: 无默认模板，开始创建');
         await createDefaultTemplates(service);
+        console.log('StorageContext.loadInitialData: 默认模板创建成功');
         // 重新加载模板
+        console.log('StorageContext.loadInitialData: 重新加载模板');
         const updatedTemplatesResult = await service.listTemplates(templatesQueryOptions);
+        console.log('StorageContext.loadInitialData: 模板重新加载结果:', updatedTemplatesResult.works.length, '个模板');
         setTemplates(updatedTemplatesResult.works as Template[]);
+        console.log('StorageContext.loadInitialData: 模板状态更新成功');
+      } else {
+        console.log('StorageContext.loadInitialData: 默认模板已存在，跳过创建');
       }
+      console.log('StorageContext.loadInitialData: 初始数据加载完成');
     } catch (err) {
+      console.error('StorageContext.loadInitialData: 加载初始数据失败:', err);
       // 静默处理错误
     }
   };
   
   // 创建默认模板
   const createDefaultTemplates = async (service: StorageService) => {
+    console.log('StorageContext.createDefaultTemplates: 开始创建默认模板');
     try {
       const defaultTemplates = [
         {
@@ -184,10 +235,20 @@ export const StorageProvider: React.FC<{ children: ReactNode }> = ({ children })
         }
       ];
       
-      for (const templateData of defaultTemplates) {
-        await service.createTemplate(templateData);
+      console.log('StorageContext.createDefaultTemplates: 默认模板数量:', defaultTemplates.length);
+      for (let i = 0; i < defaultTemplates.length; i++) {
+        const templateData = defaultTemplates[i];
+        console.log('StorageContext.createDefaultTemplates: 创建模板', i + 1, ':', templateData.title);
+        try {
+          await service.createTemplate(templateData);
+          console.log('StorageContext.createDefaultTemplates: 模板创建成功:', templateData.title);
+        } catch (templateError) {
+          console.error('StorageContext.createDefaultTemplates: 模板创建失败:', templateData.title, templateError);
+        }
       }
+      console.log('StorageContext.createDefaultTemplates: 默认模板创建完成');
     } catch (err) {
+      console.error('StorageContext.createDefaultTemplates: 创建默认模板失败:', err);
       // 静默处理错误
     }
   };
@@ -310,11 +371,28 @@ export const StorageProvider: React.FC<{ children: ReactNode }> = ({ children })
   };
   
   const getWork = async (workId: string): Promise<Work | null> => {
+    console.log('StorageContext.getWork: 获取作品', workId);
     if (!storageService) {
+      console.error('StorageContext.getWork: 存储服务未初始化');
       throw new Error('Storage service not initialized');
     }
     
-    return await storageService.readWork(workId);
+    try {
+      const work = await storageService.readWork(workId);
+      console.log('StorageContext.getWork: 获取作品结果', work ? '成功' : '失败');
+      if (work) {
+        console.log('StorageContext.getWork: 作品详情', {
+          id: work.id,
+          title: work.title,
+          hasEncryptedData: work.encryptedData ? '有' : '无',
+          encryptedDataLength: work.encryptedData ? work.encryptedData.length : 0
+        });
+      }
+      return work;
+    } catch (error) {
+      console.error('StorageContext.getWork: 获取作品失败', error);
+      throw error;
+    }
   };
   
   const listWorks = async (options: QueryOptions): Promise<Work[]> => {

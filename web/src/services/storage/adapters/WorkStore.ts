@@ -36,6 +36,7 @@ export class WorkStore implements WorkRepository {
       category: dto.category || '个人',
       tags: dto.tags || [],
       nodes: dto.nodes || 0,
+      layout: dto.layout,
       starred: false
     };
     console.log('WorkStore.create: 准备作品数据', work);
@@ -113,7 +114,7 @@ export class WorkStore implements WorkRepository {
   async update(workId: string, dto: WorkUpdateDTO): Promise<Work> {
     const work = await this.read(workId);
     if (!work) {
-      throw new Error('Work not found');
+      throw new Error('作品未找到');
     }
     
     // 更新字段
@@ -123,6 +124,7 @@ export class WorkStore implements WorkRepository {
       title: dto.title || work.title,
       category: dto.category !== undefined ? dto.category : work.category,
       tags: dto.tags !== undefined ? dto.tags : work.tags,
+      layout: dto.layout !== undefined ? dto.layout : work.layout,
       starred: dto.starred !== undefined ? dto.starred : work.starred,
       lastModified: now
     };
@@ -188,7 +190,7 @@ export class WorkStore implements WorkRepository {
   async restore(workId: string): Promise<Work> {
     const work = await this.read(workId);
     if (!work) {
-      throw new Error('Work not found');
+      throw new Error('作品未找到');
     }
     
     const updatedWork: Work = {
@@ -409,7 +411,7 @@ export class WorkStore implements WorkRepository {
     // 解密数据
     const key = this.keyManager.getKey();
     if (!key) {
-      throw new Error('No encryption key available');
+      throw new Error('没有可用的加密密钥');
     }
     
     const workData = await this.encryptionService.decrypt(work.encryptedData, key);
@@ -434,7 +436,7 @@ export class WorkStore implements WorkRepository {
         mimeType = 'application/json';
         break;
       default:
-        throw new Error('Unsupported export format');
+        throw new Error('不支持的导出格式');
     }
     
     return new Blob([content], { type: mimeType });
@@ -456,7 +458,7 @@ export class WorkStore implements WorkRepository {
         workData = data.data || data;
         break;
       default:
-        throw new Error('Unsupported import format');
+        throw new Error('不支持的导入格式');
     }
     
     // 创建作品

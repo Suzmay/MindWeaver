@@ -25,22 +25,47 @@ export class IndexedDBAdapter implements FileInterface {
   // 初始化存储服务
   async initialize(): Promise<void> {
     if (this.initialized) {
+      console.log('IndexedDBAdapter.initialize: 已经初始化，跳过');
       return;
     }
     
+    console.log('=== IndexedDBAdapter.initialize: 开始初始化 ===');
     try {
-      const key = await this.keyManager.loadKey();
-      if (!key) {
-        await this.keyManager.generateKey();
+      console.log('1. 开始加载密钥');
+      try {
+        const key = await this.keyManager.loadKey();
+        console.log('2. 密钥加载结果:', key ? '成功' : '失败');
+        if (!key) {
+          console.log('3. 开始生成新密钥');
+          await this.keyManager.generateKey();
+          console.log('4. 新密钥生成成功');
+        }
+      } catch (keyError) {
+        console.error('密钥管理失败:', keyError);
+        throw new Error(`密钥管理失败: ${(keyError as Error).message}`);
       }
       
-      this.db = await this.openDatabase();
+      console.log('5. 开始打开数据库');
+      try {
+        this.db = await this.openDatabase();
+        console.log('6. 数据库打开成功');
+      } catch (dbError) {
+        console.error('数据库打开失败:', dbError);
+        throw new Error(`数据库打开失败: ${(dbError as Error).message}`);
+      }
+      
+      console.log('7. 设置初始化状态为true');
       this.initialized = true;
       
+      console.log('8. 发送初始化成功事件');
       this.eventEmitter.emit(EventType.INITIALIZED, {
         timestamp: new Date().toISOString()
       });
+      
+      console.log('=== IndexedDBAdapter.initialize: 初始化完成 ===');
     } catch (error) {
+      console.error('=== IndexedDBAdapter.initialize: 初始化失败 ===:', error);
+      console.error('错误堆栈:', (error as Error).stack);
       this.eventEmitter.emit(EventType.ERROR, {
         timestamp: new Date().toISOString(),
         error: error as Error

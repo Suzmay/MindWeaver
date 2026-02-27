@@ -69,7 +69,7 @@ export class EncryptionService {
       return result;
     } catch (error) {
       console.error('EncryptionService.encrypt: 加密失败', error);
-      throw new Error('Failed to encrypt data');
+      throw new Error('加密数据失败');
     }
   }
   
@@ -81,7 +81,7 @@ export class EncryptionService {
         try {
           return await this.workerService.decrypt(encryptedData, key);
         } catch (error) {
-          console.warn('Worker decryption failed, falling back to synchronous decryption:', error);
+          console.warn('Worker 解密失败，降级到同步解密:', error);
           this.useWorker = false; // 禁用 Worker
         }
       }
@@ -110,12 +110,12 @@ export class EncryptionService {
       
       return JSON.parse(jsonData);
     } catch (error) {
-      console.error('Decryption error:', error);
-      throw new Error('Failed to decrypt data');
+      console.error('解密错误:', error);
+      throw new Error('解密数据失败');
     }
   }
   
-  // ArrayBuffer to Base64
+  // ArrayBuffer 转 Base64
   private arrayBufferToBase64(buffer: ArrayBuffer): string {
     const bytes = new Uint8Array(buffer);
     let binary = '';
@@ -125,7 +125,7 @@ export class EncryptionService {
     return btoa(binary);
   }
   
-  // Base64 to ArrayBuffer
+  // Base64 转 ArrayBuffer
   private base64ToArrayBuffer(base64: string): ArrayBuffer {
     const binary = atob(base64);
     const buffer = new ArrayBuffer(binary.length);
@@ -144,7 +144,7 @@ export class EncryptionService {
         try {
           return await this.workerService.generateChecksum(data);
         } catch (error) {
-          console.warn('Worker checksum generation failed, falling back to synchronous generation:', error);
+          console.warn('Worker 校验和生成失败，降级到同步生成:', error);
           this.useWorker = false; // 禁用 Worker
         }
       }
@@ -160,8 +160,8 @@ export class EncryptionService {
       
       return hashHex;
     } catch (error) {
-      console.error('Checksum generation error:', error);
-      throw new Error('Failed to generate checksum');
+      console.error('校验和生成错误:', error);
+      throw new Error('生成校验和失败');
     }
   }
   
@@ -171,7 +171,7 @@ export class EncryptionService {
       const generatedChecksum = await this.generateChecksum(data);
       return generatedChecksum === checksum;
     } catch (error) {
-      console.error('Checksum verification error:', error);
+      console.error('校验和验证错误:', error);
       return false;
     }
   }

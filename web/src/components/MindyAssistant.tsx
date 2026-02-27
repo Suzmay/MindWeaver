@@ -29,16 +29,24 @@ export function MindyAssistant({}: MindyAssistantProps) {
   const [messagesEndId, setMessagesEndId] = useState(0);
   
   // 拖动相关状态
-  const [position, setPosition] = useState({ x: 0, y: 0 });
+  const [position, setPosition] = useState({ 
+    x: window.innerWidth - 500, // 默认位置偏右
+    y: 100 // 默认位置偏上
+  });
   const [isDragging, setIsDragging] = useState(false);
-  const [dragStart, setDragStart] = useState({ x: 0, y: 0 });
   const chatWindowRef = useRef<HTMLDivElement>(null);
+  const rafRef = useRef<number | null>(null);
+  const dragOffset = useRef({ x: 0, y: 0 });
+  const draggingRef = useRef(false);
+  const longPressTimerRef = useRef<number | null>(null);
   
   // 浮动按钮拖动状态
   const [buttonPosition, setButtonPosition] = useState({ x: 0, y: 0 });
   const [isButtonDragging, setIsButtonDragging] = useState(false);
-  const [buttonDragStart, setButtonDragStart] = useState({ x: 0, y: 0 });
   const buttonRef = useRef<HTMLDivElement>(null);
+  const buttonRafRef = useRef<number | null>(null);
+  const buttonDragOffset = useRef({ x: 0, y: 0 });
+  const buttonDraggingRef = useRef(false);
   
   // 长按检测状态
   const [isLongPress, setIsLongPress] = useState(false);
@@ -55,41 +63,145 @@ export function MindyAssistant({}: MindyAssistantProps) {
     }
   }, [messages, messagesEndId]);
 
+  // Close chat window when clicking outside
+  useEffect(() => {
+    if (isOpen) {
+      const handleClickOutside = (event: MouseEvent) => {
+        // Check if click is outside both chat window and button
+        const target = event.target as HTMLElement;
+        
+        // Don't close if clicking on the chat window
+        if (chatWindowRef.current && chatWindowRef.current.contains(target)) {
+          return;
+        }
+        
+        // Don't close if clicking on the floating button
+        if (buttonRef.current && buttonRef.current.contains(target)) {
+          return;
+        }
+        
+        // Close the chat window
+        setIsOpen(false);
+      };
+      
+      // Add event listener
+      document.addEventListener('mousedown', handleClickOutside);
+      
+      // Cleanup event listener
+      return () => {
+        document.removeEventListener('mousedown', handleClickOutside);
+      };
+    }
+  }, [isOpen]);
+
   // 拖动事件处理
   const handleMouseDown = (e: React.MouseEvent<HTMLDivElement>) => {
-    setIsDragging(true);
-    setDragStart({
-      x: e.clientX - position.x,
-      y: e.clientY - position.y
+    // Only handle left mouse button (0)
+    if (e.button !== 0) return;
+    
+    // Prevent text selection during drag
+    e.preventDefault();
+    
+    // Set up long press timer for dragging
+    const timer = window.setTimeout(() => {
+      setIsDragging(true);
+      draggingRef.current = true;
+      
+      // Calculate offset from mouse to panel origin
+      if (chatWindowRef.current) {
+        const rect = chatWindowRef.current.getBoundingClientRect();
+        dragOffset.current = {
+          x: e.clientX - rect.left,
+          y: e.clientY - rect.top
+        };
+        
+        // Add global mouse move and up listeners
+        document.addEventListener('mousemove', handleGlobalMouseMove);
+        document.addEventListener('mouseup', handleGlobalMouseUp);
+      }
+      
+      // Disable text selection globally during drag
+      document.body.style.userSelect = 'none';
+    }, 500); // 500ms long press
+    
+    // Store the timer in ref
+    longPressTimerRef.current = timer;
+  };
+
+  // Handle global mouse move (during dragging)
+  const handleGlobalMouseMove = (e: MouseEvent) => {
+    if (!draggingRef.current || !chatWindowRef.current) return;
+    
+    // Prevent text selection during drag
+    e.preventDefault();
+    
+    // Cancel previous animation frame to avoid accumulation
+    if (rafRef.current) {
+      cancelAnimationFrame(rafRef.current);
+    }
+    
+    // Use requestAnimationFrame for smoother dragging
+    rafRef.current = requestAnimationFrame(() => {
+      if (!chatWindowRef.current) return;
+      
+      // Calculate new position
+      const newX = e.clientX - dragOffset.current.x;
+      const newY = e.clientY - dragOffset.current.y;
+      
+      // Update position state
+      setPosition({ x: newX, y: newY });
     });
+  };
+
+  // Handle global mouse up (end dragging)
+  const handleGlobalMouseUp = () => {
+    // Clear long press timer if it exists
+    if (longPressTimerRef.current) {
+      clearTimeout(longPressTimerRef.current);
+      longPressTimerRef.current = null;
+    }
+    
+    // Cancel any pending animation frames
+    if (rafRef.current) {
+      cancelAnimationFrame(rafRef.current);
+      rafRef.current = null;
+    }
+    
+    // Remove global event listeners
+    document.removeEventListener('mousemove', handleGlobalMouseMove);
+    document.removeEventListener('mouseup', handleGlobalMouseUp);
+    
+    // Re-enable text selection
+    document.body.style.userSelect = '';
+    
+    // Reset dragging state
+    draggingRef.current = false;
+    setIsDragging(false);
   };
 
   const handleMouseMove = (e: React.MouseEvent<HTMLDivElement>) => {
     if (isDragging) {
-      setPosition({
-        x: e.clientX - dragStart.x,
-        y: e.clientY - dragStart.y
-      });
+      // Prevent text selection during drag
+      e.preventDefault();
     }
   };
 
   const handleMouseUp = () => {
-    setIsDragging(false);
-  };
-
-  // 添加全局鼠标释放事件监听
-  useEffect(() => {
-    if (isDragging) {
-      const handleGlobalMouseUp = () => setIsDragging(false);
-      document.addEventListener('mouseup', handleGlobalMouseUp);
-      return () => {
-        document.removeEventListener('mouseup', handleGlobalMouseUp);
-      };
+    // Clear long press timer if it exists
+    if (longPressTimerRef.current) {
+      clearTimeout(longPressTimerRef.current);
+      longPressTimerRef.current = null;
     }
-  }, [isDragging]);
+  };
 
   // 浮动按钮拖动事件处理
   const handleButtonMouseDown = (e: React.MouseEvent<HTMLDivElement>) => {
+    // Only handle left mouse button (0)
+    if (e.button !== 0) return;
+    
+    // Prevent text selection during drag
+    e.preventDefault();
+    
     // 开始长按检测
     setIsLongPress(false);
     setIsClickPrevented(false);
@@ -98,22 +210,78 @@ export function MindyAssistant({}: MindyAssistantProps) {
     const timer = setTimeout(() => {
       setIsLongPress(true);
       setIsClickPrevented(true);
+      buttonDraggingRef.current = true;
+      
+      // Calculate offset from mouse to button origin
+      if (buttonRef.current) {
+        const rect = buttonRef.current.getBoundingClientRect();
+        buttonDragOffset.current = {
+          x: e.clientX - rect.left,
+          y: e.clientY - rect.top
+        };
+        
+        // Add global mouse move and up listeners
+        document.addEventListener('mousemove', handleGlobalButtonMouseMove);
+        document.addEventListener('mouseup', handleGlobalButtonMouseUp);
+      }
+      
+      // Disable text selection globally during drag
+      document.body.style.userSelect = 'none';
     }, 300);
     
     setLongPressTimer(timer);
-    setButtonDragStart({
-      x: e.clientX - buttonPosition.x,
-      y: e.clientY - buttonPosition.y
+  };
+
+  // Handle global button mouse move (during dragging)
+  const handleGlobalButtonMouseMove = (e: MouseEvent) => {
+    if (!buttonDraggingRef.current || !buttonRef.current) return;
+    
+    // Prevent text selection during drag
+    e.preventDefault();
+    
+    // Cancel previous animation frame to avoid accumulation
+    if (buttonRafRef.current) {
+      cancelAnimationFrame(buttonRafRef.current);
+    }
+    
+    // Use requestAnimationFrame for smoother dragging
+    buttonRafRef.current = requestAnimationFrame(() => {
+      if (!buttonRef.current) return;
+      
+      // Calculate new position relative to window
+      const newX = e.clientX - buttonDragOffset.current.x - (window.innerWidth - 100);
+      const newY = e.clientY - buttonDragOffset.current.y - (window.innerHeight - 100);
+      
+      // Update position state
+      setButtonPosition({ x: newX, y: newY });
     });
+  };
+
+  // Handle global button mouse up (end dragging)
+  const handleGlobalButtonMouseUp = () => {
+    // Cancel any pending animation frames
+    if (buttonRafRef.current) {
+      cancelAnimationFrame(buttonRafRef.current);
+      buttonRafRef.current = null;
+    }
+    
+    // Remove global event listeners
+    document.removeEventListener('mousemove', handleGlobalButtonMouseMove);
+    document.removeEventListener('mouseup', handleGlobalButtonMouseUp);
+    
+    // Re-enable text selection
+    document.body.style.userSelect = '';
+    
+    // Reset dragging state
+    buttonDraggingRef.current = false;
+    setIsButtonDragging(false);
+    setIsLongPress(false);
   };
 
   const handleButtonMouseMove = (e: React.MouseEvent<HTMLDivElement>) => {
     if (isLongPress) {
-      setIsButtonDragging(true);
-      setButtonPosition({
-        x: e.clientX - buttonDragStart.x,
-        y: e.clientY - buttonDragStart.y
-      });
+      // Prevent text selection during drag
+      e.preventDefault();
     }
   };
 
@@ -124,8 +292,9 @@ export function MindyAssistant({}: MindyAssistantProps) {
       setLongPressTimer(null);
     }
     
-    setIsButtonDragging(false);
-    setIsLongPress(false);
+    if (!isLongPress) {
+      setIsClickPrevented(false);
+    }
   };
 
   const handleButtonMouseLeave = (_: React.MouseEvent<HTMLDivElement>) => {
@@ -135,8 +304,11 @@ export function MindyAssistant({}: MindyAssistantProps) {
       setLongPressTimer(null);
     }
     
-    setIsButtonDragging(false);
-    setIsLongPress(false);
+    // Reset states if not dragging
+    if (!buttonDraggingRef.current) {
+      setIsButtonDragging(false);
+      setIsLongPress(false);
+    }
   };
 
   // 处理按钮点击
@@ -288,8 +460,8 @@ export function MindyAssistant({}: MindyAssistantProps) {
             transition={{ type: 'spring', stiffness: 300, damping: 25 }}
             className="fixed w-[400px] h-[600px] bg-card border-2 border-primary/30 rounded-3xl shadow-2xl flex flex-col overflow-hidden z-40"
             style={{
-              left: `${position.x + 800}px`, // 默认位置偏右
-              top: `${position.y + 100}px`,  // 默认位置偏上
+              left: `${position.x}px`,
+              top: `${position.y}px`,
             }}
             ref={chatWindowRef}
           >

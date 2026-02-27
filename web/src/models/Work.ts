@@ -7,6 +7,10 @@ export interface Work {
   nodes?: number;
   category?: string;
   tags?: string[];
+  layout?: {
+    mode: string;
+    direction: string;
+  };
   // 新增字段 - 持久化存储
   createdAt: string; // ISO 8601 格式时间戳
   isDeleted: boolean; // 软删除标记
@@ -24,6 +28,10 @@ export interface WorkCreateDTO {
   category?: string;
   tags?: string[];
   nodes?: number;
+  layout?: {
+    mode: string;
+    direction: string;
+  };
   isDefault?: boolean;
   isReadonly?: boolean;
 }
@@ -33,6 +41,10 @@ export interface WorkUpdateDTO {
   category?: string;
   tags?: string[];
   starred?: boolean;
+  layout?: {
+    mode: string;
+    direction: string;
+  };
   encryptedData?: string;
   isDefault?: boolean;
   isReadonly?: boolean;
@@ -59,4 +71,23 @@ export interface QueryOptions {
   sortOrder?: 'asc' | 'desc';
   page?: number;
   pageSize?: number;
+}
+
+export interface MindMapNode {
+  id: string;
+  x: number;
+  y: number;
+  title: string;
+  summary?: string;
+  content?: string;
+  type: 'person' | 'event' | 'concept' | 'task' | 'other';
+  shape: 'rectangle' | 'rounded' | 'circle' | 'cloud';
+  color: string;
+  fontSize?: number;
+  icon?: string;
+  connectionType?: 'straight' | 'curved' | 'dashed' | 'wavy';
+  children: string[];
+  metadata?: Record<string, any>;
+  expanded?: boolean;
+  level?: number;
 }

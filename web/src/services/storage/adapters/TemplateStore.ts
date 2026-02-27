@@ -128,7 +128,7 @@ export class TemplateStore extends WorkStore implements TemplateRepository {
     const encryptionService = (this as any).encryptionService;
     const key = keyManager.getKey();
     if (!key) {
-      throw new Error('No encryption key available');
+      throw new Error('没有可用的加密密钥');
     }
     
     const templateData = {
@@ -155,7 +155,7 @@ export class TemplateStore extends WorkStore implements TemplateRepository {
     const dbAdapter = (this as any).dbAdapter;
     const template = await this.readTemplate(templateId);
     if (!template) {
-      throw new Error('Template not found');
+      throw new Error('模板未找到');
     }
     
     // 更新字段
@@ -174,7 +174,7 @@ export class TemplateStore extends WorkStore implements TemplateRepository {
     const encryptionService = (this as any).encryptionService;
     const key = keyManager.getKey();
     if (!key) {
-      throw new Error('No encryption key available');
+      throw new Error('没有可用的加密密钥');
     }
     
     const templateData = {
@@ -201,7 +201,7 @@ export class TemplateStore extends WorkStore implements TemplateRepository {
     const dbAdapter = (this as any).dbAdapter;
     const template = await this.readTemplate(templateId);
     if (!template) {
-      throw new Error('Template not found');
+      throw new Error('模板未找到');
     }
     
     const now = new Date().toISOString();
@@ -289,7 +289,7 @@ export class TemplateStore extends WorkStore implements TemplateRepository {
     const dbAdapter = (this as any).dbAdapter;
     const template = await this.readTemplate(templateId);
     if (!template) {
-      throw new Error('Template not found');
+      throw new Error('模板未找到');
     }
     
     const updatedTemplate: Template = {

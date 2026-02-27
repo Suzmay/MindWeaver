@@ -119,14 +119,14 @@ export class HistoryStore implements HistoryRepository {
       // 获取指定的历史版本
       const version = await this.getVersionById(versionId);
       if (!version || version.workId !== workId) {
-        throw new Error('Version not found or does not belong to the specified work');
+        throw new Error('版本未找到或不属于指定作品');
       }
 
       // 获取当前作品
       const workStore = new WorkStore(this.dbAdapter, this.eventEmitter);
       const currentWork = await workStore.read(workId);
       if (!currentWork) {
-        throw new Error('Work not found');
+        throw new Error('作品未找到');
       }
 
       // 使用历史版本的快照数据更新作品

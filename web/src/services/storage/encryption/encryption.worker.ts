@@ -1,4 +1,4 @@
-// Encryption Web Worker
+// 加密 Web Worker
 
 interface EncryptionRequest {
   id: string;

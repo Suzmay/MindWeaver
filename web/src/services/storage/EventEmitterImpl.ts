@@ -34,7 +34,7 @@ export class SimpleEventEmitter implements EventEmitter {
       try {
         callback(eventData);
       } catch (error) {
-        console.error('Error in event callback:', error);
+        console.error('事件回调错误:', error);
       }
     });
   }

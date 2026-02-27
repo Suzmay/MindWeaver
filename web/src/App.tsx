@@ -11,7 +11,7 @@ export default function App() {
   const navigate = useNavigate();
 
   useEffect(() => {
-    // Update active tab based on current path
+    // 根据当前路径更新活动标签
     const path = location.pathname;
     if (path.includes('/account')) {
       setActiveTab('account');

@@ -21,7 +21,7 @@ export class ShardStore {
     // 加密分片数据
     const key = this.keyManager.getKey();
     if (!key) {
-      throw new Error('No encryption key available');
+      throw new Error('没有可用的加密密钥');
     }
 
     const encryptedShard = {

@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { useLocation } from 'react-router-dom';
-import { Plus, Grid3x3, List, MoreVertical, Trash2, Download, FileText, Search, Filter, Star, Clock, Folder, Tag, FileEdit, Lock, Check, CheckSquare, Square, AlertTriangle, X } from 'lucide-react';
+import { Plus, Grid3x3, List, MoreVertical, Trash2, Download, FileText, Search, Filter, Star, Clock, Folder, Tag, FileEdit, Lock, Check, CheckSquare, Square, AlertTriangle, X, ArrowLeft, RotateCcw } from 'lucide-react';
 import { Button } from './ui/button';
 import { Card, CardContent } from './ui/card';
 import { Input } from './ui/input';
@@ -28,6 +28,7 @@ import {
   DialogTitle,
 } from './ui/dialog';
 import { Label } from './ui/label';
+import { LayoutSelectionDialog } from './editor/LayoutSelectionDialog';
 import { Work } from '../models/Work';
 import { useStorage } from '../context/StorageContext';
 import { useUser } from '../context/UserContext';
@@ -67,6 +68,8 @@ export function WorksPage({ onEditWork }: WorksPageProps) {
   
   // 创建状态
   const [isCreating, setIsCreating] = useState(false);
+  // 布局选择对话框状态
+  const [showLayoutDialog, setShowLayoutDialog] = useState(false);
   // 保存结果
   const [saveResult, setSaveResult] = useState<'success' | 'error' | null>(null);
   // 保存消息
@@ -145,7 +148,17 @@ export function WorksPage({ onEditWork }: WorksPageProps) {
     };
   }, [loadWorks, location.pathname]);
 
-  const handleNewWork = async () => {
+  // 处理新建思维导图
+  const handleNewWork = () => {
+    // 显示布局选择对话框
+    setShowLayoutDialog(true);
+  };
+
+  // 处理布局选择
+  const handleLayoutSelect = async (layout: { mode: string; direction: string; category: string }) => {
+    // 关闭对话框
+    setShowLayoutDialog(false);
+    
     // 防止重复点击
     if (isCreating) {
       return;
@@ -158,12 +171,27 @@ export function WorksPage({ onEditWork }: WorksPageProps) {
       setSaveResult(null);
       setSaveMessage('');
       
+      // 生成唯一的标题
+      let baseTitle = '未命名思维导图';
+      let title = baseTitle;
+      let counter = 1;
+      
+      // 检查是否已存在同名作品
+      while (works.some(work => work.title === title)) {
+        title = `${baseTitle}(${counter})`;
+        counter++;
+      }
+      
       // 构建 WorkCreateDTO 对象
       const workCreateDTO = {
-        title: '未命名思维导图',
-        category: '个人',
+        title: title,
+        category: layout.category,
         tags: [],
-        nodes: 0
+        nodes: 0,
+        layout: {
+          mode: layout.mode,
+          direction: layout.direction
+        }
       };
       
       // 调用存储服务的 createWork 方法
@@ -411,13 +439,49 @@ export function WorksPage({ onEditWork }: WorksPageProps) {
     setDeleteConfirmDialogOpen(true);
   };
 
+  // 批量恢复作品（从废纸篓）
+  const handleBatchRestore = async () => {
+    try {
+      // 先执行所有恢复操作
+      for (const workId of selectedWorks) {
+        await storage.restoreWork(workId);
+      }
+      
+      // 清空本地作品列表，强制重新加载
+      setWorks([]);
+      setTotalWorks(0);
+      
+      // 重新加载作品列表，保持当前筛选状态
+      const queryOptions = {
+        page: 1,
+        pageSize: pageSize,
+        searchText: searchQuery,
+        category: filterCategory === 'all' || filterCategory === 'grouped' ? undefined : filterCategory,
+        starredOnly: showStarredOnly,
+        tags: filterTag === 'all' ? undefined : [filterTag],
+        sortBy: sortBy === 'starred' || sortBy === 'recent' ? undefined : sortBy,
+        deletedOnly: showTrash,
+        sortOrder: 'desc' as const
+      };
+      
+      const loadedWorks = await storage.listWorks(queryOptions);
+      setWorks(loadedWorks);
+      setTotalWorks(loadedWorks.length);
+      setCurrentPage(1);
+      clearSelection();
+    } catch (error) {
+      // 静默处理错误
+    }
+  };
+
   const confirmBatchDelete = async () => {
     try {
       // 先执行所有删除操作
       for (const workId of selectedWorks) {
         const work = works.find(w => w.id === workId);
         if (work && !work.isReadonly) {
-          await storage.deleteWork(workId);
+          // 在废纸篓中执行永久删除，否则执行普通删除（移入废纸篓）
+          await storage.deleteWork(workId, showTrash);
         }
       }
       
@@ -544,7 +608,7 @@ export function WorksPage({ onEditWork }: WorksPageProps) {
     };
   };
 
-  // Filter and sort works
+  // 筛选和排序作品
   const filteredWorks = works
     .filter(work => {
       const matchesSearch = work.title.toLowerCase().includes(searchQuery.toLowerCase());
@@ -602,11 +666,26 @@ export function WorksPage({ onEditWork }: WorksPageProps) {
         </div>
         <div className="flex items-center gap-2">
           <Button
-            onClick={() => setShowTrash(!showTrash)}
+            onClick={() => {
+              setShowTrash(!showTrash);
+              // 重置选择栏状态
+              setIsBatchMode(false);
+              setSelectedWorks([]);
+              setIsAllSelected(false);
+            }}
             className="rounded-2xl gap-2 bg-gradient-to-br from-primary to-secondary hover:opacity-90 shadow-ocean font-semibold"
           >
-            <Trash2 className="w-5 h-5" />
-            {showTrash ? '返回作品' : '废纸篓'}
+            {showTrash ? (
+              <>
+                <ArrowLeft className="w-5 h-5" />
+                返回作品
+              </>
+            ) : (
+              <>
+                <Trash2 className="w-5 h-5" />
+                废纸篓
+              </>
+            )}
           </Button>
           {!showTrash && (
             <Button 
@@ -664,7 +743,7 @@ export function WorksPage({ onEditWork }: WorksPageProps) {
           <DialogHeader>
             <DialogTitle className="text-lg font-semibold">确认删除</DialogTitle>
             <DialogDescription>
-              您确定要删除选中的 {selectedWorks.length} 个作品吗？此操作无法撤销。
+              您确定要删除选中的 {selectedWorks.length} 个作品吗？
             </DialogDescription>
           </DialogHeader>
           <DialogFooter className="flex justify-between">
@@ -902,17 +981,31 @@ export function WorksPage({ onEditWork }: WorksPageProps) {
             </div>
           </div>
           <div className="flex items-center gap-2">
-            <Button
-              type="button"
-              variant="outline"
-              size="sm"
-              onClick={handleBatchExport}
-              disabled={selectedWorks.length === 0}
-              className="rounded-2xl border-primary/30 hover:opacity-90 hover:text-foreground"
-            >
-              <Download className="w-4 h-4 mr-1" />
-              导出
-            </Button>
+            {showTrash ? (
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                onClick={handleBatchRestore}
+                disabled={selectedWorks.length === 0}
+                className="rounded-2xl border-primary/30 hover:opacity-90 hover:text-foreground"
+              >
+                <RotateCcw className="w-4 h-4 mr-1" />
+                恢复
+              </Button>
+            ) : (
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                onClick={handleBatchExport}
+                disabled={selectedWorks.length === 0}
+                className="rounded-2xl border-primary/30 hover:opacity-90 hover:text-foreground"
+              >
+                <Download className="w-4 h-4 mr-1" />
+                导出
+              </Button>
+            )}
             <Button
               type="button"
               variant="destructive"
@@ -922,7 +1015,7 @@ export function WorksPage({ onEditWork }: WorksPageProps) {
               className="rounded-lg"
             >
               <Trash2 className="w-4 h-4 mr-1" />
-              删除
+              {showTrash ? '永久删除' : '删除'}
             </Button>
           </div>
         </div>
@@ -992,20 +1085,22 @@ export function WorksPage({ onEditWork }: WorksPageProps) {
                             <Square className="w-4 h-4 text-muted-foreground" />
                           )}
                         </button>
-                        {/* Star button */}
-                        <button
-                          type="button"
-                          onClick={(e) => !work.isReadonly && toggleStar(work.id, e)}
-                          title={work.starred ? '取消收藏' : '收藏'}
-                          disabled={work.isReadonly}
-                          className={`absolute top-3 right-3 w-8 h-8 rounded-full flex items-center justify-center transition-all z-10 hover:scale-110 ${
-                            work.starred 
-                              ? 'bg-warning/20 hover:bg-warning/30 dark:bg-slate-700/90 dark:hover:bg-slate-600'
-                              : 'bg-white/90 hover:bg-white dark:bg-slate-800/90 dark:hover:bg-slate-700'
-                          } ${work.isReadonly ? 'opacity-50 cursor-not-allowed' : ''}`}
-                        >
-                          <Star className={`w-4 h-4 ${work.starred ? 'fill-warning text-warning dark:fill-warning dark:text-warning' : 'text-muted-foreground dark:text-slate-500'}`} />
-                        </button>
+                        {/* Star button - only show when not in trash */}
+                        {!showTrash && (
+                          <button
+                            type="button"
+                            onClick={(e) => !work.isReadonly && toggleStar(work.id, e)}
+                            title={work.starred ? '取消收藏' : '收藏'}
+                            disabled={work.isReadonly}
+                            className={`absolute top-3 right-3 w-8 h-8 rounded-full flex items-center justify-center transition-all z-10 hover:scale-110 ${
+                              work.starred 
+                                ? 'bg-warning/20 hover:bg-warning/30 dark:bg-slate-700/90 dark:hover:bg-slate-600'
+                                : 'bg-white/90 hover:bg-white dark:bg-slate-800/90 dark:hover:bg-slate-700'
+                            } ${work.isReadonly ? 'opacity-50 cursor-not-allowed' : ''}`}
+                          >
+                            <Star className={`w-4 h-4 ${work.starred ? 'fill-warning text-warning dark:fill-warning dark:text-warning' : 'text-muted-foreground dark:text-slate-500'}`} />
+                          </button>
+                        )}
                         {/* Readonly badge */}
                         {work.isReadonly && (
                           <Badge className="absolute top-3 left-12 bg-warning/20 text-warning border-warning/30 gap-1 z-10">
@@ -1081,7 +1176,7 @@ export function WorksPage({ onEditWork }: WorksPageProps) {
                                   onClick={(e) => handleRestoreWork(work.id, e)}
                                   className="rounded-lg"
                                 >
-                                  <Plus className="w-4 h-4 mr-2" />
+                                  <RotateCcw className="w-4 h-4 mr-2" />
                                   恢复
                                 </DropdownMenuItem>
                                 <DropdownMenuSeparator />
@@ -1187,20 +1282,22 @@ export function WorksPage({ onEditWork }: WorksPageProps) {
                       <Square className="w-4 h-4 text-muted-foreground" />
                     )}
                   </button>
-                  {/* Star button */}
-                  <button
-                    type="button"
-                    onClick={(e) => !work.isReadonly && toggleStar(work.id, e)}
-                    title={work.starred ? '取消收藏' : '收藏'}
-                    disabled={work.isReadonly}
-                    className={`absolute top-3 right-3 w-8 h-8 rounded-full flex items-center justify-center transition-all z-10 hover:scale-110 ${
-                      work.starred 
-                        ? 'bg-warning/20 hover:bg-warning/30 dark:bg-slate-700/90 dark:hover:bg-slate-600'
-                        : 'bg-white/90 hover:bg-white dark:bg-slate-800/90 dark:hover:bg-slate-700'
-                    } ${work.isReadonly ? 'opacity-50 cursor-not-allowed' : ''}`}
-                  >
-                    <Star className={`w-4 h-4 ${work.starred ? 'fill-warning text-warning dark:fill-warning dark:text-warning' : 'text-muted-foreground dark:text-slate-500'}`} />
-                  </button>
+                  {/* Star button - only show when not in trash */}
+                  {!showTrash && (
+                    <button
+                      type="button"
+                      onClick={(e) => !work.isReadonly && toggleStar(work.id, e)}
+                      title={work.starred ? '取消收藏' : '收藏'}
+                      disabled={work.isReadonly}
+                      className={`absolute top-3 right-3 w-8 h-8 rounded-full flex items-center justify-center transition-all z-10 hover:scale-110 ${
+                        work.starred 
+                          ? 'bg-warning/20 hover:bg-warning/30 dark:bg-slate-700/90 dark:hover:bg-slate-600'
+                          : 'bg-white/90 hover:bg-white dark:bg-slate-800/90 dark:hover:bg-slate-700'
+                      } ${work.isReadonly ? 'opacity-50 cursor-not-allowed' : ''}`}
+                    >
+                      <Star className={`w-4 h-4 ${work.starred ? 'fill-warning text-warning dark:fill-warning dark:text-warning' : 'text-muted-foreground dark:text-slate-500'}`} />
+                    </button>
+                  )}
                   {/* Readonly badge */}
                   {work.isReadonly && (
                     <Badge className="absolute top-3 left-12 bg-warning/20 text-warning border-warning/30 gap-1 z-10">
@@ -1276,7 +1373,7 @@ export function WorksPage({ onEditWork }: WorksPageProps) {
                             onClick={(e) => handleRestoreWork(work.id, e)}
                             className="rounded-lg"
                           >
-                            <Plus className="w-4 h-4 mr-2" />
+                            <RotateCcw className="w-4 h-4 mr-2" />
                             恢复
                           </DropdownMenuItem>
                           <DropdownMenuSeparator />
@@ -1523,6 +1620,13 @@ export function WorksPage({ onEditWork }: WorksPageProps) {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      {/* Layout Selection Dialog */}
+      <LayoutSelectionDialog
+        isOpen={showLayoutDialog}
+        onClose={() => setShowLayoutDialog(false)}
+        onSelect={handleLayoutSelect}
+      />
     </div>
   );
 }
