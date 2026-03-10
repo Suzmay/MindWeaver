@@ -67,14 +67,14 @@ export class StorageService {
       
       this.emitEvent(EventType.INITIALIZED, {
         data: {
-          message: 'Storage service initialized successfully'
+          message: '存储服务初始化成功'
         }
       });
     } catch (error) {
       this.emitEvent(EventType.ERROR, {
         error: error as Error,
         data: {
-          message: 'Failed to initialize storage service'
+          message: '存储服务初始化失败'
         }
       });
       throw error;
@@ -101,17 +101,15 @@ export class StorageService {
       
       this.emitEvent(EventType.INITIALIZED, {
         data: {
-          message: 'Storage service closed successfully'
+          message: '存储服务关闭成功'
         }
       });
-
-      console.log('StorageService closed successfully');
     } catch (error) {
-      console.error('StorageService close error:', error);
+      console.error('存储服务关闭错误:', error);
       this.emitEvent(EventType.ERROR, {
         error: error as Error,
         data: {
-          message: 'Failed to close storage service'
+          message: '存储服务关闭失败'
         }
       });
       throw error;
@@ -128,22 +126,20 @@ export class StorageService {
     this.ensureInitialized();
     
     try {
-      console.log('StorageService.createWork: 开始创建作品', dto);
       const work = await this.workStore.create(dto);
-      console.log('StorageService.createWork: 作品创建成功', work);
       this.workCache.set(work.id, work);
       
       this.emitEvent(EventType.WORK_CREATED, {
         workId: work.id,
         data: {
-          message: `Work created: ${work.title}`
+          message: `作品创建成功: ${work.title}`
         }
       });
 
       return work;
     } catch (error) {
       console.error('StorageService.createWork: 创建作品时出错', error);
-      this.handleError('createWork', error);
+      this.handleError('创建作品', error);
       throw error;
     }
   }
@@ -164,7 +160,7 @@ export class StorageService {
       }
       return work;
     } catch (error) {
-      this.handleError('readWork', error);
+      this.handleError('读取作品', error);
       throw error;
     }
   }
@@ -176,7 +172,7 @@ export class StorageService {
       // 检查作品是否为只读
       const existingWork = await this.workStore.read(workId);
       if (existingWork?.isReadonly) {
-        throw new Error('Cannot update readonly work');
+        throw new Error('无法更新只读作品');
       }
       
       const work = await this.workStore.update(workId, dto);
@@ -185,13 +181,13 @@ export class StorageService {
       this.emitEvent(EventType.WORK_UPDATED, {
         workId: work.id,
         data: {
-          message: `Work updated: ${work.title}`
+          message: `作品更新成功: ${work.title}`
         }
       });
 
       return work;
     } catch (error) {
-      this.handleError('updateWork', error);
+      this.handleError('更新作品', error);
       throw error;
     }
   }
@@ -203,7 +199,7 @@ export class StorageService {
       // 检查作品是否为只读
       const existingWork = await this.workStore.read(workId);
       if (existingWork?.isReadonly) {
-        throw new Error('Cannot delete readonly work');
+        throw new Error('无法删除只读作品');
       }
       
       // 先删除作品本身
@@ -232,13 +228,13 @@ export class StorageService {
         this.emitEvent(EventType.WORK_DELETED, {
           workId,
           data: {
-            message: `Work deleted: ${workId}`
+            message: `作品删除成功: ${workId}`
           }
         });
       }
       return result;
     } catch (error) {
-      this.handleError('deleteWork', error);
+      this.handleError('删除作品', error);
       throw error;
     }
   }
@@ -250,7 +246,7 @@ export class StorageService {
       // 读取原作品
       const existingWork = await this.workStore.read(workId);
       if (!existingWork) {
-        throw new Error('Work not found');
+        throw new Error('作品未找到');
       }
       
       // 准备复制数据
@@ -268,13 +264,13 @@ export class StorageService {
       this.emitEvent(EventType.WORK_CREATED, {
         workId: copiedWork.id,
         data: {
-          message: `Work copied: ${copiedWork.title}`
+          message: `作品复制成功: ${copiedWork.title}`
         }
       });
 
       return copiedWork;
     } catch (error) {
-      this.handleError('copyWork', error);
+      this.handleError('复制作品', error);
       throw error;
     }
   }
@@ -286,7 +282,7 @@ export class StorageService {
       // 检查作品是否为只读
       const existingWork = await this.workStore.read(workId);
       if (existingWork?.isReadonly) {
-        throw new Error('Cannot restore readonly work');
+        throw new Error('无法恢复只读作品');
       }
       
       const work = await this.workStore.restore(workId);
@@ -295,13 +291,13 @@ export class StorageService {
       this.emitEvent(EventType.WORK_RESTORED, {
         workId: work.id,
         data: {
-          message: `Work restored: ${work.title}`
+          message: `作品恢复成功: ${work.title}`
         }
       });
 
       return work;
     } catch (error) {
-      this.handleError('restoreWork', error);
+      this.handleError('恢复作品', error);
       throw error;
     }
   }
@@ -327,7 +323,7 @@ export class StorageService {
       const result = await this.workStore.list(safeOptions);
       return result;
     } catch (error) {
-      this.handleError('listWorks', error);
+      this.handleError('列出作品', error);
       throw error;
     }
   }
@@ -342,13 +338,13 @@ export class StorageService {
       
       this.emitEvent(EventType.WORK_CREATED, {
         data: {
-          message: `Created ${works.length} works`
+          message: `创建了 ${works.length} 个作品`
         }
       });
 
       return works;
     } catch (error) {
-      this.handleError('batchCreateWorks', error);
+      this.handleError('批量创建作品', error);
       throw error;
     }
   }
@@ -365,13 +361,13 @@ export class StorageService {
       
       this.emitEvent(EventType.WORK_UPDATED, {
         data: {
-          message: `Updated ${result.success.length} works`
+          message: `更新了 ${result.success.length} 个作品`
         }
       });
 
       return result;
     } catch (error) {
-      this.handleError('batchUpdateWorks', error);
+      this.handleError('批量更新作品', error);
       throw error;
     }
   }
@@ -391,13 +387,13 @@ export class StorageService {
       
       this.emitEvent(EventType.WORK_DELETED, {
         data: {
-          message: `Deleted ${result.success.length} works`
+          message: `删除了 ${result.success.length} 个作品`
         }
       });
 
       return result;
     } catch (error) {
-      this.handleError('batchDeleteWorks', error);
+      this.handleError('批量删除作品', error);
       throw error;
     }
   }
@@ -409,7 +405,7 @@ export class StorageService {
     try {
       return await this.workStore.export(workId, format);
     } catch (error) {
-      this.handleError('exportWork', error);
+      this.handleError('导出作品', error);
       throw error;
     }
   }
@@ -424,13 +420,13 @@ export class StorageService {
       this.emitEvent(EventType.WORK_CREATED, {
         workId: work.id,
         data: {
-          message: `Work imported: ${work.title}`
+          message: `作品导入成功: ${work.title}`
         }
       });
 
       return work;
     } catch (error) {
-      this.handleError('importWork', error);
+      this.handleError('导入作品', error);
       throw error;
     }
   }
@@ -446,13 +442,13 @@ export class StorageService {
         workId: dto.workId,
         versionId: version.id,
         data: {
-          message: `Version created: ${version.versionNumber}`
+          message: `版本创建成功: ${version.versionNumber}`
         }
       });
 
       return version;
     } catch (error) {
-      this.handleError('createVersion', error);
+      this.handleError('创建版本', error);
       throw error;
     }
   }
@@ -464,7 +460,7 @@ export class StorageService {
       const result = await this.historyStore.getVersions(workId, page, pageSize);
       return result.versions;
     } catch (error) {
-      this.handleError('getVersions', error);
+      this.handleError('获取版本列表', error);
       throw error;
     }
   }
@@ -475,7 +471,7 @@ export class StorageService {
     try {
       return await this.historyStore.getLatestVersion(workId);
     } catch (error) {
-      this.handleError('getLatestVersion', error);
+      this.handleError('获取最新版本', error);
       throw error;
     }
   }
@@ -493,13 +489,13 @@ export class StorageService {
           workId,
           versionId,
           data: {
-            message: `Version restored: ${versionId}`
+            message: `版本恢复成功: ${versionId}`
           }
         });
       }
       return result;
     } catch (error) {
-      this.handleError('restoreVersion', error);
+      this.handleError('恢复版本', error);
       throw error;
     }
   }
@@ -510,7 +506,7 @@ export class StorageService {
     try {
       return await this.historyStore.cleanupOldVersions(workId, keepCount);
     } catch (error) {
-      this.handleError('cleanupOldVersions', error);
+      this.handleError('清理旧版本', error);
       throw error;
     }
   }
@@ -526,13 +522,13 @@ export class StorageService {
       this.emitEvent(EventType.TEMPLATE_CREATED, {
         templateId: template.id,
         data: {
-          message: `Template created: ${template.title}`
+          message: `模板创建成功: ${template.title}`
         }
       });
 
       return template;
     } catch (error) {
-      this.handleError('createTemplate', error);
+      this.handleError('创建模板', error);
       throw error;
     }
   }
@@ -547,13 +543,13 @@ export class StorageService {
       this.emitEvent(EventType.TEMPLATE_UPDATED, {
         templateId: template.id,
         data: {
-          message: `Template updated: ${template.title}`
+          message: `模板更新成功: ${template.title}`
         }
       });
 
       return template;
     } catch (error) {
-      this.handleError('updateTemplate', error);
+      this.handleError('更新模板', error);
       throw error;
     }
   }
@@ -575,7 +571,7 @@ export class StorageService {
       }
       return template;
     } catch (error) {
-      this.handleError('getTemplate', error);
+      this.handleError('获取模板', error);
       throw error;
     }
   }
@@ -586,7 +582,7 @@ export class StorageService {
     try {
       return await this.templateStore.findByType(templateType);
     } catch (error) {
-      this.handleError('findTemplatesByType', error);
+      this.handleError('按类型查找模板', error);
       throw error;
     }
   }
@@ -597,7 +593,7 @@ export class StorageService {
     try {
       return await this.templateStore.getDefaultTemplates();
     } catch (error) {
-      this.handleError('getDefaultTemplates', error);
+      this.handleError('获取默认模板', error);
       throw error;
     }
   }
@@ -608,7 +604,7 @@ export class StorageService {
     try {
       return await this.templateStore.listTemplates(options);
     } catch (error) {
-      this.handleError('listTemplates', error);
+      this.handleError('列出模板', error);
       throw error;
     }
   }
@@ -623,13 +619,13 @@ export class StorageService {
       this.emitEvent(EventType.TEMPLATE_CREATED, {
         templateId: template.id,
         data: {
-          message: `Template copied: ${template.title}`
+          message: `模板复制成功: ${template.title}`
         }
       });
 
       return template;
     } catch (error) {
-      this.handleError('copyTemplate', error);
+      this.handleError('复制模板', error);
       throw error;
     }
   }
@@ -645,7 +641,7 @@ export class StorageService {
         this.templateCache.set(template.id, { ...template, usageCount: template.usageCount + 1 });
       }
     } catch (error) {
-      this.handleError('incrementTemplateUsage', error);
+      this.handleError('增加模板使用次数', error);
       throw error;
     }
   }
@@ -726,7 +722,6 @@ export class StorageService {
         const keys = this.workCache.keys();
         const keysToDelete = keys.slice(0, Math.floor(keys.length / 2));
         this.workCache.batchDelete(keysToDelete);
-        console.log(`Cleaned up ${keysToDelete.length} items from work cache`);
       }
 
       // 检查模板缓存内存使用情况
@@ -736,13 +731,12 @@ export class StorageService {
         const keys = this.templateCache.keys();
         const keysToDelete = keys.slice(0, Math.floor(keys.length / 2));
         this.templateCache.batchDelete(keysToDelete);
-        console.log(`Cleaned up ${keysToDelete.length} items from template cache`);
       }
 
       // 清理分片缓存
       this.shardManager.clearCache('');
     } catch (error) {
-      console.error('Cache cleanup error:', error);
+      console.error('缓存清理错误:', error);
     }
   }
 
@@ -751,7 +745,6 @@ export class StorageService {
     this.workCache.clear();
     this.templateCache.clear();
     this.shardManager.clearCache('');
-    console.log('Cache cleared manually');
   }
 
   // 数据库管理方法
@@ -760,7 +753,6 @@ export class StorageService {
       await this.close();
     }
     await this.dbAdapter.deleteDatabase();
-    console.log('Database deleted successfully');
   }
 
   // 分片管理方法
@@ -843,14 +835,14 @@ export class StorageService {
     this.emitEvent(EventType.ERROR, {
       error: error as Error,
       data: {
-        message: `Error in ${method}: ${error.message || String(error)}`
+        message: `${method} 方法错误: ${error.message || String(error)}`
       }
     });
   }
 
   private ensureInitialized(): void {
     if (!this.initialized) {
-      throw new Error('StorageService not initialized');
+      throw new Error('存储服务未初始化');
     }
   }
 }

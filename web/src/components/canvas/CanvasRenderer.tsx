@@ -1,5 +1,6 @@
 import React, { useRef, useEffect, useState } from 'react';
 import { MindMapNode } from '../../models/Work';
+import { useTheme } from '../../context/ThemeContext';
 
 interface CanvasRendererProps {
   nodes: MindMapNode[];
@@ -41,6 +42,18 @@ export const CanvasRenderer: React.FC<CanvasRendererProps> = ({
   const draggedNodePositionRef = useRef<{ x: number; y: number } | null>(null);
   const isNodeDraggingRef = useRef(false);
   const draggedNodeRef = useRef<string | null>(null);
+  const { theme } = useTheme();
+  const [isDarkMode, setIsDarkMode] = useState(false);
+
+  // 监听主题变化
+  useEffect(() => {
+    if (theme === 'auto') {
+      const isDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
+      setIsDarkMode(isDark);
+    } else {
+      setIsDarkMode(theme === 'dark');
+    }
+  }, [theme]);
 
   // 检查 WebGL 可用性
   useEffect(() => {
@@ -87,7 +100,7 @@ export const CanvasRenderer: React.FC<CanvasRendererProps> = ({
     ctx.scale(zoom, zoom);
 
     // 绘制网格
-    ctx.strokeStyle = '#f0f0f0';
+    ctx.strokeStyle = isDarkMode ? '#333333' : '#e0e0e0';
     ctx.lineWidth = 1;
     const gridSize = 50;
     

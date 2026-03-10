@@ -10,9 +10,6 @@ import {
   Redo,
   Layout,
   Layers,
-  Type,
-  Image,
-  MoreHorizontal,
   RefreshCw,
   Eye,
 } from 'lucide-react';
@@ -54,13 +51,13 @@ interface MindMapEditorProps {
 }
 
 export function MindMapEditor({ workId, onBack }: MindMapEditorProps) {
-  // Services
+  // 服务
   const storage = useStorage();
   const preferencesService = UserPreferencesService.getInstance();
   const encryptionService = EncryptionService.getInstance();
   const keyManager = KeyManager.getInstance();
 
-  // State
+  // 状态
   const [zoom, setZoom] = useState(1);
   const [pan, setPan] = useState({ x: 0, y: 0 });
   const canvasContainerRef = useRef<HTMLDivElement>(null);
@@ -140,25 +137,23 @@ export function MindMapEditor({ workId, onBack }: MindMapEditorProps) {
     direction: 'horizontal'
   });
   
-  // State for hidden levels
+  // 隐藏层级的状态
   const [hiddenLevels, setHiddenLevels] = useState<Set<number>>(new Set());
   
-  // State for canvas size (used by mini map)
+  // 画布大小的状态（用于迷你地图）
   const [canvasSize, setCanvasSize] = useState({ width: 800, height: 600 });
   
-  // Refs
+  // 引用
   const autoSaveTimerRef = useRef<number | null>(null);
 
-  // Monitor nodes changes and ensure new nodes are in expandedNodes set
+  // 监控节点变化并确保新节点在 expandedNodes 集合中
   useEffect(() => {
-    // Find new nodes that are not in expandedNodes
+    // 查找不在 expandedNodes 中的新节点
     const nodesNotInExpanded = nodes.filter(node => !expandedNodes.has(node.id));
     if (nodesNotInExpanded.length > 0) {
-      console.log('=== 检测到新节点，将其添加到expandedNodes集合 ===');
       const newExpandedNodes = new Set(expandedNodes);
       nodesNotInExpanded.forEach(node => {
-        if (node.id !== 'root') { // Root is already in the set
-          console.log('添加新节点到expandedNodes:', node.id);
+        if (node.id !== 'root') { // 根节点已经在集合中
           newExpandedNodes.add(node.id);
         }
       });
@@ -166,20 +161,20 @@ export function MindMapEditor({ workId, onBack }: MindMapEditorProps) {
     }
   }, [nodes, expandedNodes]);
 
-  // Initialize user preferences and setup auto-save
+  // 初始化用户偏好设置并设置自动保存
   useEffect(() => {
     const initializePreferences = async () => {
       try {
         await preferencesService.initialize();
         setupAutoSave();
       } catch (error) {
-        console.error('Error initializing preferences:', error);
+        console.error('初始化偏好设置错误:', error);
       }
     };
     
     initializePreferences();
     
-    // Cleanup on unmount
+    // 组件卸载时的清理
     return () => {
       if (autoSaveTimerRef.current) {
         clearInterval(autoSaveTimerRef.current);
@@ -187,75 +182,44 @@ export function MindMapEditor({ workId, onBack }: MindMapEditorProps) {
     };
   }, []);
 
-  // Load work data
+  // 加载作品数据
   useEffect(() => {
     const loadWorkData = async () => {
-      console.log('=== 开始加载作品数据流程 ===');
       try {
-        console.log('1. 开始获取作品详情:', workId);
         const workDetails = await storage.getWork(workId);
-        console.log('2. 获取作品详情结果:', workDetails ? '成功' : '失败');
         
         if (workDetails) {
-          console.log('3. 作品详情:', {
-            id: workDetails.id,
-            title: workDetails.title,
-            hasEncryptedData: workDetails.encryptedData ? '有' : '无',
-            encryptedDataLength: workDetails.encryptedData ? workDetails.encryptedData.length : 0,
-            hasLayout: workDetails.layout ? '有' : '无',
-            nodes: workDetails.nodes
-          });
-          
-          console.log('4. 设置作品状态');
           setWork(workDetails);
           
-          // Check if encrypted data exists and try to decrypt
+          // 检查是否存在加密数据并尝试解密
           let finalNodes = nodes; // 默认使用当前节点
           let hasSavedNodePositions = false;
           if (workDetails.encryptedData) {
-            console.log('5. 发现加密数据，尝试解密');
             try {
               const key = keyManager.getKey();
               if (key) {
-                console.log('6. 使用密钥解密数据');
                 const decryptedData = await encryptionService.decrypt(workDetails.encryptedData, key);
-                console.log('7. 解密成功，数据结构:', {
-                  hasNodes: decryptedData.nodes ? '有' : '无',
-                  nodeCount: decryptedData.nodes ? decryptedData.nodes.length : 0,
-                  hasLayout: decryptedData.layout ? '有' : '无'
-                });
                 
                 if (decryptedData.nodes) {
-                  console.log('8. 解密数据包含节点信息，更新节点状态');
-                  console.log('8.1 节点数据:', decryptedData.nodes);
                   finalNodes = decryptedData.nodes; // 使用解密后的节点
                   hasSavedNodePositions = true;
-                } else {
-                  console.log('8. 解密数据不包含节点信息，使用默认节点');
                 }
-              } else {
-                console.log('6. 无可用的加密密钥');
               }
             } catch (decryptError) {
-              console.error('7. 解密数据失败:', decryptError);
-              console.log('7.1 解密失败，使用默认节点');
+              console.error('解密数据失败:', decryptError);
             }
-          } else {
-            console.log('5. 无加密数据，使用默认节点');
           }
           
-          // Calculate node levels
+          // 计算节点层级
           let nodesWithLevels = calculateNodeLevels(finalNodes);
-          console.log('9. 计算节点层级完成');
           
-          // Apply layout if specified and no node positions are saved
+          // 如果指定了布局且没有保存节点位置，则应用布局
           if (workDetails.layout && !hasSavedNodePositions) {
-            console.log('10. 应用布局设置:', workDetails.layout);
             setCurrentLayout({ 
               mode: workDetails.layout.mode as LayoutMode, 
               direction: workDetails.layout.direction as LayoutDirection 
             });
-            // Directly apply layout without triggering unsaved changes
+            // 直接应用布局，不触发未保存更改
             const layoutOptions = {
               mode: workDetails.layout.mode as LayoutMode,
               direction: workDetails.layout.direction as LayoutDirection,
@@ -265,36 +229,28 @@ export function MindMapEditor({ workId, onBack }: MindMapEditorProps) {
               centerY: 0,
             };
             const newNodes = LayoutManager.applyLayout(nodesWithLevels, layoutOptions);
-            // Recalculate levels after layout application
+            // 布局应用后重新计算层级
             nodesWithLevels = calculateNodeLevels(newNodes);
-            console.log('11. 布局应用完成，节点数量:', nodesWithLevels.length);
-            console.log('11.1 布局后节点数据:', nodesWithLevels);
             setNodes(nodesWithLevels);
             addHistoryState(nodesWithLevels, connections, `应用${getLayoutName(workDetails.layout.mode as LayoutMode)}布局`);
-            // Don't set hasUnsavedChanges here - it's just initial load
+            // 这里不要设置 hasUnsavedChanges - 这只是初始加载
           } else {
             // 如果有保存的节点位置或没有布局设置，直接使用解密后的节点
-            console.log('10. 直接使用解密后的节点（包含保存的位置）');
-            console.log('10.1 节点数量:', nodesWithLevels.length);
             setNodes(nodesWithLevels);
           }
-        } else {
-          console.log('3. 未找到作品，使用默认数据');
         }
         
-        // Ensure no unsaved changes after initial load
-        console.log('11. 初始化完成，重置未保存状态');
+        // 确保初始加载后没有未保存的更改
         setHasUnsavedChanges(false);
-        console.log('=== 加载作品数据流程完成 ===');
       } catch (error) {
-        console.error('=== 加载作品数据时出错 ===:', error);
+        console.error('加载作品数据时出错:', error);
       }
     };
 
     loadWorkData();
   }, [workId]);
 
-  // Get all descendant node IDs recursively
+  // 递归获取所有子节点 ID
   const getAllDescendantNodeIds = (nodeId: string): string[] => {
     const node = nodes.find(n => n.id === nodeId);
     if (!node || !node.children || node.children.length === 0) {
@@ -309,13 +265,13 @@ export function MindMapEditor({ workId, onBack }: MindMapEditorProps) {
     return descendants;
   };
 
-  // Handle node expand/collapse
+  // 处理节点展开/折叠
   const handleNodeExpand = (nodeId: string, expanded: boolean) => {
     const newExpandedNodes = new Set(expandedNodes);
     if (expanded) {
       newExpandedNodes.add(nodeId);
     } else {
-      // When collapsing a node, also collapse all its descendants
+      // 当折叠节点时，也折叠其所有子节点
       newExpandedNodes.delete(nodeId);
       const descendantIds = getAllDescendantNodeIds(nodeId);
       descendantIds.forEach(id => {
@@ -325,25 +281,25 @@ export function MindMapEditor({ workId, onBack }: MindMapEditorProps) {
     setExpandedNodes(newExpandedNodes);
   };
 
-  // Handle canvas click (deselect nodes)
+  // 处理画布点击（取消选择节点）
   const handleCanvasClick = () => {
     setSelectedNode(null);
     setSelectedNodes([]);
     setIsStylePanelOpen(false);
   };
 
-  // Setup auto-save based on user preferences
+  // 根据用户偏好设置自动保存
   const setupAutoSave = () => {
-    // Clear existing timer if any
+    // 清除现有的定时器（如果有）
     if (autoSaveTimerRef.current) {
       clearInterval(autoSaveTimerRef.current);
     }
     
-    // Get auto-save interval from preferences (in minutes)
+    // 从偏好设置中获取自动保存间隔（分钟）
     const autoSaveInterval = preferencesService.getPreference('autoSaveInterval');
-    const intervalMs = autoSaveInterval * 60 * 1000; // Convert to milliseconds
+    const intervalMs = autoSaveInterval * 60 * 1000; // 转换为毫秒
     
-    // Set up new interval
+    // 设置新的间隔
     autoSaveTimerRef.current = setInterval(() => {
       if (hasUnsavedChanges) {
         autoSave();
@@ -351,92 +307,66 @@ export function MindMapEditor({ workId, onBack }: MindMapEditorProps) {
     }, intervalMs);
   };
 
-  // Auto-save function
+  // 自动保存函数
   const autoSave = async () => {
-    console.log('=== 开始保存数据流程 ===');
     try {
-      console.log('1. 检查保存条件:', { workId: work?.id, hasUnsavedChanges });
-      
       if (work && hasUnsavedChanges) {
-        console.log('2. 准备保存数据:', { nodeCount: nodes.length, layout: currentLayout });
-        
-        // Prepare work data for saving
+        // 准备保存的作品数据
         const workData = {
           nodes,
           layout: currentLayout
         };
-        console.log('3. 保存数据结构:', {
-          hasNodes: workData.nodes ? '有' : '无',
-          nodeCount: workData.nodes ? workData.nodes.length : 0,
-          hasLayout: workData.layout ? '有' : '无'
-        });
-        console.log('3.1 节点数据:', workData.nodes);
         
-        // Get encryption key
+        // 获取加密密钥
         let key = keyManager.getKey();
-        console.log('4. 检查加密密钥:', key ? '已存在' : '不存在');
         
         if (!key) {
-          // If no key exists, generate one
-          console.log('5. 生成新的加密密钥');
+          // 如果密钥不存在，生成一个
           key = await keyManager.generateKey();
-          console.log('6. 加密密钥生成成功');
         }
         
-        // Encrypt work data
-        console.log('7. 开始加密数据');
+        // 加密作品数据
         const encryptedData = await encryptionService.encrypt(workData, key);
-        console.log('8. 加密成功，加密数据长度:', encryptedData.length);
         
-        // Save work data
-        console.log('9. 开始更新作品数据:', work.id);
+        // 保存作品数据
         await storage.updateWork(work.id, {
           encryptedData,
           layout: currentLayout
         });
-        console.log('10. 作品数据更新成功');
         
-        // 移除获取更新后作品信息的逻辑，避免触发不必要的界面刷新
-        
-        // Reset unsaved changes flag
-        console.log('11. 重置未保存状态');
+        // 重置未保存更改标志
         setHasUnsavedChanges(false);
-        
-        console.log('=== 保存数据流程完成 ===');
-      } else {
-        console.log('2. 跳过保存:', { work: work ? '存在' : '不存在', hasUnsavedChanges });
-        console.log('=== 保存数据流程完成 (跳过) ===');
       }
     } catch (error) {
-      console.error('=== 保存数据过程中出错 ===:', error);
+      console.error('保存数据过程中出错:', error);
     }
   };
 
-  // Handle pan change
+  // 处理平移变化
   const handlePanChange = (newPan: { x: number; y: number }) => {
     setPan(newPan);
   };
 
-  // Handle refresh (reset view to center)
+  // 处理刷新（重置视图到中心）
   const handleRefresh = () => {
     if (canvasContainerRef.current) {
       const { width, height } = canvasContainerRef.current.getBoundingClientRect();
-      // Reset pan to center
+      // 重置平移到中心
       setPan({ x: width / 2, y: height / 2 });
-      // Reset zoom to 1.0
+      // 重置缩放为 1.0
       setZoom(1);
     }
   };
 
-  // Handle zoom change (used by mini map)
+  // 处理缩放变化（由迷你地图使用）
   const handleZoomChange = (newZoom: number) => {
     setZoom(newZoom);
   };
 
-  // Managers
+  // 管理器
   const historyManagerRef = useRef<HistoryManager>(new HistoryManager());
 
-  // Initialize history
+  // 初始化历史记录
   useEffect(() => {
     const initialState: HistoryState = {
       nodes,
@@ -452,42 +382,42 @@ export function MindMapEditor({ workId, onBack }: MindMapEditorProps) {
     };
   }, []);
 
-  // Handle canvas container resize
+  // 处理画布容器大小变化
   useEffect(() => {
     const handleResize = () => {
       if (canvasContainerRef.current) {
         const { width, height } = canvasContainerRef.current.getBoundingClientRect();
-        // Update pan to center the mind map
+        // 更新平移以居中思维导图
         const centerX = width / 2;
         const centerY = height / 2;
         setPan({ x: centerX, y: centerY });
-        // Update canvas size for mini map
+        // 更新画布大小以用于迷你地图
         setCanvasSize({ width, height });
       }
     };
 
-    // Initial resize with retry logic
+    // 带重试逻辑的初始调整大小
     const setupCanvasPosition = () => {
       if (canvasContainerRef.current) {
         handleResize();
       } else {
-        // Retry if container not yet available
+        // 如果容器尚未可用则重试
         setTimeout(setupCanvasPosition, 100);
       }
     };
 
-    // Start setup after component mount
+    // 组件挂载后开始设置
     setTimeout(setupCanvasPosition, 100);
     
-    // Add event listener for window resize
+    // 添加窗口大小变化的事件监听器
     window.addEventListener('resize', handleResize);
     
-    // Use ResizeObserver to listen for container size changes
+    // 使用 ResizeObserver 监听容器大小变化
     const resizeObserver = new ResizeObserver(() => {
       handleResize();
     });
     
-    // Setup observer with retry
+    // 带重试的设置观察者
     const setupObserver = () => {
       if (canvasContainerRef.current) {
         resizeObserver.observe(canvasContainerRef.current);
@@ -504,18 +434,7 @@ export function MindMapEditor({ workId, onBack }: MindMapEditorProps) {
     };
   }, []);
 
-  // Handle node click
-  const handleNodeClick = (nodeId: string) => {
-    setSelectedNode(nodeId);
-    setSelectedNodes([nodeId]);
-    setIsStylePanelOpen(true);
-  };
-
-
-
-
-
-  // Handle back button with save confirmation
+  // 处理带保存确认的返回按钮
   const handleBackClick = () => {
     if (hasUnsavedChanges) {
       setShowSaveDialog(true);
@@ -524,178 +443,122 @@ export function MindMapEditor({ workId, onBack }: MindMapEditorProps) {
     }
   };
 
-  // Handle preview button with save confirmation
+  // 处理带保存确认的预览按钮
   const handlePreviewClick = () => {
     if (hasUnsavedChanges) {
       setShowSaveDialog(true);
     } else {
       // 这里可以添加预览逻辑
-      console.log('预览思维导图');
     }
   };
 
-  // Handle save and exit
+  // 处理保存并退出
   const handleSaveAndExit = async () => {
     try {
-      console.log('开始保存并退出:', { workId: work?.id });
-      
-      // Save work data with layout information
+      // 保存带布局信息的作品数据
       if (work) {
-        console.log('准备保存作品数据:', { workId: work.id, layout: currentLayout, hasUnsavedChanges });
-        
         // 检查是否有未保存的更改
         if (hasUnsavedChanges) {
-          console.log('有未保存的更改，执行完整保存');
-          
-          // Prepare work data for saving
+          // 准备保存的作品数据
           const workData = {
             nodes,
             layout: currentLayout
           };
-          console.log('保存数据内容:', workData);
           
-          // Get encryption key
+          // 获取加密密钥
           let key = keyManager.getKey();
-          console.log('检查加密密钥:', key ? '已存在' : '不存在');
           
           if (!key) {
-            // If no key exists, generate one
-            console.log('生成新的加密密钥');
+            // 如果密钥不存在，生成一个
             key = await keyManager.generateKey();
-            console.log('加密密钥生成成功');
           }
           
-          // Encrypt work data
-          console.log('开始加密数据');
+          // 加密作品数据
           const encryptedData = await encryptionService.encrypt(workData, key);
-          console.log('加密成功，加密数据长度:', encryptedData.length);
           
-          // Save work data
-          console.log('更新作品数据:', work.id);
+          // 保存作品数据
           await storage.updateWork(work.id, {
             encryptedData,
             layout: currentLayout
           });
-          console.log('作品数据更新成功');
         } else {
-          console.log('无未保存的更改，只保存布局');
           await storage.updateWork(work.id, {
             layout: currentLayout
           });
-          console.log('布局保存成功');
         }
-      } else {
-        console.log('无作品数据，跳过保存');
       }
       
-      // Reset unsaved changes flag
-      console.log('重置未保存状态');
+      // 重置未保存更改标志
       setHasUnsavedChanges(false);
       setShowSaveDialog(false);
-      console.log('执行返回操作');
       onBack();
     } catch (error) {
       console.error('保存作品时出错:', error);
-      // Even if save fails, still exit to maintain user flow
-      console.log('保存失败，仍然执行返回操作');
+      // 即使保存失败，仍然退出以保持用户流程
       setHasUnsavedChanges(false);
       setShowSaveDialog(false);
       onBack();
     }
   };
 
-  // Handle exit without saving
+  // 处理不保存就退出
   const handleExitWithoutSaving = () => {
     setShowSaveDialog(false);
     onBack();
   };
 
-  // Handle cancel exit
+  // 处理取消退出
   const handleCancelExit = () => {
     setShowSaveDialog(false);
   };
 
 
 
-  // Handle style change
+  // 处理样式更改
   const handleStyleChange = (nodeIds: string[], style: any) => {
-    console.log('MindMapEditor.handleStyleChange: 开始修改样式', { nodeIds, style });
-    console.log('MindMapEditor.handleStyleChange: 更新节点数量:', nodeIds.length);
     const newNodes = NodeOperations.batchUpdateNodes(nodes, nodeIds, style);
-    console.log('MindMapEditor.handleStyleChange: 样式更新成功，新节点数量:', newNodes.length);
     setNodes(newNodes);
-    console.log('MindMapEditor.handleStyleChange: 节点状态更新成功');
     addHistoryState(newNodes, connections, '修改样式');
-    console.log('MindMapEditor.handleStyleChange: 历史记录添加成功');
     setHasUnsavedChanges(true);
-    console.log('MindMapEditor.handleStyleChange: 未保存状态设置为true');
   };
 
-  // Handle text change
+  // 处理文本更改
   const handleTextChange = (nodeId: string, text: string) => {
-    console.log('=== 开始修改节点文本流程 ===');
     try {
-      console.log('1. 开始修改节点文本:', { nodeId, text });
-      
       const newNodes = nodes.map(node => {
         if (node.id === nodeId) {
-          console.log('2. 找到目标节点:', { id: node.id, oldTitle: node.title, newTitle: text });
           return { ...node, title: text };
         }
         return node;
       });
       
-      console.log('3. 文本更新成功，新节点数量:', newNodes.length);
-      console.log('3.1 更新后的节点列表:', newNodes);
-      
-      console.log('4. 更新节点状态');
       setNodes(newNodes);
-      
-      console.log('5. 添加历史记录');
       addHistoryState(newNodes, connections, '修改节点文本');
-      
-      console.log('6. 设置未保存状态为true');
       setHasUnsavedChanges(true);
-      
-      console.log('=== 修改节点文本流程完成 ===');
     } catch (error) {
-      console.error('=== 修改节点文本过程中出错 ===:', error);
+      console.error('修改节点文本过程中出错:', error);
     }
   };
 
-  // Handle content change
+  // 处理内容更改
   const handleContentChange = (nodeId: string, content: string) => {
-    console.log('=== 开始修改节点内容流程 ===');
     try {
-      console.log('1. 开始修改节点内容:', { nodeId, content });
-      
       const newNodes = nodes.map(node => {
         if (node.id === nodeId) {
-          console.log('2. 找到目标节点:', { id: node.id, oldContent: node.content, newContent: content });
           return { ...node, content: content };
         }
         return node;
       });
       
-      console.log('3. 内容更新成功，新节点数量:', newNodes.length);
-      console.log('3.1 更新后的节点列表:', newNodes);
-      
-      console.log('4. 更新节点状态');
       setNodes(newNodes);
-      
-      console.log('5. 添加历史记录');
       addHistoryState(newNodes, connections, '修改节点内容');
-      
-      console.log('6. 设置未保存状态为true');
       setHasUnsavedChanges(true);
-      
-      console.log('=== 修改节点内容流程完成 ===');
     } catch (error) {
-      console.error('=== 修改节点内容过程中出错 ===:', error);
+      console.error('修改节点内容过程中出错', error);
     }
   };
 
-  // Handle layout change
+  // 处理布局更改
   const handleLayoutChange = (mode: LayoutMode, direction: LayoutDirection) => {
     const layoutOptions = {
       mode,
@@ -706,7 +569,7 @@ export function MindMapEditor({ workId, onBack }: MindMapEditorProps) {
       centerY: 0,
     };
     let newNodes = LayoutManager.applyLayout(nodes, layoutOptions);
-    // Calculate node levels after layout application
+    // 布局应用后计算节点层级
     newNodes = calculateNodeLevels(newNodes);
     setNodes(newNodes);
     setCurrentLayout({ mode, direction });
@@ -714,23 +577,23 @@ export function MindMapEditor({ workId, onBack }: MindMapEditorProps) {
     setHasUnsavedChanges(true);
   };
   
-  // Calculate levels for all nodes
+  // 计算所有节点的层级
   const calculateNodeLevels = (nodes: MindMapNode[]): MindMapNode[] => {
-    // Create a map for quick node lookup
+    // 创建一个映射用于快速查找节点
     const nodeMap = new Map<string, MindMapNode>();
     nodes.forEach(node => nodeMap.set(node.id, node));
     
-    // Recursive function to calculate level
+    // 递归函数计算层级
     const calculateLevel = (nodeId: string, parentLevel: number): number => {
       const node = nodeMap.get(nodeId);
       if (!node) return 0;
       
       const level = parentLevel + 1;
       
-      // Update node level
+      // 更新节点层级
       node.level = level;
       
-      // Calculate levels for children
+      // 计算子节点的层级
       node.children.forEach(childId => {
         calculateLevel(childId, level);
       });
@@ -738,7 +601,7 @@ export function MindMapEditor({ workId, onBack }: MindMapEditorProps) {
       return level;
     };
     
-    // Start from root node (level 0)
+    // 从根节点开始（层级 0）
     const rootNode = nodes.find(node => node.id === 'root');
     if (rootNode) {
       rootNode.level = 0;
@@ -750,7 +613,7 @@ export function MindMapEditor({ workId, onBack }: MindMapEditorProps) {
     return nodes;
   };
   
-  // Get maximum level in the mind map
+  // 获取思维导图中的最大层级
   const getMaxLevel = (): number => {
     let maxLevel = 0;
     nodes.forEach(node => {
@@ -761,15 +624,15 @@ export function MindMapEditor({ workId, onBack }: MindMapEditorProps) {
     return maxLevel;
   };
   
-  // Handle level visibility toggle (toggle level and all levels below)
+  // 处理层级可见性切换（切换层级及其以下所有层级）
   const handleLevelToggle = (level: number) => {
     const newHiddenLevels = new Set(hiddenLevels);
     const maxLevel = getMaxLevel();
     
-    // Check if the level is currently hidden
+    // 检查该层级当前是否隐藏
     const isHidden = newHiddenLevels.has(level);
     
-    // Toggle the level and all levels below
+    // 切换该层级及其以下所有层级
     for (let i = level; i <= maxLevel; i++) {
       if (isHidden) {
         newHiddenLevels.delete(i);
@@ -781,7 +644,7 @@ export function MindMapEditor({ workId, onBack }: MindMapEditorProps) {
     setHiddenLevels(newHiddenLevels);
   };
 
-  // Get layout name
+  // 获取布局名称
   const getLayoutName = (mode: LayoutMode): string => {
     const names = {
       mindmap: '思维导图',
@@ -792,7 +655,7 @@ export function MindMapEditor({ workId, onBack }: MindMapEditorProps) {
     return names[mode];
   };
 
-  // Handle undo
+  // 处理撤销
   const handleUndo = () => {
     const previousState = historyManagerRef.current.undo();
     if (previousState) {
@@ -801,7 +664,7 @@ export function MindMapEditor({ workId, onBack }: MindMapEditorProps) {
     }
   };
 
-  // Handle redo
+  // 处理重做
   const handleRedo = () => {
     const nextState = historyManagerRef.current.redo();
     if (nextState) {
@@ -810,7 +673,7 @@ export function MindMapEditor({ workId, onBack }: MindMapEditorProps) {
     }
   };
 
-  // Handle node move
+  // 处理节点移动
   const handleNodeMove = (nodeId: string, x: number, y: number) => {
     // 防止中心主题（root节点）被移动
     if (nodeId === 'root') {
@@ -823,37 +686,37 @@ export function MindMapEditor({ workId, onBack }: MindMapEditorProps) {
     setHasUnsavedChanges(true);
   };
 
-  // Handle node menu (right click)
+  // 处理节点菜单（右键点击）
   const handleNodeMenu = (nodeId: string, x: number, y: number) => {
-    // Set selected node state (same as click)
+    // 设置选中节点状态（与点击相同）
     setSelectedNode(nodeId);
     setSelectedNodes([nodeId]);
     
-    // Set context menu state
+    // 设置上下文菜单状态
     setContextMenuNodeId(nodeId);
     setContextMenuPosition({ x, y });
     setIsContextMenuOpen(true);
   };
 
-  // Handle context menu close
+  // 处理上下文菜单关闭
   const handleContextMenuClose = () => {
     setIsContextMenuOpen(false);
     setContextMenuNodeId(null);
   };
 
-  // Handle copy node
+  // 处理复制节点
   const handleCopyNode = () => {
     if (contextMenuNodeId) {
-      // Find original node
+      // 查找原始节点
       const originalNode = nodes.find(node => node.id === contextMenuNodeId);
       if (originalNode) {
-        // Calculate new node position (offset from original)
-        const offsetX = 50; // Horizontal offset
-        const offsetY = 50; // Vertical offset
+        // 计算新节点位置（与原始节点偏移）
+        const offsetX = 50; // 水平偏移
+        const offsetY = 50; // 垂直偏移
         const newX = originalNode.x + offsetX;
         const newY = originalNode.y + offsetY;
         
-        // Find parent node of original node
+        // 查找原始节点的父节点
         let parentId = undefined;
         for (const node of nodes) {
           if (node.children.includes(originalNode.id)) {
@@ -862,7 +725,7 @@ export function MindMapEditor({ workId, onBack }: MindMapEditorProps) {
           }
         }
         
-        // Create new node with copied properties
+        // 创建具有复制属性的新节点
         const newNodes = NodeOperations.createNode(nodes, {
           x: newX,
           y: newY,
@@ -877,10 +740,10 @@ export function MindMapEditor({ workId, onBack }: MindMapEditorProps) {
           parentId: parentId
         });
         
-        // Calculate node levels
+        // 计算节点层级
         const nodesWithLevels = calculateNodeLevels(newNodes);
         
-        // Update state
+        // 更新状态
         setNodes(nodesWithLevels);
         addHistoryState(nodesWithLevels, connections, '复制节点');
         setHasUnsavedChanges(true);
@@ -888,7 +751,7 @@ export function MindMapEditor({ workId, onBack }: MindMapEditorProps) {
     }
   };
 
-  // Handle delete node
+  // 处理删除节点
   const handleDeleteNode = () => {
     if (contextMenuNodeId) {
       const newNodes = NodeOperations.deleteNode(nodes, contextMenuNodeId);
@@ -898,12 +761,12 @@ export function MindMapEditor({ workId, onBack }: MindMapEditorProps) {
     }
   };
 
-  // Handle edit node
+  // 处理编辑节点
   const handleEditNode = () => {
     if (contextMenuNodeId) {
       const node = nodes.find(n => n.id === contextMenuNodeId);
       if (node) {
-        // Open style panel (previously triggered by double click)
+        // 打开样式面板（之前由双击触发）
         setSelectedNode(contextMenuNodeId);
         setSelectedNodes([contextMenuNodeId]);
         setIsStylePanelOpen(true);
@@ -911,22 +774,12 @@ export function MindMapEditor({ workId, onBack }: MindMapEditorProps) {
     }
   };
 
-  // Handle add child node
+  // 处理添加子节点
   const handleAddChildNode = () => {
-    console.log('=== 开始添加子节点流程 ===');
     try {
-      console.log('1. 检查上下文菜单节点ID:', contextMenuNodeId);
       if (contextMenuNodeId) {
-        console.log('2. 查找父节点:', contextMenuNodeId);
         const parentNode = nodes.find(n => n.id === contextMenuNodeId);
         if (parentNode) {
-          console.log('3. 找到父节点:', { id: parentNode.id, title: parentNode.title });
-          console.log('4. 准备创建新节点:', {
-            parentId: contextMenuNodeId,
-            position: { x: parentNode.x + 200, y: parentNode.y },
-            title: '新子节点'
-          });
-          
           const newNode = NodeOperations.createNode(nodes, {
             x: parentNode.x + 200,
             y: parentNode.y,
@@ -934,46 +787,29 @@ export function MindMapEditor({ workId, onBack }: MindMapEditorProps) {
             parentId: contextMenuNodeId,
           });
           
-          console.log('5. 节点创建成功，新节点数量:', newNode.length);
-          console.log('5.1 新节点列表:', newNode);
-          
-          // Calculate node levels
+          // 计算节点层级
           const nodesWithLevels = calculateNodeLevels(newNode);
-          console.log('5.2 计算节点层级后:', nodesWithLevels);
           
-          console.log('6. 更新节点状态');
           setNodes(nodesWithLevels);
           
-          // Add new node to expandedNodes set
-          // Find the new node by comparing with original nodes
+          // 将新节点添加到 expandedNodes 集合
+          // 通过与原始节点比较找到新节点
           const originalNodeIds = new Set(nodes.map(n => n.id));
           const newNodeId = newNode.find(n => !originalNodeIds.has(n.id))?.id;
           if (newNodeId) {
-            console.log('6.1 将新节点添加到expandedNodes集合:', newNodeId);
             setExpandedNodes(prev => new Set([...prev, newNodeId]));
           }
           
-          console.log('7. 添加历史记录');
           addHistoryState(newNode, connections, '添加子节点');
-          
-          console.log('8. 设置未保存状态为true');
           setHasUnsavedChanges(true);
-          
-          console.log('=== 添加子节点流程完成 ===');
-        } else {
-          console.log('3. 未找到父节点');
-          console.log('=== 添加子节点流程完成 (失败) ===');
         }
-      } else {
-        console.log('2. 无上下文菜单节点ID');
-        console.log('=== 添加子节点流程完成 (失败) ===');
       }
     } catch (error) {
-      console.error('=== 添加子节点过程中出错 ===:', error);
+      console.error('添加子节点过程中出错:', error);
     }
   };
 
-  // Add history state
+  // 添加历史记录状态
   const addHistoryState = (newNodes: MindMapNode[], newConnections: Connection[], description: string) => {
     const state: HistoryState = {
       nodes: newNodes,
@@ -986,8 +822,8 @@ export function MindMapEditor({ workId, onBack }: MindMapEditorProps) {
 
   return (
     <div className="h-screen flex flex-col">
-      {/* Top Toolbar */}
-      <div className="border-b bg-background flex flex-wrap items-center justify-between px-4 gap-4 py-2">
+      {/* 顶部工具栏 */}
+      <div className="border-b bg-toolbar-background flex flex-wrap items-center justify-between px-4 gap-4 py-2">
         <div className="flex items-center gap-3">
           <Button variant="ghost" size="sm" onClick={handleBackClick} className="rounded-lg">
             <ArrowLeft className="w-4 h-4 mr-2" />
@@ -998,7 +834,7 @@ export function MindMapEditor({ workId, onBack }: MindMapEditorProps) {
         </div>
 
         <div className="flex flex-wrap items-center gap-2">
-          {/* History */}
+          {/* 历史记录 */}
           <Button variant="outline" size="sm" onClick={handleUndo} className="rounded-lg">
             <Undo className="w-4 h-4" />
           </Button>
@@ -1008,14 +844,14 @@ export function MindMapEditor({ workId, onBack }: MindMapEditorProps) {
 
           <Separator orientation="vertical" className="h-6" />
 
-          {/* Refresh (Center) */}
+          {/* 刷新（居中） */}
           <Button variant="outline" size="sm" onClick={handleRefresh} className="rounded-lg">
             <RefreshCw className="w-4 h-4" />
           </Button>
 
 
 
-          {/* Layout */}
+          {/* 布局 */}
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
               <Button variant="outline" size="sm" className="rounded-lg">
@@ -1063,7 +899,7 @@ export function MindMapEditor({ workId, onBack }: MindMapEditorProps) {
             </DropdownMenuContent>
           </DropdownMenu>
           
-          {/* Level Management */}
+          {/* 层级管理 */}
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
               <Button variant="outline" size="sm" className="rounded-lg">
@@ -1073,9 +909,9 @@ export function MindMapEditor({ workId, onBack }: MindMapEditorProps) {
             </DropdownMenuTrigger>
             <DropdownMenuContent className="rounded-lg">
               {Array.from({ length: getMaxLevel() }, (_, i) => i + 1).map(level => {
-                // Check if all levels from this level down are hidden
+                // 检查从该层级向下的所有层级是否都被隐藏
                 const allLevelsHidden = Array.from({ length: getMaxLevel() - level + 1 }, (_, j) => level + j).every(l => hiddenLevels.has(l));
-                // Check if any parent level is hidden (should disable this menu item)
+                // 检查是否有任何父层级被隐藏（应该禁用此菜单项）
                 const isParentHidden = Array.from({ length: level - 1 }, (_, j) => j + 1).some(l => hiddenLevels.has(l));
                 return (
                   <DropdownMenuItem 
@@ -1100,7 +936,7 @@ export function MindMapEditor({ workId, onBack }: MindMapEditorProps) {
 
           <Separator orientation="vertical" className="h-6" />
 
-          {/* Zoom Controls */}
+          {/* 缩放控制 */}
           <div className="flex items-center gap-1 border rounded-lg p-1">
             <Button
               variant="ghost"
@@ -1125,44 +961,30 @@ export function MindMapEditor({ workId, onBack }: MindMapEditorProps) {
 
           <Separator orientation="vertical" className="h-6" />
 
-          {/* Save & Share */}
-          <Button variant="outline" size="sm" className="rounded-2xl border-primary/30 hover:bg-primary/10" onClick={async () => {
-            console.log('=== 手动保存按钮点击 ===');
-            try {
-              console.log('1. 检查保存条件:', { work: work ? '存在' : '不存在', hasUnsavedChanges });
-              if (work && hasUnsavedChanges) {
-                console.log('2. 执行手动保存:', { workId: work.id });
-                await autoSave();
-                console.log('3. 手动保存完成');
-              } else {
-                console.log('2. 无需保存:', { work: work ? '存在' : '不存在', hasUnsavedChanges });
-              }
-            } catch (error) {
-              console.error('3. 手动保存失败:', error);
-            }
-          }}>
+          {/* 保存和分享 */}
+          <Button variant="outline" size="sm" className="rounded-2xl">
             <Save className="w-4 h-4 mr-2" />
             保存
           </Button>
-          <Button variant="outline" size="sm" className="rounded-2xl border-primary/30 hover:bg-primary/10" onClick={handlePreviewClick}>
+          <Button variant="outline" size="sm" className="rounded-2xl" onClick={handlePreviewClick}>
             <Eye className="w-4 h-4 mr-2" />
             预览
           </Button>
-          <Button variant="outline" size="sm" className="rounded-2xl border-primary/30 hover:bg-primary/10">
+          <Button variant="outline" size="sm" className="rounded-2xl">
             <Share2 className="w-4 h-4 mr-2" />
             分享
           </Button>
-          <Button variant="outline" size="sm" className="rounded-2xl border-primary/30 hover:bg-primary/10">
+          <Button variant="outline" size="sm" className="rounded-2xl">
             <Download className="w-4 h-4 mr-2" />
             导出
           </Button>
         </div>
       </div>
 
-      {/* Canvas Area */}
+      {/* 画布区域 */}
       <div 
         ref={canvasContainerRef}
-        className="flex-1 relative overflow-hidden bg-gradient-to-br from-primary/5 via-background to-secondary/5"
+        className="flex-1 relative overflow-hidden bg-background"
       >
         <CanvasRenderer
           nodes={nodes}
@@ -1180,7 +1002,7 @@ export function MindMapEditor({ workId, onBack }: MindMapEditorProps) {
 
 
 
-        {/* Mini Map */}
+        {/* 迷你地图 */}
         <div className="absolute top-4 left-4 w-48 h-32 bg-card border-2 border-primary/20 rounded-2xl shadow-ocean overflow-hidden">
           <MiniMap
             nodes={nodes}
@@ -1195,7 +1017,7 @@ export function MindMapEditor({ workId, onBack }: MindMapEditorProps) {
         </div>
       </div>
 
-      {/* Style Panel */}
+      {/* 样式面板 */}
       <StylePanel
         selectedNodes={selectedNodes}
         nodes={nodes}
@@ -1209,7 +1031,7 @@ export function MindMapEditor({ workId, onBack }: MindMapEditorProps) {
         canvasContainerRef={canvasContainerRef}
       />
 
-      {/* Context Menu */}
+      {/* 上下文菜单 */}
       <ContextMenu
         isOpen={isContextMenuOpen}
         position={contextMenuPosition}
@@ -1240,7 +1062,7 @@ export function MindMapEditor({ workId, onBack }: MindMapEditorProps) {
         onClose={handleContextMenuClose}
       />
 
-      {/* Save Confirmation Dialog */}
+      {/* 保存确认对话框 */}
       <Dialog open={showSaveDialog} onOpenChange={setShowSaveDialog}>
         <DialogContent className="w-[300px] min-h-[150px]">
           <DialogHeader>

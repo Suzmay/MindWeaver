@@ -15,6 +15,7 @@ export function SettingsPage() {
   const { theme, setTheme } = useTheme();
   const { resetDatabase } = useStorage();
   const [resetDialogOpen, setResetDialogOpen] = useState(false);
+  const [restoreDefaultsDialogOpen, setRestoreDefaultsDialogOpen] = useState(false);
   const [isResetting, setIsResetting] = useState(false);
   
   // 设置状态
@@ -121,7 +122,7 @@ export function SettingsPage() {
     <div className="max-w-[800px] mx-auto p-8 space-y-6">
       <h1>系统设置</h1>
 
-      {/* General Settings */}
+      {/* 通用设置 */}
       <Card className="rounded-2xl shadow-ocean border-2 border-primary/10">
         <CardHeader>
           <CardTitle>通用</CardTitle>
@@ -137,7 +138,7 @@ export function SettingsPage() {
         </CardContent>
       </Card>
 
-      {/* Workspace Settings */}
+      {/* 工作区设置 */}
       <Card className="rounded-2xl shadow-ocean border-2 border-primary/10">
         <CardHeader>
           <CardTitle>工作区</CardTitle>
@@ -178,7 +179,7 @@ export function SettingsPage() {
         </CardContent>
       </Card>
 
-      {/* Appearance Settings */}
+      {/* 外观设置 */}
       <Card className="rounded-2xl shadow-ocean border-2 border-primary/10">
         <CardHeader>
           <CardTitle>外观</CardTitle>
@@ -191,7 +192,7 @@ export function SettingsPage() {
               <Button
                 variant="outline"
                 onClick={() => setTheme('light')}
-                className={`rounded-2xl flex-col h-auto py-4 gap-2 border-2 transition-all ${theme === 'light' ? 'border-primary bg-primary/10 hover:text-primary' : 'border-primary/30 hover:bg-primary/5 hover:border-primary/50 hover:text-muted-foreground'}`}
+                className={`rounded-2xl flex-col h-auto py-4 gap-2 border-2 transition-all ${theme === 'light' ? 'border-primary bg-primary/10 hover:text-primary' : 'border-primary/30 bg-white hover:bg-primary/5 hover:border-primary/50 hover:text-muted-foreground'}`}
               >
                 <Sun className={`w-6 h-6 ${theme === 'light' ? 'text-primary' : 'text-muted-foreground'}`} />
                 <span className={`text-xs ${theme === 'light' ? 'font-bold text-primary' : 'font-semibold'}`}>浅海晨光</span>
@@ -199,7 +200,7 @@ export function SettingsPage() {
               <Button
                 variant="outline"
                 onClick={() => setTheme('dark')}
-                className={`rounded-2xl flex-col h-auto py-4 gap-2 border-2 transition-all ${theme === 'dark' ? 'border-secondary bg-secondary/10 hover:text-secondary' : 'border-primary/30 hover:bg-primary/5 hover:border-primary/50 hover:text-muted-foreground'}`}
+                className={`rounded-2xl flex-col h-auto py-4 gap-2 border-2 transition-all ${theme === 'dark' ? 'border-secondary bg-secondary/10 hover:text-secondary' : 'border-primary/30 bg-white hover:bg-primary/5 hover:border-primary/50 hover:text-muted-foreground'}`}
               >
                 <Moon className={`w-6 h-6 ${theme === 'dark' ? 'text-secondary' : 'text-muted-foreground'}`} />
                 <span className={`text-xs ${theme === 'dark' ? 'font-bold text-secondary' : 'font-semibold'}`}>深海夜色</span>
@@ -207,7 +208,7 @@ export function SettingsPage() {
               <Button
                 variant="outline"
                 onClick={() => setTheme('auto')}
-                className={`rounded-2xl flex-col h-auto py-4 gap-2 border-2 transition-all ${theme === 'auto' ? 'border-accent bg-accent/10 hover:text-accent' : 'border-primary/30 hover:bg-primary/5 hover:border-primary/50 hover:text-muted-foreground'}`}
+                className={`rounded-2xl flex-col h-auto py-4 gap-2 border-2 transition-all ${theme === 'auto' ? 'border-accent bg-accent/10 hover:text-accent' : 'border-primary/30 bg-white hover:bg-primary/5 hover:border-primary/50 hover:text-muted-foreground'}`}
               >
                 <Monitor className={`w-6 h-6 ${theme === 'auto' ? 'text-accent' : 'text-muted-foreground'}`} />
                 <span className={`text-xs ${theme === 'auto' ? 'font-bold text-accent' : 'font-semibold'}`}>自动跟随</span>
@@ -236,13 +237,13 @@ export function SettingsPage() {
                 max={320}
                 step={10}
                 onChange={(e) => setSidebarWidth(parseInt(e.target.value) || 240)}
-                className="flex-1 rounded-xl border border-primary/30 bg-background px-4 py-2 text-sm hover:border-primary/30 hover:bg-background"
+                className="flex-1 rounded-xl border border-primary/30 bg-input-background px-4 py-2 text-sm hover:border-primary/30 hover:bg-input-background"
                 placeholder="输入宽度"
               />
               <Button
                 type="button"
                 variant="outline"
-                className="rounded-2xl border-primary/30 hover:opacity-90 hover:text-foreground"
+                className="rounded-2xl border-primary/30 bg-white hover:opacity-90 hover:text-foreground"
                 onClick={() => handleSettingChange('sidebarWidth', sidebarWidth)}
               >
                 确认
@@ -271,7 +272,7 @@ export function SettingsPage() {
         </CardContent>
       </Card>
 
-      {/* Other Settings */}
+      {/* 其他设置 */}
       <Card className="rounded-2xl shadow-ocean border-2 border-primary/10">
         <CardHeader>
           <CardTitle>其他</CardTitle>
@@ -346,22 +347,22 @@ export function SettingsPage() {
         </CardContent>
       </Card>
 
-      {/* Actions */}
+      {/* 操作 */}
       <div className="flex gap-3">
-        <Button type="button" variant="outline" className="rounded-2xl border-primary/30 hover:opacity-90 hover:text-foreground">
+        <Button type="button" variant="outline" className="rounded-2xl border-primary/30 bg-white hover:opacity-90 hover:text-foreground">
           发送反馈
         </Button>
         <Button 
           type="button" 
           variant="outline" 
-          className="rounded-2xl border-primary/30 hover:opacity-90 hover:text-foreground"
-          onClick={handleRestoreDefaults}
+          className="rounded-2xl border-primary/30 bg-white hover:opacity-90 hover:text-foreground"
+          onClick={() => setRestoreDefaultsDialogOpen(true)}
         >
           恢复默认
         </Button>
       </div>
 
-      {/* Reset Database Dialog */}
+      {/* 重置数据库对话框 */}
       <Dialog open={resetDialogOpen} onOpenChange={setResetDialogOpen}>
         <DialogContent className="w-[400px] max-w-[90vw] rounded-2xl">
           <DialogHeader>
@@ -387,7 +388,7 @@ export function SettingsPage() {
               variant="destructive"
               onClick={handleResetDatabase}
               disabled={isResetting}
-              className="rounded-xl hover:bg-destructive/90"
+              className="rounded-xl"
             >
               {isResetting ? (
                 <>
@@ -400,6 +401,39 @@ export function SettingsPage() {
                   确认重置
                 </>
               )}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* 恢复默认设置对话框 */}
+      <Dialog open={restoreDefaultsDialogOpen} onOpenChange={setRestoreDefaultsDialogOpen}>
+        <DialogContent className="w-[400px] max-w-[90vw] rounded-2xl">
+          <DialogHeader>
+            <DialogTitle className="text-lg font-semibold flex items-center gap-2">
+              <AlertTriangle className="w-5 h-5 text-warning" />
+              确认恢复默认设置
+            </DialogTitle>
+            <DialogDescription>
+              此操作将恢复所有偏好设置为默认值，包括主题、自动保存间隔等。确定要继续吗？
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter className="flex justify-between">
+            <Button
+              type="button"
+              variant="outline"
+              onClick={() => setRestoreDefaultsDialogOpen(false)}
+              className="rounded-xl hover:text-foreground"
+            >
+              取消
+            </Button>
+            <Button
+              type="button"
+              variant="destructive"
+              onClick={handleRestoreDefaults}
+              className="rounded-xl"
+            >
+              确认恢复
             </Button>
           </DialogFooter>
         </DialogContent>

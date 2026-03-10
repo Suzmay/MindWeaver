@@ -19,7 +19,6 @@ export class WorkStore implements WorkRepository {
   
   // 创建作品
   async create(dto: WorkCreateDTO): Promise<Work> {
-    console.log('WorkStore.create: 开始创建作品', dto);
     const now = new Date().toISOString();
     const id = Date.now().toString();
     
@@ -39,16 +38,12 @@ export class WorkStore implements WorkRepository {
       layout: dto.layout,
       starred: false
     };
-    console.log('WorkStore.create: 准备作品数据', work);
     
     // 加密数据
     let key = this.keyManager.getKey();
-    console.log('WorkStore.create: 检查加密密钥', key ? '已存在' : '不存在');
     if (!key) {
       // 如果没有密钥，自动生成一个
-      console.log('WorkStore.create: 开始生成加密密钥');
       key = await this.keyManager.generateKey();
-      console.log('WorkStore.create: 加密密钥生成成功');
     }
     
     const workData = {
@@ -57,16 +52,10 @@ export class WorkStore implements WorkRepository {
       category: work.category,
       tags: work.tags
     };
-    console.log('WorkStore.create: 准备加密数据', workData);
     
     try {
-      console.log('WorkStore.create: 开始加密数据');
       work.encryptedData = await this.encryptionService.encrypt(workData, key);
-      console.log('WorkStore.create: 数据加密成功');
-      
-      console.log('WorkStore.create: 开始生成校验和');
       work.checksum = await this.encryptionService.generateChecksum(workData);
-      console.log('WorkStore.create: 校验和生成成功');
     } catch (error) {
       console.warn('WorkStore.create: 加密过程失败，使用备选方案', error);
       // 加密失败时，使用空字符串作为备选方案
@@ -76,15 +65,11 @@ export class WorkStore implements WorkRepository {
     
     try {
       // 保存到数据库
-      console.log('WorkStore.create: 开始保存到数据库');
       await this.dbAdapter.executeTransaction('works', 'readwrite', async (transaction) => {
         const store = transaction.objectStore('works');
-        console.log('WorkStore.create: 执行数据库添加操作');
         store.add(work);
-        console.log('WorkStore.create: 数据库添加操作完成');
       });
       
-      console.log('WorkStore.create: 作品创建完成', work);
       return work;
     } catch (error) {
       console.error('WorkStore.create: 数据库保存失败', error);
@@ -141,7 +126,7 @@ export class WorkStore implements WorkRepository {
           const decryptedData = await this.encryptionService.decrypt(dto.encryptedData, key);
           updatedWork.checksum = await this.encryptionService.generateChecksum(decryptedData);
         } catch (error) {
-          console.error('Data decryption error:', error);
+          console.error('数据解密错误:', error);
         }
       }
     }
@@ -315,7 +300,7 @@ export class WorkStore implements WorkRepository {
             const decryptedData = await this.encryptionService.decrypt(work.encryptedData, key);
             const currentChecksum = await this.encryptionService.generateChecksum(decryptedData);
             if (work.checksum !== currentChecksum) {
-              console.warn(`Data integrity check failed for work ${work.id}`);
+              console.warn(`作品 ${work.id} 的数据完整性检查失败`);
               // 触发数据损坏事件
               this.eventEmitter.emit(EventType.DATA_CORRUPTED, {
                 workId: work.id,
@@ -327,7 +312,7 @@ export class WorkStore implements WorkRepository {
             }
           }
         } catch (error) {
-          console.warn(`Data integrity check error for work ${work.id}:`, error);
+          console.warn(`作品 ${work.id} 的数据完整性检查错误:`, error);
           // 触发数据损坏事件
           this.eventEmitter.emit(EventType.DATA_CORRUPTED, {
             workId: work.id,
@@ -391,7 +376,7 @@ export class WorkStore implements WorkRepository {
         if (result) {
           success.push(workId);
         } else {
-          failed.push({ workId, error: 'Delete failed' });
+          failed.push({ workId, error: '删除失败' });
         }
       } catch (error) {
         failed.push({ workId, error: (error as Error).message });
@@ -405,7 +390,7 @@ export class WorkStore implements WorkRepository {
   async export(workId: string, format: 'mm' | 'xmind' | 'json'): Promise<Blob> {
     const work = await this.read(workId);
     if (!work) {
-      throw new Error('Work not found');
+      throw new Error('作品未找到');
     }
     
     // 解密数据

@@ -95,7 +95,7 @@ class EncryptionWorkerService {
   private sendRequest(action: 'encrypt' | 'decrypt' | 'generateChecksum', data: any, key?: CryptoKey): Promise<any> {
     return new Promise((resolve, reject) => {
       if (!this.worker) {
-        reject(new Error('Worker not initialized'));
+        reject(new Error('Worker 未初始化'));
         return;
       }
 

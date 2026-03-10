@@ -33,7 +33,7 @@ export function TemplatesPage() {
 
   return (
     <div className="p-8 space-y-6">
-      {/* Header */}
+      {/* 头部 */}
       <div className="flex items-center justify-between">
         <h1>模板中心</h1>
         <Button className="rounded-2xl gap-2 bg-gradient-to-br from-primary to-secondary hover:opacity-90 shadow-ocean font-semibold">
@@ -46,7 +46,7 @@ export function TemplatesPage() {
         选择预设模板，快速开始你的思维导图创作
       </p>
 
-      {/* Templates Grid */}
+      {/* 模板网格 */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
         {templates.map((template) => (
           <Card
@@ -54,16 +54,16 @@ export function TemplatesPage() {
             className="rounded-2xl shadow-ocean hover:shadow-ocean-lg transition-all duration-200 hover:scale-[1.03] cursor-pointer group border-2 border-primary/10 hover:border-primary/30"
           >
             <CardContent className="p-0">
-              {/* Preview */}
+              {/* 预览 */}
               <div className="h-40 bg-gradient-to-br from-primary/30 via-secondary/20 to-accent/15 rounded-t-2xl flex items-center justify-center relative overflow-hidden">
-                {/* Simple mind map preview illustration */}
+                {/* 简单的思维导图预览插图 */}
                 <div className="absolute inset-0 flex items-center justify-center">
                   <div className="relative">
-                    {/* Center node */}
+                    {/* 中心节点 */}
                     <div className="w-16 h-16 bg-gradient-to-br from-primary to-secondary rounded-2xl flex items-center justify-center shadow-ocean">
                       <FileText className="w-8 h-8 text-white" />
                     </div>
-                    {/* Branch nodes */}
+                    {/* 分支节点 */}
                     <div className="absolute -left-12 top-1/2 -translate-y-1/2 w-8 h-8 bg-gradient-to-br from-secondary to-accent rounded-xl shadow-sm" />
                     <div className="absolute -right-12 top-1/2 -translate-y-1/2 w-8 h-8 bg-gradient-to-br from-secondary to-accent rounded-xl shadow-sm" />
                     <div className="absolute left-1/2 -translate-x-1/2 -top-10 w-8 h-8 bg-gradient-to-br from-secondary to-accent rounded-xl shadow-sm" />
@@ -78,7 +78,7 @@ export function TemplatesPage() {
                 )}
               </div>
 
-              {/* Info */}
+              {/* 信息 */}
               <div className="p-4">
                 <h3 className="mb-3">{template.name}</h3>
                 <Button className="w-full rounded-xl bg-gradient-to-br from-primary to-secondary hover:opacity-90 text-white font-semibold shadow-sm">

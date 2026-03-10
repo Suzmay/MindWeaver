@@ -56,38 +56,38 @@ export function MindyAssistant({}: MindyAssistantProps) {
   const quickActions = ['创建导图', '新增分支', '调整配色', '导出作品'];
 
   useEffect(() => {
-    // Scroll to bottom when messages change
+    // 当消息变化时滚动到底部
     const element = document.getElementById('messages-end');
     if (element) {
       element.scrollIntoView({ behavior: 'smooth' });
     }
   }, [messages, messagesEndId]);
 
-  // Close chat window when clicking outside
+  // 点击外部时关闭聊天窗口
   useEffect(() => {
     if (isOpen) {
       const handleClickOutside = (event: MouseEvent) => {
-        // Check if click is outside both chat window and button
+        // 检查点击是否在聊天窗口和按钮之外
         const target = event.target as HTMLElement;
         
-        // Don't close if clicking on the chat window
+        // 如果点击在聊天窗口上则不关闭
         if (chatWindowRef.current && chatWindowRef.current.contains(target)) {
           return;
         }
         
-        // Don't close if clicking on the floating button
+        // 如果点击在浮动按钮上则不关闭
         if (buttonRef.current && buttonRef.current.contains(target)) {
           return;
         }
         
-        // Close the chat window
+        // 关闭聊天窗口
         setIsOpen(false);
       };
       
-      // Add event listener
+      // 添加事件监听器
       document.addEventListener('mousedown', handleClickOutside);
       
-      // Cleanup event listener
+      // 清理事件监听器
       return () => {
         document.removeEventListener('mousedown', handleClickOutside);
       };
@@ -96,18 +96,18 @@ export function MindyAssistant({}: MindyAssistantProps) {
 
   // 拖动事件处理
   const handleMouseDown = (e: React.MouseEvent<HTMLDivElement>) => {
-    // Only handle left mouse button (0)
+    // 只处理鼠标左键（0）
     if (e.button !== 0) return;
     
-    // Prevent text selection during drag
+    // 防止拖动过程中选择文本
     e.preventDefault();
     
-    // Set up long press timer for dragging
+    // 设置长按定时器以开始拖动
     const timer = window.setTimeout(() => {
       setIsDragging(true);
       draggingRef.current = true;
       
-      // Calculate offset from mouse to panel origin
+      // 计算鼠标到面板原点的偏移量
       if (chatWindowRef.current) {
         const rect = chatWindowRef.current.getBoundingClientRect();
         dragOffset.current = {
@@ -115,79 +115,79 @@ export function MindyAssistant({}: MindyAssistantProps) {
           y: e.clientY - rect.top
         };
         
-        // Add global mouse move and up listeners
+        // 添加全局鼠标移动和释放监听器
         document.addEventListener('mousemove', handleGlobalMouseMove);
         document.addEventListener('mouseup', handleGlobalMouseUp);
       }
       
-      // Disable text selection globally during drag
+      // 在拖动过程中全局禁用文本选择
       document.body.style.userSelect = 'none';
-    }, 500); // 500ms long press
+    }, 500); // 500ms长按
     
-    // Store the timer in ref
+    // 将定时器存储在引用中
     longPressTimerRef.current = timer;
   };
 
-  // Handle global mouse move (during dragging)
+  // 处理全局鼠标移动（拖动过程中）
   const handleGlobalMouseMove = (e: MouseEvent) => {
     if (!draggingRef.current || !chatWindowRef.current) return;
     
-    // Prevent text selection during drag
+    // 防止拖动过程中选择文本
     e.preventDefault();
     
-    // Cancel previous animation frame to avoid accumulation
+    // 取消之前的动画帧以避免累积
     if (rafRef.current) {
       cancelAnimationFrame(rafRef.current);
     }
     
-    // Use requestAnimationFrame for smoother dragging
+    // 使用 requestAnimationFrame 实现更平滑的拖动
     rafRef.current = requestAnimationFrame(() => {
       if (!chatWindowRef.current) return;
       
-      // Calculate new position
+      // 计算新位置
       const newX = e.clientX - dragOffset.current.x;
       const newY = e.clientY - dragOffset.current.y;
       
-      // Update position state
+      // 更新位置状态
       setPosition({ x: newX, y: newY });
     });
   };
 
-  // Handle global mouse up (end dragging)
+  // 处理全局鼠标释放（结束拖动）
   const handleGlobalMouseUp = () => {
-    // Clear long press timer if it exists
+    // 清除长按定时器（如果存在）
     if (longPressTimerRef.current) {
       clearTimeout(longPressTimerRef.current);
       longPressTimerRef.current = null;
     }
     
-    // Cancel any pending animation frames
+    // 取消任何待处理的动画帧
     if (rafRef.current) {
       cancelAnimationFrame(rafRef.current);
       rafRef.current = null;
     }
     
-    // Remove global event listeners
+    // 移除全局事件监听器
     document.removeEventListener('mousemove', handleGlobalMouseMove);
     document.removeEventListener('mouseup', handleGlobalMouseUp);
     
-    // Re-enable text selection
+    // 重新启用文本选择
     document.body.style.userSelect = '';
     
-    // Reset dragging state
+    // 重置拖动状态
     draggingRef.current = false;
     setIsDragging(false);
   };
 
   const handleMouseMove = (e: React.MouseEvent<HTMLDivElement>) => {
     if (isDragging) {
-      // Prevent text selection during drag
+      // 防止拖动过程中选择文本
       e.preventDefault();
     }
   };
 
   const handleMouseUp = () => {
-    // Clear long press timer if it exists
+    // 清除长按定时器（如果存在）
     if (longPressTimerRef.current) {
       clearTimeout(longPressTimerRef.current);
       longPressTimerRef.current = null;
@@ -196,10 +196,10 @@ export function MindyAssistant({}: MindyAssistantProps) {
 
   // 浮动按钮拖动事件处理
   const handleButtonMouseDown = (e: React.MouseEvent<HTMLDivElement>) => {
-    // Only handle left mouse button (0)
+    // 只处理鼠标左键（0）
     if (e.button !== 0) return;
     
-    // Prevent text selection during drag
+    // 防止拖动过程中选择文本
     e.preventDefault();
     
     // 开始长按检测
@@ -212,7 +212,7 @@ export function MindyAssistant({}: MindyAssistantProps) {
       setIsClickPrevented(true);
       buttonDraggingRef.current = true;
       
-      // Calculate offset from mouse to button origin
+      // 计算鼠标到按钮原点的偏移量
       if (buttonRef.current) {
         const rect = buttonRef.current.getBoundingClientRect();
         buttonDragOffset.current = {
@@ -220,59 +220,59 @@ export function MindyAssistant({}: MindyAssistantProps) {
           y: e.clientY - rect.top
         };
         
-        // Add global mouse move and up listeners
+        // 添加全局鼠标移动和释放监听器
         document.addEventListener('mousemove', handleGlobalButtonMouseMove);
         document.addEventListener('mouseup', handleGlobalButtonMouseUp);
       }
       
-      // Disable text selection globally during drag
+      // 在拖动过程中全局禁用文本选择
       document.body.style.userSelect = 'none';
     }, 300);
     
     setLongPressTimer(timer);
   };
 
-  // Handle global button mouse move (during dragging)
+  // 处理全局按钮鼠标移动（拖动过程中）
   const handleGlobalButtonMouseMove = (e: MouseEvent) => {
     if (!buttonDraggingRef.current || !buttonRef.current) return;
     
-    // Prevent text selection during drag
+    // 防止拖动过程中选择文本
     e.preventDefault();
     
-    // Cancel previous animation frame to avoid accumulation
+    // 取消之前的动画帧以避免累积
     if (buttonRafRef.current) {
       cancelAnimationFrame(buttonRafRef.current);
     }
     
-    // Use requestAnimationFrame for smoother dragging
+    // 使用 requestAnimationFrame 实现更平滑的拖动
     buttonRafRef.current = requestAnimationFrame(() => {
       if (!buttonRef.current) return;
       
-      // Calculate new position relative to window
+      // 计算相对于窗口的新位置
       const newX = e.clientX - buttonDragOffset.current.x - (window.innerWidth - 100);
       const newY = e.clientY - buttonDragOffset.current.y - (window.innerHeight - 100);
       
-      // Update position state
+      // 更新位置状态
       setButtonPosition({ x: newX, y: newY });
     });
   };
 
-  // Handle global button mouse up (end dragging)
+  // 处理全局按钮鼠标释放（结束拖动）
   const handleGlobalButtonMouseUp = () => {
-    // Cancel any pending animation frames
+    // 取消任何待处理的动画帧
     if (buttonRafRef.current) {
       cancelAnimationFrame(buttonRafRef.current);
       buttonRafRef.current = null;
     }
     
-    // Remove global event listeners
+    // 移除全局事件监听器
     document.removeEventListener('mousemove', handleGlobalButtonMouseMove);
     document.removeEventListener('mouseup', handleGlobalButtonMouseUp);
     
-    // Re-enable text selection
+    // 重新启用文本选择
     document.body.style.userSelect = '';
     
-    // Reset dragging state
+    // 重置拖动状态
     buttonDraggingRef.current = false;
     setIsButtonDragging(false);
     setIsLongPress(false);
@@ -280,7 +280,7 @@ export function MindyAssistant({}: MindyAssistantProps) {
 
   const handleButtonMouseMove = (e: React.MouseEvent<HTMLDivElement>) => {
     if (isLongPress) {
-      // Prevent text selection during drag
+      // 防止拖动过程中选择文本
       e.preventDefault();
     }
   };
@@ -304,7 +304,7 @@ export function MindyAssistant({}: MindyAssistantProps) {
       setLongPressTimer(null);
     }
     
-    // Reset states if not dragging
+    // 如果未拖动则重置状态
     if (!buttonDraggingRef.current) {
       setIsButtonDragging(false);
       setIsLongPress(false);
@@ -343,7 +343,7 @@ export function MindyAssistant({}: MindyAssistantProps) {
     setInputValue('');
     setMessagesEndId((prev) => prev + 1);
 
-    // Simulate AI response
+    // 模拟AI响应
     setTimeout(() => {
       const responses = [
         '明白啦！让我来帮你实现。🐙',
@@ -372,7 +372,7 @@ export function MindyAssistant({}: MindyAssistantProps) {
     setMessages([...messages, message]);
     setMessagesEndId((prev) => prev + 1);
     
-    // Simulate response
+    // 模拟响应
     setTimeout(() => {
       const response: Message = {
         id: (Date.now() + 1).toString(),
@@ -387,7 +387,7 @@ export function MindyAssistant({}: MindyAssistantProps) {
 
   return (
     <>
-      {/* Floating Assistant Button */}
+      {/* 浮动助手按钮 */}
       <motion.div
         className="fixed z-50"
         style={{
@@ -408,10 +408,10 @@ export function MindyAssistant({}: MindyAssistantProps) {
           className="relative w-16 h-16 rounded-full shadow-2xl hover:scale-110 transition-transform duration-300 group cursor-move"
           aria-label="打开Mindy助理"
         >
-          {/* Animated pulse ring */}
+          {/* 动画脉冲环 */}
           <div className="absolute inset-0 rounded-full bg-gradient-to-br from-primary via-secondary to-accent opacity-75 animate-ping" />
           
-          {/* Main button with gradient */}
+          {/* 带渐变的主按钮 */}
           <div className="relative w-full h-full rounded-full bg-gradient-to-br from-primary via-secondary to-accent flex items-center justify-center border-4 border-white shadow-ocean-lg">
             <motion.span 
               className="text-4xl"
@@ -428,7 +428,7 @@ export function MindyAssistant({}: MindyAssistantProps) {
             </motion.span>
           </div>
           
-          {/* Notification dot */}
+          {/* 通知点 */}
           {!isOpen && (
             <motion.div 
               className="absolute -top-1 -right-1 w-5 h-5 bg-destructive rounded-full border-2 border-white"
@@ -440,7 +440,7 @@ export function MindyAssistant({}: MindyAssistantProps) {
             </motion.div>
           )}
 
-          {/* Tooltip on hover */}
+          {/* 悬停提示 */}
           <div className="absolute bottom-full mb-3 left-1/2 -translate-x-1/2 opacity-0 group-hover:opacity-100 transition-opacity duration-200 pointer-events-none">
             <div className="bg-gray-900 text-white text-sm px-3 py-2 rounded-lg whitespace-nowrap shadow-lg">
               询问Mindy
@@ -450,7 +450,7 @@ export function MindyAssistant({}: MindyAssistantProps) {
         </button>
       </motion.div>
 
-      {/* Chat Window */}
+      {/* 聊天窗口 */}
       <AnimatePresence>
         {isOpen && (
           <motion.div
@@ -466,7 +466,7 @@ export function MindyAssistant({}: MindyAssistantProps) {
             ref={chatWindowRef}
           >
 
-            {/* Header */}
+            {/* 头部 */}
             <div 
               className="bg-ocean-gradient text-white p-5 flex items-center justify-between relative overflow-hidden cursor-move"
               onMouseDown={handleMouseDown}
@@ -474,7 +474,7 @@ export function MindyAssistant({}: MindyAssistantProps) {
               onMouseUp={handleMouseUp}
               onMouseLeave={handleMouseUp}
             >
-              {/* Decorative bubbles */}
+              {/* 装饰性气泡 */}
               <div className="absolute inset-0 pointer-events-none">
                 <div className="absolute top-2 right-10 w-2 h-2 bg-white/20 rounded-full bubble-float" />
                 <div className="absolute bottom-3 left-8 w-3 h-3 bg-white/15 rounded-full bubble-float" style={{ animationDelay: '1s' }} />
@@ -511,7 +511,7 @@ export function MindyAssistant({}: MindyAssistantProps) {
               </Button>
             </div>
 
-            {/* Messages */}
+            {/* 消息 */}
             <div className="flex-1 p-4 bg-muted/20 overflow-y-auto scrollbar-hide">
               <div className="space-y-4">
                 {messages.map((message) => (
@@ -538,12 +538,12 @@ export function MindyAssistant({}: MindyAssistantProps) {
                     </div>
                   </motion.div>
                 ))}
-                {/* Invisible element to scroll to */}
+                {/* 不可见元素用于滚动定位 */}
                 <div id="messages-end" />
               </div>
             </div>
 
-            {/* Quick Actions */}
+            {/* 快捷操作 */}
             <div className="px-4 py-3 border-t border-border bg-muted/30">
               <p className="text-xs text-muted-foreground mb-2">快捷操作</p>
               <div className="flex gap-2 overflow-x-auto pb-2 scrollbar-thin scrollbar-thumb-primary/30 scrollbar-track-transparent hover:scrollbar-thumb-primary/50">
@@ -562,7 +562,7 @@ export function MindyAssistant({}: MindyAssistantProps) {
               </div>
             </div>
 
-            {/* Input Area */}
+            {/* 输入区域 */}
             <div className="p-4 border-t border-border bg-card">
               <div className="flex gap-2">
                 <Input

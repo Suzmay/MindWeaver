@@ -51,16 +51,16 @@ interface StylePanelProps {
 }
 
 const COLORS = [
-  '#14B8A6', // Teal
-  '#0EA5E9', // Blue
-  '#3B82F6', // Blue
-  '#8B5CF6', // Purple
-  '#EC4899', // Pink
-  '#F43F5E', // Red
-  '#EAB308', // Yellow
-  '#22C55E', // Green
-  '#64748B', // Gray
-  '#1E293B', // Dark
+  '#14B8A6', // 青绿色
+  '#0EA5E9', // 蓝色
+  '#3B82F6', // 蓝色
+  '#8B5CF6', // 紫色
+  '#EC4899', // 粉色
+  '#F43F5E', // 红色
+  '#EAB308', // 黄色
+  '#22C55E', // 绿色
+  '#64748B', // 灰色
+  '#1E293B', // 深色
 ];
 
 const SHAPES = [
@@ -435,7 +435,7 @@ export const StylePanel: React.FC<StylePanelProps> = ({
       onMouseLeave={handleMouseUp}
     >
       <div className="flex flex-col h-full">
-        {/* Header */}
+        {/* 标题栏 */}
         <div className="flex justify-between items-center mb-4 pb-3 border-b border-primary/10">
           <div className="flex items-center gap-2">
             <SlidersHorizontal className="w-5 h-5 text-primary" />
@@ -446,7 +446,7 @@ export const StylePanel: React.FC<StylePanelProps> = ({
           </Button>
         </div>
 
-        {/* Tabs */}
+        {/* 标签页 */}
         <div className="flex-1 flex overflow-x-auto">
           <Tabs defaultValue="shape" className="w-full flex flex-col">
             <TabsList className="flex mb-4 gap-2 bg-muted/50 rounded-xl p-1 overflow-x-auto h-12">
@@ -704,7 +704,7 @@ export const StylePanel: React.FC<StylePanelProps> = ({
         </div>
       </div>
 
-      {/* Multiple Selection Info */}
+      {/* 多选信息 */}
       {selectedNodes.length > 1 && (
         <div className="mt-4 p-3 bg-primary/5 rounded-lg border border-primary/10">
           <p className="text-sm text-muted-foreground">

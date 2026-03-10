@@ -14,7 +14,7 @@ import { useStorage } from './context/StorageContext';
 function MindMapEditorWrapper() {
   const params = useParams<{ workId: string }>();
   const workId = params.workId || '';
-  const { initialized, isLoading } = useStorage();
+  const { initialized } = useStorage();
   
   const handleBack = () => {
     window.location.href = '/works';

@@ -157,7 +157,7 @@ export class HistoryStore implements HistoryRepository {
         diffData: version.diffData,
         createdAt: now,
         operationType: 'restore',
-        description: `Restored to version ${version.versionNumber}`
+        description: `恢复到版本 ${version.versionNumber}`
       };
 
       await this.dbAdapter.executeTransaction('historyVersions', 'readwrite', async (transaction) => {
@@ -167,7 +167,7 @@ export class HistoryStore implements HistoryRepository {
 
       return true;
     } catch (error) {
-      console.error('Error restoring version:', error);
+      console.error('恢复版本错误:', error);
       throw error;
     }
   }

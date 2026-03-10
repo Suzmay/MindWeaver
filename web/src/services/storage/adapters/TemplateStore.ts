@@ -68,7 +68,7 @@ export class TemplateStore extends WorkStore implements TemplateRepository {
           };
         });
       } catch (error) {
-        console.error('Error getting default templates:', error);
+        console.error('获取默认模板错误:', error);
         // 回退到全表扫描
         const cursor = store.openCursor();
         

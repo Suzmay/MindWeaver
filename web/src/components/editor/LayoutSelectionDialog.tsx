@@ -66,7 +66,7 @@ export const LayoutSelectionDialog: React.FC<LayoutSelectionDialogProps> = ({
 
   return (
     <Dialog open={isOpen} onOpenChange={onClose}>
-      <DialogContent className="max-w-[700px] sm:max-w-[700px]" style={{ width: '700px', height: '500px' }}>
+      <DialogContent className="max-w-[700px] sm:max-w-[700px] w-[700px] h-[500px]">
         <DialogHeader>
           <DialogTitle>创建思维导图</DialogTitle>
         </DialogHeader>

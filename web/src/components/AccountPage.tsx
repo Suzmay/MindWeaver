@@ -117,7 +117,7 @@ export function AccountPage() {
         )}
       </div>
 
-      {/* Guest Mode Warning */}
+      {/* 游客模式警告 */}
       {isGuest && (
         <Card className="rounded-2xl border-2 border-warning/20 bg-warning/5">
           <CardContent className="p-4">
@@ -134,14 +134,14 @@ export function AccountPage() {
         </Card>
       )}
 
-      {/* Profile Card */}
+      {/* 个人资料卡片 */}
       <Card className="rounded-2xl shadow-ocean border-2 border-primary/10">
         <CardHeader>
           <CardTitle>个人资料</CardTitle>
           <CardDescription>管理个人信息与头像</CardDescription>
         </CardHeader>
         <CardContent className="space-y-6">
-          {/* Avatar Section */}
+          {/* 头像区域 */}
           <div className="flex flex-col items-center gap-4">
             <div className="relative group">
               <Avatar className="w-24 h-24 border-4 border-primary/20 shadow-ocean">
@@ -176,7 +176,7 @@ export function AccountPage() {
             )}
           </div>
 
-          {/* User Info */}
+          {/* 用户信息 */}
           <div className="space-y-4">
             <div className="space-y-2">
               <Label htmlFor="username">用户名</Label>
@@ -228,7 +228,7 @@ export function AccountPage() {
             </div>
           </div>
 
-          {/* Action Buttons */}
+          {/* 操作按钮 */}
           <div className="flex gap-3">
             {isEditing ? (
               <>
@@ -276,7 +276,7 @@ export function AccountPage() {
         </CardContent>
       </Card>
 
-      {/* Security */}
+      {/* 安全 */}
       <Card className="rounded-2xl shadow-ocean border-2 border-primary/10">
         <CardHeader>
           <CardTitle>安全</CardTitle>

@@ -32,7 +32,7 @@ export default function App() {
 
   const handleTabChange = (tab: string) => {
     setActiveTab(tab);
-    // Navigate to the corresponding route
+    // 导航到对应的路由
     navigate(`/${tab}`);
   };
 

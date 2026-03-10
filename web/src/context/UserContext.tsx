@@ -53,7 +53,7 @@ export const UserProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
         setError(null);
       } catch (err) {
         setError((err as Error).message);
-        console.error('User initialization error:', err);
+        console.error('用户初始化错误:', err);
       } finally {
         setIsLoading(false);
       }
@@ -147,7 +147,7 @@ export const UserProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
 export const useUser = () => {
   const context = useContext(UserContext);
   if (!context) {
-    throw new Error('useUser must be used within a UserProvider');
+    throw new Error('useUser 必须在 UserProvider 内部使用');
   }
   return context;
 };

@@ -50,6 +50,19 @@ export default {
         border: 'var(--border)',
         input: 'var(--input)',
         ring: 'var(--ring)',
+        slate: {
+          200: 'var(--color-slate-200)',
+          300: 'var(--color-slate-300)',
+          400: 'var(--color-slate-400)',
+          500: 'var(--color-slate-500)',
+          600: 'var(--color-slate-600)',
+          700: 'var(--color-slate-700)',
+          800: 'var(--color-slate-800)',
+        },
+        red: {
+          400: 'var(--color-red-400)',
+          600: 'var(--color-red-600)',
+        },
       },
       borderRadius: {
         lg: 'var(--radius-lg, var(--radius))',

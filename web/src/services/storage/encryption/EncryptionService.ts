@@ -16,14 +16,11 @@ export class EncryptionService {
   
   // 加密数据
   async encrypt(data: any, key: CryptoKey): Promise<string> {
-    console.log('EncryptionService.encrypt: 开始加密数据', data);
     try {
       // 尝试使用 Worker
       if (this.useWorker) {
         try {
-          console.log('EncryptionService.encrypt: 尝试使用 Worker 加密');
           const result = await this.workerService.encrypt(data, key);
-          console.log('EncryptionService.encrypt: Worker 加密成功');
           return result;
         } catch (error) {
           console.warn('EncryptionService.encrypt: Worker 加密失败，降级到同步加密:', error);
@@ -32,20 +29,14 @@ export class EncryptionService {
       }
       
       // 同步加密作为降级方案
-      console.log('EncryptionService.encrypt: 使用同步加密');
       const jsonData = JSON.stringify(data);
-      console.log('EncryptionService.encrypt: 数据转换为 JSON', jsonData);
       const encoder = new TextEncoder();
       const plaintext = encoder.encode(jsonData);
-      console.log('EncryptionService.encrypt: 数据编码为 Uint8Array', plaintext.length, 'bytes');
       
       // 生成随机 IV
-      console.log('EncryptionService.encrypt: 生成随机 IV');
       const iv = crypto.getRandomValues(new Uint8Array(12));
-      console.log('EncryptionService.encrypt: IV 生成成功', iv);
       
       // 加密
-      console.log('EncryptionService.encrypt: 开始执行加密操作');
       const ciphertext = await crypto.subtle.encrypt(
         {
           name: 'AES-GCM',
@@ -55,17 +46,13 @@ export class EncryptionService {
         key,
         plaintext
       );
-      console.log('EncryptionService.encrypt: 加密操作成功', ciphertext.byteLength, 'bytes');
       
       // 组合 IV + 密文 + AuthTag
-      console.log('EncryptionService.encrypt: 组合 IV 和密文');
       const combined = new Uint8Array(iv.length + ciphertext.byteLength);
       combined.set(iv, 0);
       combined.set(new Uint8Array(ciphertext), iv.length);
-      console.log('EncryptionService.encrypt: 组合完成', combined.length, 'bytes');
       
       const result = this.arrayBufferToBase64(combined.buffer);
-      console.log('EncryptionService.encrypt: 转换为 Base64 成功', result.length, 'characters');
       return result;
     } catch (error) {
       console.error('EncryptionService.encrypt: 加密失败', error);

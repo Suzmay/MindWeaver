@@ -16,7 +16,7 @@ export class NodeOperations {
         node1Width = 160;
         node1Height = 120;
         break;
-      default: // rectangle, rounded
+      default: // 矩形，圆角矩形
         node1Width = 120;
         node1Height = 50;
     }

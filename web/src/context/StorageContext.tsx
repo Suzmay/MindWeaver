@@ -69,65 +69,46 @@ export const StorageProvider: React.FC<{ children: ReactNode }> = ({ children })
   
   // 初始化服务
   const initializeServices = async () => {
-    console.log('=== StorageContext.initializeServices: 开始初始化存储服务 ===');
     try {
       setIsLoading(true);
-      console.log('1. 开始初始化存储服务');
       
-      console.log('2. 创建存储服务实例');
       const service = StorageService.getInstance();
-      console.log('3. 存储服务实例创建成功');
       
-      console.log('4. 开始初始化存储服务核心');
       try {
         await service.initialize();
-        console.log('5. 存储服务核心初始化成功');
       } catch (initError) {
-        console.error('5. 存储服务核心初始化失败:', initError);
+        console.error('存储服务核心初始化失败:', initError);
         throw new Error(`存储服务初始化失败: ${(initError as Error).message}`);
       }
       
-      console.log('6. 设置存储服务到状态');
       setStorageService(service);
-      console.log('7. 存储服务设置成功');
       
-      console.log('8. 开始加载初始数据');
       try {
         await loadInitialData(service);
-        console.log('9. 初始数据加载成功');
       } catch (dataError) {
-        console.error('9. 初始数据加载失败:', dataError);
+        console.error('初始数据加载失败:', dataError);
         // 初始数据加载失败不阻止初始化过程
       }
       
-      console.log('10. 开始订阅事件');
       subscribeToEvents(service);
-      console.log('11. 事件订阅成功');
       
-      console.log('12. 设置初始化状态为true');
       setInitialized(true);
-      console.log('13. 重置错误状态');
       setError(null);
-      
-      console.log('=== StorageContext.initializeServices: 存储服务初始化完成 ===');
     } catch (err) {
       const errorMessage = (err as Error).message;
-      console.error('=== StorageContext.initializeServices: 初始化失败 ===:', errorMessage);
+      console.error('StorageContext.initializeServices: 初始化失败:', errorMessage);
       console.error('错误堆栈:', (err as Error).stack);
       setError(errorMessage);
       setInitialized(false);
     } finally {
       setIsLoading(false);
-      console.log('=== StorageContext.initializeServices: 加载状态设置为false ===');
     }
   };
   
   // 加载初始数据
   const loadInitialData = async (service: StorageService) => {
-    console.log('StorageContext.loadInitialData: 开始加载初始数据');
     try {
       // 加载作品 - 使用完整的查询选项
-      console.log('StorageContext.loadInitialData: 开始加载作品');
       const worksQueryOptions = {
         page: 1,
         pageSize: 20,
@@ -139,14 +120,10 @@ export const StorageProvider: React.FC<{ children: ReactNode }> = ({ children })
         deletedOnly: false,
         sortOrder: 'desc' as const
       };
-      console.log('StorageContext.loadInitialData: 作品查询选项:', worksQueryOptions);
       const worksResult = await service.listWorks(worksQueryOptions);
-      console.log('StorageContext.loadInitialData: 作品加载结果:', worksResult.works.length, '个作品');
       setWorks(worksResult.works);
-      console.log('StorageContext.loadInitialData: 作品状态更新成功');
       
       // 加载模板 - 使用完整的查询选项
-      console.log('StorageContext.loadInitialData: 开始加载模板');
       const templatesQueryOptions = {
         page: 1,
         pageSize: 20,
@@ -158,30 +135,17 @@ export const StorageProvider: React.FC<{ children: ReactNode }> = ({ children })
         deletedOnly: false,
         sortOrder: 'desc' as const
       };
-      console.log('StorageContext.loadInitialData: 模板查询选项:', templatesQueryOptions);
       const templatesResult = await service.listTemplates(templatesQueryOptions);
-      console.log('StorageContext.loadInitialData: 模板加载结果:', templatesResult.works.length, '个模板');
       setTemplates(templatesResult.works as Template[]);
-      console.log('StorageContext.loadInitialData: 模板状态更新成功');
       
       // 检查默认模板
-      console.log('StorageContext.loadInitialData: 开始检查默认模板');
       const defaultTemplates = await service.getDefaultTemplates();
-      console.log('StorageContext.loadInitialData: 默认模板数量:', defaultTemplates.length);
       if (defaultTemplates.length === 0) {
-        console.log('StorageContext.loadInitialData: 无默认模板，开始创建');
         await createDefaultTemplates(service);
-        console.log('StorageContext.loadInitialData: 默认模板创建成功');
         // 重新加载模板
-        console.log('StorageContext.loadInitialData: 重新加载模板');
         const updatedTemplatesResult = await service.listTemplates(templatesQueryOptions);
-        console.log('StorageContext.loadInitialData: 模板重新加载结果:', updatedTemplatesResult.works.length, '个模板');
         setTemplates(updatedTemplatesResult.works as Template[]);
-        console.log('StorageContext.loadInitialData: 模板状态更新成功');
-      } else {
-        console.log('StorageContext.loadInitialData: 默认模板已存在，跳过创建');
       }
-      console.log('StorageContext.loadInitialData: 初始数据加载完成');
     } catch (err) {
       console.error('StorageContext.loadInitialData: 加载初始数据失败:', err);
       // 静默处理错误
@@ -190,7 +154,6 @@ export const StorageProvider: React.FC<{ children: ReactNode }> = ({ children })
   
   // 创建默认模板
   const createDefaultTemplates = async (service: StorageService) => {
-    console.log('StorageContext.createDefaultTemplates: 开始创建默认模板');
     try {
       const defaultTemplates = [
         {
@@ -235,18 +198,14 @@ export const StorageProvider: React.FC<{ children: ReactNode }> = ({ children })
         }
       ];
       
-      console.log('StorageContext.createDefaultTemplates: 默认模板数量:', defaultTemplates.length);
       for (let i = 0; i < defaultTemplates.length; i++) {
         const templateData = defaultTemplates[i];
-        console.log('StorageContext.createDefaultTemplates: 创建模板', i + 1, ':', templateData.title);
         try {
           await service.createTemplate(templateData);
-          console.log('StorageContext.createDefaultTemplates: 模板创建成功:', templateData.title);
         } catch (templateError) {
           console.error('StorageContext.createDefaultTemplates: 模板创建失败:', templateData.title, templateError);
         }
       }
-      console.log('StorageContext.createDefaultTemplates: 默认模板创建完成');
     } catch (err) {
       console.error('StorageContext.createDefaultTemplates: 创建默认模板失败:', err);
       // 静默处理错误
@@ -325,7 +284,7 @@ export const StorageProvider: React.FC<{ children: ReactNode }> = ({ children })
   // 作品操作
   const createWork = async (dto: WorkCreateDTO): Promise<Work> => {
     if (!storageService) {
-      throw new Error('Storage service not initialized');
+      throw new Error('存储服务未初始化');
     }
     
     try {
@@ -340,7 +299,7 @@ export const StorageProvider: React.FC<{ children: ReactNode }> = ({ children })
   
   const updateWork = async (workId: string, dto: WorkUpdateDTO): Promise<Work> => {
     if (!storageService) {
-      throw new Error('Storage service not initialized');
+      throw new Error('存储服务未初始化');
     }
     
     const work = await storageService.updateWork(workId, dto);
@@ -350,7 +309,7 @@ export const StorageProvider: React.FC<{ children: ReactNode }> = ({ children })
   
   const deleteWork = async (workId: string, hardDelete?: boolean): Promise<boolean> => {
     if (!storageService) {
-      throw new Error('Storage service not initialized');
+      throw new Error('存储服务未初始化');
     }
     
     const result = await storageService.deleteWork(workId, hardDelete);
@@ -362,7 +321,7 @@ export const StorageProvider: React.FC<{ children: ReactNode }> = ({ children })
   
   const restoreWork = async (workId: string): Promise<Work> => {
     if (!storageService) {
-      throw new Error('Storage service not initialized');
+      throw new Error('存储服务未初始化');
     }
     
     const work = await storageService.restoreWork(workId);
@@ -371,23 +330,13 @@ export const StorageProvider: React.FC<{ children: ReactNode }> = ({ children })
   };
   
   const getWork = async (workId: string): Promise<Work | null> => {
-    console.log('StorageContext.getWork: 获取作品', workId);
     if (!storageService) {
       console.error('StorageContext.getWork: 存储服务未初始化');
-      throw new Error('Storage service not initialized');
+      throw new Error('存储服务未初始化');
     }
     
     try {
       const work = await storageService.readWork(workId);
-      console.log('StorageContext.getWork: 获取作品结果', work ? '成功' : '失败');
-      if (work) {
-        console.log('StorageContext.getWork: 作品详情', {
-          id: work.id,
-          title: work.title,
-          hasEncryptedData: work.encryptedData ? '有' : '无',
-          encryptedDataLength: work.encryptedData ? work.encryptedData.length : 0
-        });
-      }
       return work;
     } catch (error) {
       console.error('StorageContext.getWork: 获取作品失败', error);
@@ -400,7 +349,7 @@ export const StorageProvider: React.FC<{ children: ReactNode }> = ({ children })
       // 等待存储服务初始化
       await new Promise(resolve => setTimeout(resolve, 100));
       if (!storageService) {
-        throw new Error('Storage service not initialized');
+        throw new Error('存储服务未初始化');
       }
     }
     
@@ -429,7 +378,7 @@ export const StorageProvider: React.FC<{ children: ReactNode }> = ({ children })
   
   const copyWork = async (workId: string, newTitle?: string): Promise<Work> => {
     if (!storageService) {
-      throw new Error('Storage service not initialized');
+      throw new Error('存储服务未初始化');
     }
     
     const work = await storageService.copyWork(workId, newTitle);
@@ -440,7 +389,7 @@ export const StorageProvider: React.FC<{ children: ReactNode }> = ({ children })
   // 模板操作
   const createTemplate = async (dto: TemplateCreateDTO): Promise<Template> => {
     if (!storageService) {
-      throw new Error('Storage service not initialized');
+      throw new Error('存储服务未初始化');
     }
     
     const template = await storageService.createTemplate(dto);
@@ -450,7 +399,7 @@ export const StorageProvider: React.FC<{ children: ReactNode }> = ({ children })
   
   const updateTemplate = async (templateId: string, dto: TemplateUpdateDTO): Promise<Template> => {
     if (!storageService) {
-      throw new Error('Storage service not initialized');
+      throw new Error('存储服务未初始化');
     }
     
     const template = await storageService.updateTemplate(templateId, dto);
@@ -460,7 +409,7 @@ export const StorageProvider: React.FC<{ children: ReactNode }> = ({ children })
   
   const getTemplate = async (templateId: string): Promise<Template | null> => {
     if (!storageService) {
-      throw new Error('Storage service not initialized');
+      throw new Error('存储服务未初始化');
     }
     
     return await storageService.getTemplate(templateId);
@@ -468,7 +417,7 @@ export const StorageProvider: React.FC<{ children: ReactNode }> = ({ children })
   
   const listTemplates = async (options: QueryOptions): Promise<Template[]> => {
     if (!storageService) {
-      throw new Error('Storage service not initialized');
+      throw new Error('存储服务未初始化');
     }
     
     const result = await storageService.listTemplates(options);
@@ -477,7 +426,7 @@ export const StorageProvider: React.FC<{ children: ReactNode }> = ({ children })
   
   const getDefaultTemplates = async (): Promise<Template[]> => {
     if (!storageService) {
-      throw new Error('Storage service not initialized');
+      throw new Error('存储服务未初始化');
     }
     
     return await storageService.getDefaultTemplates();
@@ -486,7 +435,7 @@ export const StorageProvider: React.FC<{ children: ReactNode }> = ({ children })
   // 历史版本操作
   const createVersion = async (dto: HistoryVersionCreateDTO): Promise<HistoryVersion> => {
     if (!storageService) {
-      throw new Error('Storage service not initialized');
+      throw new Error('存储服务未初始化');
     }
     
     return await storageService.createVersion(dto);
@@ -494,7 +443,7 @@ export const StorageProvider: React.FC<{ children: ReactNode }> = ({ children })
   
   const getVersions = async (workId: string): Promise<HistoryVersion[]> => {
     if (!storageService) {
-      throw new Error('Storage service not initialized');
+      throw new Error('存储服务未初始化');
     }
     
     return await storageService.getVersions(workId);
@@ -502,7 +451,7 @@ export const StorageProvider: React.FC<{ children: ReactNode }> = ({ children })
   
   const restoreVersion = async (workId: string, versionId: string): Promise<boolean> => {
     if (!storageService) {
-      throw new Error('Storage service not initialized');
+      throw new Error('存储服务未初始化');
     }
     
     const result = await storageService.restoreVersion(workId, versionId);
@@ -515,7 +464,7 @@ export const StorageProvider: React.FC<{ children: ReactNode }> = ({ children })
   // 导出/导入
   const exportWork = async (workId: string, format: 'mm' | 'xmind' | 'json'): Promise<Blob> => {
     if (!storageService) {
-      throw new Error('Storage service not initialized');
+      throw new Error('存储服务未初始化');
     }
     
     return await storageService.exportWork(workId, format);
@@ -523,7 +472,7 @@ export const StorageProvider: React.FC<{ children: ReactNode }> = ({ children })
   
   const importWork = async (file: Blob, format: 'mm' | 'xmind' | 'json'): Promise<Work> => {
     if (!storageService) {
-      throw new Error('Storage service not initialized');
+      throw new Error('存储服务未初始化');
     }
     
     const work = await storageService.importWork(file, format);
@@ -534,7 +483,7 @@ export const StorageProvider: React.FC<{ children: ReactNode }> = ({ children })
   // 分片管理操作
   const saveShard = async (shard: any): Promise<void> => {
     if (!storageService) {
-      throw new Error('Storage service not initialized');
+      throw new Error('存储服务未初始化');
     }
     
     await storageService.saveShard(shard);
@@ -551,7 +500,7 @@ export const StorageProvider: React.FC<{ children: ReactNode }> = ({ children })
   
   const saveShards = async (shards: any[]): Promise<void> => {
     if (!storageService) {
-      throw new Error('Storage service not initialized');
+      throw new Error('存储服务未初始化');
     }
     
     await storageService.saveShards(shards);
@@ -559,7 +508,7 @@ export const StorageProvider: React.FC<{ children: ReactNode }> = ({ children })
   
   const getShard = async (shardId: string): Promise<any | null> => {
     if (!storageService) {
-      throw new Error('Storage service not initialized');
+      throw new Error('存储服务未初始化');
     }
     
     return await storageService.getShard(shardId);
@@ -567,7 +516,7 @@ export const StorageProvider: React.FC<{ children: ReactNode }> = ({ children })
   
   const getShardsByWorkId = async (workId: string): Promise<any[]> => {
     if (!storageService) {
-      throw new Error('Storage service not initialized');
+      throw new Error('存储服务未初始化');
     }
     
     return await storageService.getShardsByWorkId(workId);
@@ -575,7 +524,7 @@ export const StorageProvider: React.FC<{ children: ReactNode }> = ({ children })
   
   const deleteShard = async (shardId: string): Promise<boolean> => {
     if (!storageService) {
-      throw new Error('Storage service not initialized');
+      throw new Error('存储服务未初始化');
     }
     
     return await storageService.deleteShard(shardId);
@@ -583,7 +532,7 @@ export const StorageProvider: React.FC<{ children: ReactNode }> = ({ children })
   
   const deleteShardsByWorkId = async (workId: string): Promise<number> => {
     if (!storageService) {
-      throw new Error('Storage service not initialized');
+      throw new Error('存储服务未初始化');
     }
     
     return await storageService.deleteShardsByWorkId(workId);
@@ -686,7 +635,7 @@ export const StorageProvider: React.FC<{ children: ReactNode }> = ({ children })
 export const useStorage = () => {
   const context = useContext(StorageContext);
   if (!context) {
-    throw new Error('useStorage must be used within a StorageProvider');
+    throw new Error('useStorage 必须在 StorageProvider 内部使用');
   }
   return context;
 };

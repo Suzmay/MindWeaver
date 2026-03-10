@@ -86,7 +86,7 @@ export class ShardStore {
               if (shard.checksum) {
                 const currentChecksum = await this.encryptionService.generateChecksum(shard.data);
                 if (shard.checksum !== currentChecksum) {
-                  console.warn(`Data integrity check failed for shard ${shard.shardId}`);
+                  console.warn(`分片 ${shard.shardId} 的数据完整性检查失败`);
                   // 触发数据损坏事件
                   this.eventEmitter.emit(EventType.DATA_CORRUPTED, {
                     data: {
@@ -100,7 +100,7 @@ export class ShardStore {
                 }
               }
             } catch (error) {
-              console.error('Error decrypting shard:', error);
+              console.error('解密分片错误:', error);
               // 触发数据损坏事件
               this.eventEmitter.emit(EventType.DATA_CORRUPTED, {
                 data: {
@@ -200,7 +200,7 @@ export class ShardStore {
       });
       return true;
     } catch (error) {
-      console.error('Error deleting shard:', error);
+      console.error('删除分片错误:', error);
       return false;
     }
   }

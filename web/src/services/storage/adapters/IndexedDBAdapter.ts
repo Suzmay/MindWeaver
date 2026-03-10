@@ -25,46 +25,34 @@ export class IndexedDBAdapter implements FileInterface {
   // 初始化存储服务
   async initialize(): Promise<void> {
     if (this.initialized) {
-      console.log('IndexedDBAdapter.initialize: 已经初始化，跳过');
       return;
     }
     
-    console.log('=== IndexedDBAdapter.initialize: 开始初始化 ===');
     try {
-      console.log('1. 开始加载密钥');
       try {
         const key = await this.keyManager.loadKey();
-        console.log('2. 密钥加载结果:', key ? '成功' : '失败');
         if (!key) {
-          console.log('3. 开始生成新密钥');
           await this.keyManager.generateKey();
-          console.log('4. 新密钥生成成功');
         }
       } catch (keyError) {
         console.error('密钥管理失败:', keyError);
         throw new Error(`密钥管理失败: ${(keyError as Error).message}`);
       }
       
-      console.log('5. 开始打开数据库');
       try {
         this.db = await this.openDatabase();
-        console.log('6. 数据库打开成功');
       } catch (dbError) {
         console.error('数据库打开失败:', dbError);
         throw new Error(`数据库打开失败: ${(dbError as Error).message}`);
       }
       
-      console.log('7. 设置初始化状态为true');
       this.initialized = true;
       
-      console.log('8. 发送初始化成功事件');
       this.eventEmitter.emit(EventType.INITIALIZED, {
         timestamp: new Date().toISOString()
       });
-      
-      console.log('=== IndexedDBAdapter.initialize: 初始化完成 ===');
     } catch (error) {
-      console.error('=== IndexedDBAdapter.initialize: 初始化失败 ===:', error);
+      console.error('IndexedDBAdapter.initialize: 初始化失败:', error);
       console.error('错误堆栈:', (error as Error).stack);
       this.eventEmitter.emit(EventType.ERROR, {
         timestamp: new Date().toISOString(),
@@ -139,7 +127,7 @@ export class IndexedDBAdapter implements FileInterface {
       
       // 数据库打开失败
       request.onerror = (_) => {
-        reject(new Error('Failed to open IndexedDB database'));
+        reject(new Error('无法打开 IndexedDB 数据库'));
       };
     });
   }
@@ -151,7 +139,6 @@ export class IndexedDBAdapter implements FileInterface {
       this.db = null;
     }
     this.initialized = false;
-    console.log('IndexedDBAdapter closed');
   }
   
   // 检查存储服务是否初始化
@@ -166,7 +153,7 @@ export class IndexedDBAdapter implements FileInterface {
     percentage: number;
   }> {
     if (!this.initialized || !this.db) {
-      throw new Error('Storage not initialized');
+      throw new Error('存储服务未初始化');
     }
     
     try {
@@ -184,7 +171,7 @@ export class IndexedDBAdapter implements FileInterface {
             used += request.result * 1024; // 估算每条记录 1KB
             resolve();
           };
-          request.onerror = () => reject(new Error('Failed to count records'));
+          request.onerror = () => reject(new Error('统计记录失败'));
         });
       }
       
@@ -198,7 +185,7 @@ export class IndexedDBAdapter implements FileInterface {
         percentage
       };
     } catch (error) {
-      console.error('Storage usage error:', error);
+      console.error('存储使用情况错误:', error);
       throw error;
     }
   }
@@ -206,7 +193,7 @@ export class IndexedDBAdapter implements FileInterface {
   // 获取数据库连接
   getDatabase(): IDBDatabase {
     if (!this.db) {
-      throw new Error('Database not initialized');
+      throw new Error('数据库未初始化');
     }
     return this.db;
   }
@@ -218,7 +205,7 @@ export class IndexedDBAdapter implements FileInterface {
     callback: (transaction: IDBTransaction) => Promise<T>
   ): Promise<T> {
     if (!this.db) {
-      throw new Error('Database not initialized');
+      throw new Error('数据库未初始化');
     }
     
     return new Promise((resolve, reject) => {
@@ -234,11 +221,11 @@ export class IndexedDBAdapter implements FileInterface {
             };
             
             transaction.onerror = () => {
-              reject(new Error('Transaction failed'));
+              reject(new Error('事务失败'));
             };
             
             transaction.onabort = () => {
-              reject(new Error('Transaction aborted'));
+              reject(new Error('事务已中止'));
             };
           })
           .catch(error => {
@@ -263,7 +250,7 @@ export class IndexedDBAdapter implements FileInterface {
         return await operation();
       } catch (error) {
         lastError = error as Error;
-        console.warn(`Operation failed, retrying ${i + 1}/${maxRetries}...`, error);
+        console.warn(`操作失败，正在重试 ${i + 1}/${maxRetries}...`, error);
         // 等待一段时间后重试
         await new Promise(resolve => setTimeout(resolve, 100 * (i + 1)));
       }
@@ -284,11 +271,11 @@ export class IndexedDBAdapter implements FileInterface {
       };
       
       request.onerror = () => {
-        reject(new Error('Failed to delete IndexedDB database'));
+        reject(new Error('无法删除 IndexedDB 数据库'));
       };
       
       request.onblocked = () => {
-        reject(new Error('Database deletion blocked. Please close all other tabs or windows using this database.'));
+        reject(new Error('数据库删除被阻止。请关闭所有其他使用此数据库的标签页或窗口。'));
       };
     });
   }

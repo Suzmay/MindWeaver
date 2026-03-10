@@ -593,8 +593,8 @@ export function WorksPage({ onEditWork }: WorksPageProps) {
 
   // 生成作品缩略图的函数
   const generateThumbnail = (work: Work) => {
-    // 使用统一的背景颜色（内容日程的颜色）
-    const bgColor = 'hsl(200, 75%, 85%)';
+    // 使用统一的背景颜色
+    const bgColor = 'hsl(200 75% 85% / 0.2)';
     
     // 基于作品标签生成图标
     const tagCount = work.tags?.length || 0;
@@ -621,16 +621,16 @@ export function WorksPage({ onEditWork }: WorksPageProps) {
       if (sortBy === 'starred') {
         return (b.starred ? 1 : 0) - (a.starred ? 1 : 0);
       }
-      // When in grouped view, sort by category first, then by starred status
+      // 当在分组视图中时，先按分类排序，然后按收藏状态排序
       if (filterCategory === 'grouped') {
         const categoryCompare = (a.category || '').localeCompare(b.category || '');
         if (categoryCompare !== 0) return categoryCompare;
         return (b.starred ? 1 : 0) - (a.starred ? 1 : 0);
       }
-      return 0; // Default to recent (already in order)
+      return 0; // 默认按最近（已按顺序排列）
     });
 
-  // Group works by category when filterCategory is 'grouped'
+  // 当filterCategory为'grouped'时，按分类分组作品
   const groupedWorks = filterCategory === 'grouped' 
     ? filteredWorks.reduce((acc, work) => {
         const category = work.category || '未分类';
@@ -656,7 +656,7 @@ export function WorksPage({ onEditWork }: WorksPageProps) {
 
   return (
     <div className="p-8 space-y-6">
-      {/* Header */}
+      {/* 头部 */}
       <div className="flex items-center justify-between">
         <div>
           <h1>{showTrash ? '废纸篓' : '我的作品'}</h1>
@@ -709,7 +709,7 @@ export function WorksPage({ onEditWork }: WorksPageProps) {
         </div>
       </div>
 
-      {/* Save Status and Error Messages */}
+      {/* 保存状态和错误消息 */}
       {(saveResult || error) && (
         <div className={`rounded-2xl p-4 ${saveResult === 'success' ? 'bg-success/10 border-2 border-success/30' : saveResult === 'error' ? 'bg-destructive/10 border-2 border-destructive/30' : 'bg-warning/10 border-2 border-warning/30'}`}>
           <div className="flex items-center justify-between">
@@ -737,7 +737,7 @@ export function WorksPage({ onEditWork }: WorksPageProps) {
         </div>
       )}
 
-      {/* Delete Confirmation Dialog */}
+      {/* 删除确认对话框 */}
       <Dialog open={deleteConfirmDialogOpen} onOpenChange={setDeleteConfirmDialogOpen}>
         <DialogContent className="w-[400px] max-w-[90vw] rounded-2xl">
           <DialogHeader>
@@ -759,7 +759,7 @@ export function WorksPage({ onEditWork }: WorksPageProps) {
               type="button"
               variant="destructive"
               onClick={confirmBatchDelete}
-              className="rounded-xl hover:bg-destructive/90"
+              className="rounded-xl"
             >
               确认删除
             </Button>
@@ -767,10 +767,10 @@ export function WorksPage({ onEditWork }: WorksPageProps) {
         </DialogContent>
       </Dialog>
 
-      {/* Search and Filters */}
+      {/* 搜索和筛选 */}
       {!showTrash && (
         <div className="flex flex-col sm:flex-row gap-3">
-          {/* Search */}
+          {/* 搜索 */}
           <div className="relative flex-1">
             <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 w-5 h-5 text-muted-foreground" />
             <Input
@@ -781,7 +781,7 @@ export function WorksPage({ onEditWork }: WorksPageProps) {
             />
           </div>
 
-          {/* Category Filter */}
+          {/* 分类筛选 */}
           <Select value={filterCategory} onValueChange={setFilterCategory}>
             <SelectTrigger className="w-[180px] rounded-xl border-primary/20">
               <Filter className="w-4 h-4 mr-2" />
@@ -796,9 +796,9 @@ export function WorksPage({ onEditWork }: WorksPageProps) {
             </SelectContent>
           </Select>
 
-          {/* Tag Filter */}
+          {/* 标签筛选 */}
            <Select value={filterTag} onValueChange={setFilterTag}>
-             <SelectTrigger className="w-[180px] rounded-xl h-10 bg-background border-primary/20">
+             <SelectTrigger className="w-[180px] rounded-xl h-10 bg-white border-primary/20">
                <Tag className="w-4 h-4 mr-2" />
                <span>{filterTag === 'all' ? '标签' : filterTag}</span>
              </SelectTrigger>
@@ -818,7 +818,7 @@ export function WorksPage({ onEditWork }: WorksPageProps) {
 
 
 
-          {/* Sort */}
+          {/* 排序 */}
           <Select value={sortBy} onValueChange={(value) => setSortBy(value as any)}>
             <SelectTrigger className="w-[180px] rounded-xl border-primary/20">
               <Clock className="w-4 h-4 mr-2" />
@@ -830,13 +830,13 @@ export function WorksPage({ onEditWork }: WorksPageProps) {
             </SelectContent>
           </Select>
 
-          {/* View Toggle */}
-          <div className="flex border rounded-xl overflow-hidden border-primary/20">
+          {/* 视图切换 */}
+          <div className="flex border rounded-xl overflow-hidden border-primary/20 h-8">
             <Button
               variant={viewMode === 'grid' ? 'default' : 'ghost'}
               size="sm"
               onClick={() => setViewMode('grid')}
-              className="rounded-none"
+              className="rounded-none h-full bg-white dark:bg-input/30"
             >
               <Grid3x3 className="w-4 h-4" />
             </Button>
@@ -844,7 +844,7 @@ export function WorksPage({ onEditWork }: WorksPageProps) {
               variant={viewMode === 'list' ? 'default' : 'ghost'}
               size="sm"
               onClick={() => setViewMode('list')}
-              className="rounded-none"
+              className="rounded-none h-full bg-white dark:bg-input/30"
             >
               <List className="w-4 h-4" />
             </Button>
@@ -853,7 +853,7 @@ export function WorksPage({ onEditWork }: WorksPageProps) {
       )}
       {showTrash && (
         <div className="flex flex-col sm:flex-row gap-3">
-          {/* Search */}
+          {/* 搜索 */}
           <div className="relative flex-1">
             <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 w-5 h-5 text-muted-foreground" />
             <Input
@@ -866,11 +866,11 @@ export function WorksPage({ onEditWork }: WorksPageProps) {
         </div>
       )}
 
-      {/* Stats */}
+      {/* 统计信息 */}
       {!showTrash && (
         <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
           <Card 
-            className={`rounded-2xl border-2 transition-all ${filterCategory === 'all' && filterTag === 'all' && !showStarredOnly ? 'border-primary/40 bg-gradient-to-br from-primary/10 to-primary/5 shadow-md' : 'border-primary/20 bg-gradient-to-br from-primary/5 to-transparent hover:border-primary/40'}`}
+            className={`rounded-2xl border-2 transition-all cursor-pointer ${filterCategory === 'all' && filterTag === 'all' && !showStarredOnly ? 'border-primary/40 bg-gradient-to-br from-primary/10 to-primary/5 shadow-md' : 'border-primary/20 bg-gradient-to-br from-primary/5 to-transparent hover:border-primary/40'}`}
           onClick={() => {
             setFilterCategory('all');
             setFilterTag('all');
@@ -908,7 +908,7 @@ export function WorksPage({ onEditWork }: WorksPageProps) {
           </Card>
 
           <Card 
-            className={`rounded-2xl border-2 transition-all ${filterCategory !== 'all' ? 'border-primary/40 bg-gradient-to-br from-primary/10 to-primary/5 shadow-md' : 'border-primary/20 bg-gradient-to-br from-primary/5 to-transparent'}`}
+            className={`rounded-2xl border-2 transition-all cursor-pointer ${filterCategory !== 'all' ? 'border-primary/40 bg-gradient-to-br from-primary/10 to-primary/5 shadow-md' : 'border-primary/20 bg-gradient-to-br from-primary/5 to-transparent hover:border-primary/40'}`}
             onClick={() => {
               setFilterCategory('grouped');
               setFilterTag('all');
@@ -942,7 +942,7 @@ export function WorksPage({ onEditWork }: WorksPageProps) {
         </div>
       )}
 
-      {/* Batch Selection Toolbar */}
+      {/* 批量选择工具栏 */}
       {isBatchMode && (
         <div className="bg-card rounded-2xl border-2 border-primary/30 p-4 mb-6 flex items-center justify-between shadow-md">
           <div className="flex items-center gap-4">
@@ -1021,7 +1021,7 @@ export function WorksPage({ onEditWork }: WorksPageProps) {
         </div>
       )}
 
-      {/* Works Grid/List */}
+      {/* 作品网格/列表 */}
       {filteredWorks.length === 0 ? (
         <div className="flex flex-col items-center justify-center py-20 space-y-4">
           <div className="w-24 h-24 rounded-full bg-primary/10 flex items-center justify-center">
@@ -1036,11 +1036,11 @@ export function WorksPage({ onEditWork }: WorksPageProps) {
 
         </div>
       ) : groupedWorks ? (
-        // Grouped view by category
+        // 按分类分组视图
         <div className="space-y-6">
           {Object.entries(groupedWorks).map(([category, worksInCategory], index) => (
             <div key={category}>
-              {/* Category header with dividing line */}
+              {/* 带分隔线的分类标题 */}
               <div className="flex items-center mb-8">
                 {index > 0 && (
                   <div className="h-px flex-grow bg-border mr-4"></div>
@@ -1049,7 +1049,7 @@ export function WorksPage({ onEditWork }: WorksPageProps) {
                 <div className="h-px flex-grow bg-border ml-4"></div>
               </div>
               
-              {/* Works in this category */}
+              {/* 此分类中的作品 */}
               <div
                 className={
                   viewMode === 'grid'
@@ -1069,15 +1069,15 @@ export function WorksPage({ onEditWork }: WorksPageProps) {
                     onClick={() => onEditWork(work.id)}
                   >
                     <CardContent className={`p-0 ${viewMode === 'list' ? 'flex flex-row items-center' : ''}`}>
-                      {/* Thumbnail */}
+                      {/* 缩略图 */}
                       <div className={`flex items-center justify-center relative overflow-hidden ${viewMode === 'grid' ? 'h-40 rounded-t-2xl' : 'h-32 w-32 rounded-l-2xl flex-shrink-0'} bg-[var(--bg-color)]`} style={{ '--bg-color': generateThumbnail(work).bgColor } as React.CSSProperties}>
                         <div className="absolute inset-0 bg-gradient-to-t from-black/5 to-transparent" />
-                        {/* Selection checkbox */}
+                        {/* 选择复选框 */}
                         <button
                           type="button"
                           onClick={(e) => toggleWorkSelection(work.id, e)}
                           title="选择作品"
-                          className={`absolute top-3 left-3 w-8 h-8 rounded-full flex items-center justify-center transition-all z-20 hover:scale-110 bg-white/90 dark:bg-slate-700/90 hover:bg-primary/20`}
+                          className={`absolute top-3 left-3 w-8 h-8 rounded-full flex items-center justify-center transition-all z-20 hover:scale-110 bg-slate-200 dark:bg-slate-700/90 hover:bg-slate-300 dark:hover:bg-slate-600`}
                         >
                           {selectedWorks.includes(work.id) ? (
                             <Check className="w-4 h-4 text-primary" />
@@ -1085,7 +1085,7 @@ export function WorksPage({ onEditWork }: WorksPageProps) {
                             <Square className="w-4 h-4 text-muted-foreground" />
                           )}
                         </button>
-                        {/* Star button - only show when not in trash */}
+                        {/* 收藏按钮 - 仅在不在废纸篓中时显示 */}
                         {!showTrash && (
                           <button
                             type="button"
@@ -1095,20 +1095,20 @@ export function WorksPage({ onEditWork }: WorksPageProps) {
                             className={`absolute top-3 right-3 w-8 h-8 rounded-full flex items-center justify-center transition-all z-10 hover:scale-110 ${
                               work.starred 
                                 ? 'bg-warning/20 hover:bg-warning/30 dark:bg-slate-700/90 dark:hover:bg-slate-600'
-                                : 'bg-white/90 hover:bg-white dark:bg-slate-800/90 dark:hover:bg-slate-700'
+                                : 'bg-slate-200 hover:bg-slate-300 dark:bg-slate-700/90 dark:hover:bg-slate-600'
                             } ${work.isReadonly ? 'opacity-50 cursor-not-allowed' : ''}`}
                           >
-                            <Star className={`w-4 h-4 ${work.starred ? 'fill-warning text-warning dark:fill-warning dark:text-warning' : 'text-muted-foreground dark:text-slate-500'}`} />
+                            <Star className={`w-4 h-4 ${work.starred ? 'fill-warning text-warning dark:fill-warning dark:text-warning' : 'text-muted-foreground'}`} />
                           </button>
                         )}
-                        {/* Readonly badge */}
+                        {/* 只读徽章 */}
                         {work.isReadonly && (
                           <Badge className="absolute top-3 left-12 bg-warning/20 text-warning border-warning/30 gap-1 z-10">
                             <Lock className="w-3 h-3" />
                             只读
                           </Badge>
                         )}
-                        {/* Icon based on work tags */}
+                        {/* 基于作品标签的图标 */}
                         {generateThumbnail(work).icon === 'FileText' && <FileText className={`text-primary/60 relative z-0 ${viewMode === 'grid' ? 'w-16 h-16' : 'w-12 h-12'}`} />}
                         {generateThumbnail(work).icon === 'Star' && <Star className={`text-primary/60 relative z-0 ${viewMode === 'grid' ? 'w-16 h-16' : 'w-12 h-12'}`} />}
                         {generateThumbnail(work).icon === 'Clock' && <Clock className={`text-primary/60 relative z-0 ${viewMode === 'grid' ? 'w-16 h-16' : 'w-12 h-12'}`} />}
@@ -1116,7 +1116,7 @@ export function WorksPage({ onEditWork }: WorksPageProps) {
                         {generateThumbnail(work).icon === 'Tag' && <Tag className={`text-primary/60 relative z-0 ${viewMode === 'grid' ? 'w-16 h-16' : 'w-12 h-12'}`} />}
                       </div>
 
-                      {/* Info */}
+                      {/* 信息 */}
                       <div className="p-5 flex-1 flex items-center justify-between gap-4">
                         <div className="flex-1 min-w-0">
                           <h3 className="truncate mb-2">{work.title}</h3>
@@ -1155,7 +1155,7 @@ export function WorksPage({ onEditWork }: WorksPageProps) {
                           </div>
                         </div>
 
-                        {/* Actions Menu */}
+                        {/* 操作菜单 */}
                         <DropdownMenu>
                           <DropdownMenuTrigger asChild onClick={(e) => e.stopPropagation()}>
                             <Button
@@ -1246,7 +1246,7 @@ export function WorksPage({ onEditWork }: WorksPageProps) {
           ))}
         </div>
       ) : (
-  // Regular view (non-grouped)
+  // 常规视图（非分组）
   <div
     className={
       viewMode === 'grid'
@@ -1266,15 +1266,15 @@ export function WorksPage({ onEditWork }: WorksPageProps) {
         onClick={() => onEditWork(work.id)}
       >
               <CardContent className={`p-0 ${viewMode === 'list' ? 'flex flex-row items-center' : ''}`}>
-                {/* Thumbnail */}
+                {/* 缩略图 */}
                 <div className={`flex items-center justify-center relative overflow-hidden ${viewMode === 'grid' ? 'h-40 rounded-t-2xl' : 'h-32 w-32 rounded-l-2xl flex-shrink-0'} bg-[var(--bg-color)]`} style={{ '--bg-color': generateThumbnail(work).bgColor } as React.CSSProperties}>
                   <div className="absolute inset-0 bg-gradient-to-t from-black/5 to-transparent" />
-                  {/* Selection checkbox */}
+                  {/* 选择复选框 */}
                   <button
                     type="button"
                     onClick={(e) => toggleWorkSelection(work.id, e)}
                     title="选择作品"
-                    className={`absolute top-3 left-3 w-8 h-8 rounded-full flex items-center justify-center transition-all z-20 hover:scale-110 bg-white/90 dark:bg-slate-700/90 hover:bg-primary/20`}
+                    className={`absolute top-3 left-3 w-8 h-8 rounded-full flex items-center justify-center transition-all z-20 hover:scale-110 bg-slate-200 dark:bg-slate-700/90 hover:bg-slate-300 dark:hover:bg-slate-600`}
                   >
                     {selectedWorks.includes(work.id) ? (
                       <Check className="w-4 h-4 text-primary" />
@@ -1282,7 +1282,7 @@ export function WorksPage({ onEditWork }: WorksPageProps) {
                       <Square className="w-4 h-4 text-muted-foreground" />
                     )}
                   </button>
-                  {/* Star button - only show when not in trash */}
+                  {/* 收藏按钮 - 仅在不在废纸篓中时显示 */}
                   {!showTrash && (
                     <button
                       type="button"
@@ -1292,20 +1292,20 @@ export function WorksPage({ onEditWork }: WorksPageProps) {
                       className={`absolute top-3 right-3 w-8 h-8 rounded-full flex items-center justify-center transition-all z-10 hover:scale-110 ${
                         work.starred 
                           ? 'bg-warning/20 hover:bg-warning/30 dark:bg-slate-700/90 dark:hover:bg-slate-600'
-                          : 'bg-white/90 hover:bg-white dark:bg-slate-800/90 dark:hover:bg-slate-700'
+                          : 'bg-slate-200 hover:bg-slate-300 dark:bg-slate-700/90 dark:hover:bg-slate-600'
                       } ${work.isReadonly ? 'opacity-50 cursor-not-allowed' : ''}`}
                     >
-                      <Star className={`w-4 h-4 ${work.starred ? 'fill-warning text-warning dark:fill-warning dark:text-warning' : 'text-muted-foreground dark:text-slate-500'}`} />
+                      <Star className={`w-4 h-4 ${work.starred ? 'fill-warning text-warning dark:fill-warning dark:text-warning' : 'text-muted-foreground'}`} />
                     </button>
                   )}
-                  {/* Readonly badge */}
+                  {/* 只读徽章 */}
                   {work.isReadonly && (
                     <Badge className="absolute top-3 left-12 bg-warning/20 text-warning border-warning/30 gap-1 z-10">
                       <Lock className="w-3 h-3" />
                       只读
                     </Badge>
                   )}
-                  {/* Icon based on work tags */}
+                  {/* 基于作品标签的图标 */}
                   {generateThumbnail(work).icon === 'FileText' && <FileText className={`text-primary/60 relative z-0 ${viewMode === 'grid' ? 'w-16 h-16' : 'w-12 h-12'}`} />}
                   {generateThumbnail(work).icon === 'Star' && <Star className={`text-primary/60 relative z-0 ${viewMode === 'grid' ? 'w-16 h-16' : 'w-12 h-12'}`} />}
                   {generateThumbnail(work).icon === 'Clock' && <Clock className={`text-primary/60 relative z-0 ${viewMode === 'grid' ? 'w-16 h-16' : 'w-12 h-12'}`} />}
@@ -1313,7 +1313,7 @@ export function WorksPage({ onEditWork }: WorksPageProps) {
                   {generateThumbnail(work).icon === 'Tag' && <Tag className={`text-primary/60 relative z-0 ${viewMode === 'grid' ? 'w-16 h-16' : 'w-12 h-12'}`} />}
                 </div>
 
-                {/* Info */}
+                {/* 信息 */}
                 <div className="p-5 flex-1 flex items-center justify-between gap-4">
                   <div className="flex-1 min-w-0">
                     <h3 className="truncate mb-2">{work.title}</h3>
@@ -1352,7 +1352,7 @@ export function WorksPage({ onEditWork }: WorksPageProps) {
                     </div>
                   </div>
 
-                  {/* Actions Menu */}
+                  {/* 操作菜单 */}
                   <DropdownMenu>
                     <DropdownMenuTrigger asChild onClick={(e) => e.stopPropagation()}>
                       <Button
@@ -1441,7 +1441,7 @@ export function WorksPage({ onEditWork }: WorksPageProps) {
         </div>
       )}
 
-      {/* Pagination */}
+      {/* 分页 */}
       {filteredWorks.length > 0 && (
         <div className="flex items-center justify-between mt-8 p-4 bg-card rounded-2xl border border-primary/20">
           <div className="flex items-center gap-4">
@@ -1508,7 +1508,7 @@ export function WorksPage({ onEditWork }: WorksPageProps) {
         </div>
       )}
 
-      {/* Rename Dialog */}
+      {/* 重命名对话框 */}
       <Dialog open={renameDialogOpen} onOpenChange={setRenameDialogOpen}>
         <DialogContent className="rounded-2xl">
           <DialogHeader>
@@ -1552,7 +1552,7 @@ export function WorksPage({ onEditWork }: WorksPageProps) {
         </DialogContent>
       </Dialog>
 
-      {/* Tag Management Dialog */}
+      {/* 标签管理对话框 */}
       <Dialog open={tagDialogOpen} onOpenChange={setTagDialogOpen}>
         <DialogContent className="rounded-2xl">
           <DialogHeader>
@@ -1621,7 +1621,7 @@ export function WorksPage({ onEditWork }: WorksPageProps) {
         </DialogContent>
       </Dialog>
 
-      {/* Layout Selection Dialog */}
+      {/* 布局选择对话框 */}
       <LayoutSelectionDialog
         isOpen={showLayoutDialog}
         onClose={() => setShowLayoutDialog(false)}

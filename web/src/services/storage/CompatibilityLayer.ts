@@ -165,7 +165,7 @@ export class CompatibilityLayer {
         works.push(work);
         success++;
       } catch (error) {
-        console.error('Failed to migrate work:', memoryWork.id, error);
+        console.error('迁移作品失败:', memoryWork.id, error);
         failed++;
       }
     }

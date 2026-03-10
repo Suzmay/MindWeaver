@@ -22,13 +22,13 @@ self.onmessage = async (event: MessageEvent<EncryptionRequest>) => {
     switch (action) {
       case 'encrypt':
         if (!key) {
-          throw new Error('No encryption key provided');
+          throw new Error('未提供加密密钥');
         }
         result = await encrypt(data, key);
         break;
       case 'decrypt':
         if (!key) {
-          throw new Error('No encryption key provided');
+          throw new Error('未提供加密密钥');
         }
         result = await decrypt(data, key);
         break;
@@ -36,7 +36,7 @@ self.onmessage = async (event: MessageEvent<EncryptionRequest>) => {
         result = await generateChecksum(data);
         break;
       default:
-        throw new Error(`Unknown action: ${action}`);
+        throw new Error(`未知操作: ${action}`);
     }
   } catch (err) {
     error = (err as Error).message;
@@ -79,8 +79,8 @@ async function encrypt(data: any, key: CryptoKey): Promise<string> {
     
     return arrayBufferToBase64(combined.buffer);
   } catch (error) {
-    console.error('Encryption error:', error);
-    throw new Error('Failed to encrypt data');
+    console.error('加密错误:', error);
+    throw new Error('加密数据失败');
   }
 }
 
@@ -110,8 +110,8 @@ async function decrypt(encryptedData: string, key: CryptoKey): Promise<any> {
     
     return JSON.parse(jsonData);
   } catch (error) {
-    console.error('Decryption error:', error);
-    throw new Error('Failed to decrypt data');
+    console.error('解密错误:', error);
+    throw new Error('解密数据失败');
   }
 }
 
@@ -128,12 +128,12 @@ async function generateChecksum(data: any): Promise<string> {
     
     return hashHex;
   } catch (error) {
-    console.error('Checksum generation error:', error);
-    throw new Error('Failed to generate checksum');
+    console.error('校验和生成错误:', error);
+    throw new Error('生成校验和失败');
   }
 }
 
-// ArrayBuffer to Base64
+// ArrayBuffer 转 Base64
 function arrayBufferToBase64(buffer: ArrayBuffer): string {
   const bytes = new Uint8Array(buffer);
   let binary = '';
@@ -143,7 +143,7 @@ function arrayBufferToBase64(buffer: ArrayBuffer): string {
   return btoa(binary);
 }
 
-// Base64 to ArrayBuffer
+// Base64 转 ArrayBuffer
 function base64ToArrayBuffer(base64: string): ArrayBuffer {
   const binary = atob(base64);
   const buffer = new ArrayBuffer(binary.length);

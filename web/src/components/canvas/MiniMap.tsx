@@ -1,5 +1,6 @@
 import React, { useRef, useEffect, useState } from 'react';
 import { MindMapNode } from '../../models/Work';
+import { useTheme } from '../../context/ThemeContext';
 
 interface MiniMapProps {
   nodes: MindMapNode[];
@@ -25,6 +26,18 @@ export const MiniMap: React.FC<MiniMapProps> = ({
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const [isDragging, setIsDragging] = useState(false);
   const [dragStart, setDragStart] = useState({ x: 0, y: 0 });
+  const { theme } = useTheme();
+  const [isDarkMode, setIsDarkMode] = useState(false);
+
+  // 监听主题变化
+  useEffect(() => {
+    if (theme === 'auto') {
+      const isDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
+      setIsDarkMode(isDark);
+    } else {
+      setIsDarkMode(theme === 'dark');
+    }
+  }, [theme]);
 
   // 计算节点的边界，用于自动调整迷你地图的缩放和位置
   const calculateNodesBounds = () => {
@@ -201,11 +214,11 @@ export const MiniMap: React.FC<MiniMapProps> = ({
       ctx.stroke();
 
       // 绘制节点文本（只显示前几个字符）
-      ctx.fillStyle = '#FFFFFF';
-      ctx.font = '8px Arial';
+      ctx.fillStyle = isDarkMode ? '#FFFFFF' : '#000000';
+      ctx.font = 'bold 8px Arial';
       ctx.textAlign = 'left';
       ctx.textBaseline = 'middle';
-      const truncatedText = node.title.length > 8 ? node.title.substring(0, 8) + '...' : node.title;
+      const truncatedText = node.title.length > 6 ? node.title.substring(0, 6) + '...' : node.title;
       ctx.fillText(truncatedText, nodeX + 8, nodeY);
     });
 

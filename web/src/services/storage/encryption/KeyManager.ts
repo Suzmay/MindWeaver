@@ -14,14 +14,11 @@ export class KeyManager {
   
   // 生成新密钥
   async generateKey(): Promise<CryptoKey> {
-    console.log('=== KeyManager.generateKey: 开始生成新密钥 ===');
     try {
-      console.log('1. 检查crypto.subtle是否可用');
       if (!crypto || !crypto.subtle) {
         throw new Error('crypto.subtle API 不可用');
       }
       
-      console.log('2. 开始生成AES-GCM密钥');
       const key = await crypto.subtle.generateKey(
         {
           name: 'AES-GCM',
@@ -31,18 +28,14 @@ export class KeyManager {
         ['encrypt', 'decrypt']
       );
       
-      console.log('3. 密钥生成成功');
       this.key = key;
       this.keyGenerated = true;
       
-      console.log('4. 开始保存密钥');
       await this.saveKey();
-      console.log('5. 密钥保存成功');
       
-      console.log('=== KeyManager.generateKey: 密钥生成完成 ===');
       return key;
     } catch (error) {
-      console.error('=== KeyManager.generateKey: 密钥生成失败 ===:', error);
+      console.error('KeyManager.generateKey: 密钥生成失败:', error);
       console.error('错误堆栈:', (error as Error).stack);
       throw new Error(`生成密钥失败: ${(error as Error).message}`);
     }
@@ -99,35 +92,19 @@ export class KeyManager {
       throw new Error('没有密钥可保存');
     }
     
-    console.log('=== KeyManager.saveKey: 开始保存密钥 ===');
     try {
-      console.log('1. 开始导出密钥');
       const exportedKey = await crypto.subtle.exportKey('jwk', this.key);
-      console.log('2. 密钥导出成功');
-      
-      console.log('3. 转换密钥为JSON格式');
       const keyJson = JSON.stringify(exportedKey);
-      console.log('4. 密钥JSON转换成功，长度:', keyJson.length);
-      
-      console.log('5. 开始获取设备指纹');
       const deviceFingerprint = await this.getDeviceFingerprint();
-      console.log('6. 设备指纹获取成功:', deviceFingerprint);
-      
       const storageKey = `mindweaver_encryption_key_${deviceFingerprint}`;
-      console.log('7. 存储键生成成功:', storageKey);
       
-      console.log('8. 检查localStorage是否可用');
       if (!localStorage) {
         throw new Error('localStorage 不可用');
       }
       
-      console.log('9. 开始存储密钥到localStorage');
       localStorage.setItem(storageKey, keyJson);
-      console.log('10. 密钥存储成功');
-      
-      console.log('=== KeyManager.saveKey: 密钥保存完成 ===');
     } catch (error) {
-      console.error('=== KeyManager.saveKey: 密钥保存失败 ===:', error);
+      console.error('KeyManager.saveKey: 密钥保存失败:', error);
       console.error('错误堆栈:', (error as Error).stack);
       throw new Error(`保存密钥失败: ${(error as Error).message}`);
     }
@@ -135,40 +112,27 @@ export class KeyManager {
   
   // 加载密钥
   async loadKey(): Promise<CryptoKey | null> {
-    console.log('=== KeyManager.loadKey: 开始加载密钥 ===');
     try {
-      console.log('1. 开始获取设备指纹');
       const deviceFingerprint = await this.getDeviceFingerprint();
-      console.log('2. 设备指纹获取成功:', deviceFingerprint);
-      
       const storageKey = `mindweaver_encryption_key_${deviceFingerprint}`;
-      console.log('3. 存储键生成成功:', storageKey);
       
-      console.log('4. 检查localStorage是否可用');
       if (!localStorage) {
         console.warn('localStorage 不可用');
         return null;
       }
       
-      console.log('5. 开始从localStorage获取密钥');
       const keyJson = localStorage.getItem(storageKey);
-      console.log('6. 密钥获取结果:', keyJson ? '找到密钥' : '未找到密钥');
       
       if (!keyJson) {
-        console.log('7. 密钥不存在，返回null');
         return null;
       }
       
-      console.log('8. 解析密钥JSON');
       const exportedKey = JSON.parse(keyJson);
-      console.log('9. 密钥JSON解析成功');
       
-      console.log('10. 检查crypto.subtle是否可用');
       if (!crypto || !crypto.subtle) {
         throw new Error('crypto.subtle API 不可用');
       }
       
-      console.log('11. 开始导入密钥');
       const key = await crypto.subtle.importKey(
         'jwk',
         exportedKey,
@@ -179,14 +143,12 @@ export class KeyManager {
         ['encrypt', 'decrypt']
       );
       
-      console.log('12. 密钥导入成功');
       this.key = key;
       this.keyGenerated = true;
       
-      console.log('=== KeyManager.loadKey: 密钥加载完成 ===');
       return key;
     } catch (error) {
-      console.error('=== KeyManager.loadKey: 密钥加载失败 ===:', error);
+      console.error('KeyManager.loadKey: 密钥加载失败:', error);
       console.error('错误堆栈:', (error as Error).stack);
       return null;
     }
