@@ -4,7 +4,7 @@ export interface ThemeConfig {
   primaryColor: string; // 十六进制颜色值
   secondaryColor: string;
   backgroundColor: string;
-  nodeShape: 'rectangle' | 'rounded' | 'circle' | 'cloud' | 'bubble';
+  nodeShape: 'rectangle' | 'rounded' | 'circle' | 'diamond' | 'bubble';
   edgeStyle: 'straight' | 'curved' | 'polyline';
   fontFamily: string;
   animationEnabled: boolean;

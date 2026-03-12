@@ -112,7 +112,7 @@ export class Viewport {
         return Math.sqrt(60 * 60 + 25 * 25); // 120x50的对角线
       case 'circle':
         return 40;
-      case 'cloud':
+      case 'diamond':
         return 80;
       default:
         return 60;

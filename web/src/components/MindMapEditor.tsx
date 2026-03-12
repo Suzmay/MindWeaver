@@ -74,6 +74,7 @@ export function MindMapEditor({ workId, onBack }: MindMapEditorProps) {
       shape: 'rounded',
       color: '#14B8A6',
       fontSize: 16,
+      connectionType: 'curved',
       children: ['node1', 'node2', 'node3'],
       expanded: true,
       level: 0,
@@ -88,6 +89,7 @@ export function MindMapEditor({ workId, onBack }: MindMapEditorProps) {
       shape: 'rounded',
       color: '#0EA5E9',
       fontSize: 14,
+      connectionType: 'curved',
       children: [],
       expanded: true,
       level: 1,
@@ -102,6 +104,7 @@ export function MindMapEditor({ workId, onBack }: MindMapEditorProps) {
       shape: 'rounded',
       color: '#06B6D4',
       fontSize: 14,
+      connectionType: 'curved',
       children: [],
       expanded: true,
       level: 1,
@@ -116,6 +119,7 @@ export function MindMapEditor({ workId, onBack }: MindMapEditorProps) {
       shape: 'rounded',
       color: '#22D3EE',
       fontSize: 14,
+      connectionType: 'curved',
       children: [],
       expanded: true,
       level: 1,
@@ -937,7 +941,7 @@ export function MindMapEditor({ workId, onBack }: MindMapEditorProps) {
           <Separator orientation="vertical" className="h-6" />
 
           {/* 缩放控制 */}
-          <div className="flex items-center gap-1 border rounded-lg p-1">
+          <div className="flex items-center gap-1 border rounded-lg p-1 bg-background">
             <Button
               variant="ghost"
               size="sm"

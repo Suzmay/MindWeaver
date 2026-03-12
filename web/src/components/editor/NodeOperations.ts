@@ -12,7 +12,7 @@ export class NodeOperations {
         node1Width = 80; // 直径
         node1Height = 80;
         break;
-      case 'cloud':
+      case 'diamond':
         node1Width = 160;
         node1Height = 120;
         break;
@@ -26,7 +26,7 @@ export class NodeOperations {
         node2Width = 80;
         node2Height = 80;
         break;
-      case 'cloud':
+      case 'diamond':
         node2Width = 160;
         node2Height = 120;
         break;
@@ -90,7 +90,7 @@ export class NodeOperations {
       summary?: string;
       content?: string;
       type?: 'person' | 'event' | 'concept' | 'task' | 'other';
-      shape?: 'rectangle' | 'rounded' | 'circle' | 'cloud';
+      shape?: 'rectangle' | 'rounded' | 'circle' | 'diamond';
       color?: string;
       fontSize?: number;
       icon?: string;
@@ -251,7 +251,7 @@ export class NodeOperations {
     nodes: MindMapNode[],
     nodeId: string,
     style: {
-      shape?: 'rectangle' | 'rounded' | 'circle' | 'cloud';
+      shape?: 'rectangle' | 'rounded' | 'circle' | 'diamond';
       color?: string;
     }
   ): MindMapNode[] {

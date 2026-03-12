@@ -251,7 +251,7 @@ export class StorageService {
       
       // 准备复制数据
       const dto: WorkCreateDTO = {
-        title: newTitle || `${existingWork.title} - 副本`,
+        title: newTitle || `${existingWork.title}(1)`,
         category: existingWork.category,
         tags: existingWork.tags,
         nodes: existingWork.nodes

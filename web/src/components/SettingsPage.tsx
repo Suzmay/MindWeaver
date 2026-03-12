@@ -379,7 +379,7 @@ export function SettingsPage() {
               type="button"
               variant="outline"
               onClick={() => setResetDialogOpen(false)}
-              className="rounded-xl hover:text-foreground"
+              className="rounded-xl hover:text-foreground bg-white dark:bg-transparent"
             >
               取消
             </Button>
@@ -423,7 +423,7 @@ export function SettingsPage() {
               type="button"
               variant="outline"
               onClick={() => setRestoreDefaultsDialogOpen(false)}
-              className="rounded-xl hover:text-foreground"
+              className="rounded-xl hover:text-foreground bg-white dark:bg-transparent"
             >
               取消
             </Button>

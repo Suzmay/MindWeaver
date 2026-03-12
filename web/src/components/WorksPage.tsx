@@ -32,6 +32,7 @@ import { LayoutSelectionDialog } from './editor/LayoutSelectionDialog';
 import { Work } from '../models/Work';
 import { useStorage } from '../context/StorageContext';
 import { useUser } from '../context/UserContext';
+import { useTheme } from '../context/ThemeContext';
 
 interface WorksPageProps {
   onEditWork: (workId: string) => void;
@@ -39,6 +40,7 @@ interface WorksPageProps {
 
 export function WorksPage({ onEditWork }: WorksPageProps) {
   const { } = useUser();
+  const { theme } = useTheme();
   const [viewMode, setViewMode] = useState<'grid' | 'list'>('grid');
   const [searchQuery, setSearchQuery] = useState('');
   const [sortBy, setSortBy] = useState<'title' | 'lastModified' | 'createdAt' | 'nodeCount' | 'category' | 'starred' | 'recent'>('recent');
@@ -751,7 +753,7 @@ export function WorksPage({ onEditWork }: WorksPageProps) {
               type="button"
               variant="outline"
               onClick={() => setDeleteConfirmDialogOpen(false)}
-              className="rounded-xl hover:text-foreground"
+              className="rounded-xl hover:text-foreground bg-white dark:bg-transparent"
             >
               取消
             </Button>
@@ -772,7 +774,9 @@ export function WorksPage({ onEditWork }: WorksPageProps) {
         <div className="flex flex-col sm:flex-row gap-3">
           {/* 搜索 */}
           <div className="relative flex-1">
-            <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 w-5 h-5 text-muted-foreground" />
+            <div className="absolute left-3 top-0 bottom-0 flex items-center">
+              <Search className="w-5 h-5 text-muted-foreground" />
+            </div>
             <Input
               placeholder="搜索思维导图..."
               value={searchQuery}
@@ -855,7 +859,9 @@ export function WorksPage({ onEditWork }: WorksPageProps) {
         <div className="flex flex-col sm:flex-row gap-3">
           {/* 搜索 */}
           <div className="relative flex-1">
-            <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 w-5 h-5 text-muted-foreground" />
+            <div className="absolute left-3 top-0 bottom-0 flex items-center">
+              <Search className="w-5 h-5 text-muted-foreground" />
+            </div>
             <Input
               placeholder="搜索已删除的思维导图..."
               value={searchQuery}
@@ -1094,7 +1100,7 @@ export function WorksPage({ onEditWork }: WorksPageProps) {
                             disabled={work.isReadonly}
                             className={`absolute top-3 right-3 w-8 h-8 rounded-full flex items-center justify-center transition-all z-10 hover:scale-110 ${
                               work.starred 
-                                ? 'bg-warning/20 hover:bg-warning/30 dark:bg-slate-700/90 dark:hover:bg-slate-600'
+                                ? 'bg-slate-200 hover:bg-slate-300 dark:bg-slate-700/90 dark:hover:bg-slate-600'
                                 : 'bg-slate-200 hover:bg-slate-300 dark:bg-slate-700/90 dark:hover:bg-slate-600'
                             } ${work.isReadonly ? 'opacity-50 cursor-not-allowed' : ''}`}
                           >
@@ -1291,7 +1297,7 @@ export function WorksPage({ onEditWork }: WorksPageProps) {
                       disabled={work.isReadonly}
                       className={`absolute top-3 right-3 w-8 h-8 rounded-full flex items-center justify-center transition-all z-10 hover:scale-110 ${
                         work.starred 
-                          ? 'bg-warning/20 hover:bg-warning/30 dark:bg-slate-700/90 dark:hover:bg-slate-600'
+                          ? 'bg-slate-200 hover:bg-slate-300 dark:bg-slate-700/90 dark:hover:bg-slate-600'
                           : 'bg-slate-200 hover:bg-slate-300 dark:bg-slate-700/90 dark:hover:bg-slate-600'
                       } ${work.isReadonly ? 'opacity-50 cursor-not-allowed' : ''}`}
                     >
@@ -1538,7 +1544,7 @@ export function WorksPage({ onEditWork }: WorksPageProps) {
             <Button 
               variant="outline" 
               onClick={() => setRenameDialogOpen(false)}
-              className="rounded-xl"
+              className="rounded-xl bg-white dark:bg-transparent"
             >
               取消
             </Button>

@@ -1083,22 +1083,22 @@
 
   .-translate-x-1\/2 {
     --tw-translate-x: calc(calc(1 / 2 * 100%) * -1);
-    translate: var(--tw-translate-x) var(--tw-translate-y);
+    transform: translate(var(--tw-translate-x), var(--tw-translate-y));
   }
 
   .translate-x-\[-50\%\] {
     --tw-translate-x: -50%;
-    translate: var(--tw-translate-x) var(--tw-translate-y);
+    transform: translate(var(--tw-translate-x), var(--tw-translate-y));
   }
 
   .-translate-y-1\/2 {
     --tw-translate-y: calc(calc(1 / 2 * 100%) * -1);
-    translate: var(--tw-translate-x) var(--tw-translate-y);
+    transform: translate(var(--tw-translate-x), var(--tw-translate-y));
   }
 
   .translate-y-\[-50\%\] {
     --tw-translate-y: -50%;
-    translate: var(--tw-translate-x) var(--tw-translate-y);
+    transform: translate(var(--tw-translate-x), var(--tw-translate-y));
   }
 
   .scale-105 {
@@ -1109,8 +1109,8 @@
   }
 
   .transform {
-    transform: var(--tw-rotate-x) var(--tw-rotate-y) var(--tw-rotate-z) var(--tw-skew-x) var(--tw-skew-y);
-  }
+  transform: var(--tw-rotate-x) var(--tw-rotate-y) var(--tw-rotate-z) var(--tw-skew-x) var(--tw-skew-y) var(--tw-translate-x) var(--tw-translate-y);
+}
 
   .animate-ping {
     animation: var(--animate-ping);

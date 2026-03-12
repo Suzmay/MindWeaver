@@ -254,29 +254,42 @@ export const CanvasRenderer: React.FC<CanvasRendererProps> = ({
       ctx.strokeStyle = isSelected ? '#1E40AF' : node.color;
       ctx.lineWidth = isSelected ? 3 : 1;
 
+      // 计算宽度缩放因子，范围75-275%
+      const sizeFactor = (node.size || 100) / 100;
+      const width = 120 * sizeFactor;
+      const halfWidth = width / 2;
+
       switch (node.shape) {
         case 'rectangle':
-          ctx.fillRect(node.x - 60, node.y - 25, 120, 50);
-          ctx.strokeRect(node.x - 60, node.y - 25, 120, 50);
+          ctx.fillRect(node.x - halfWidth, node.y - 25, width, 50);
+          ctx.strokeRect(node.x - halfWidth, node.y - 25, width, 50);
           break;
         case 'rounded':
           ctx.beginPath();
-          roundRect(ctx, node.x - 60, node.y - 25, 120, 50, 12);
+          roundRect(ctx, node.x - halfWidth, node.y - 25, width, 50, 12);
           ctx.fill();
           ctx.stroke();
           break;
         case 'circle':
-          ctx.beginPath();
-          ctx.arc(node.x, node.y, 40, 0, Math.PI * 2);
-          ctx.fill();
-          ctx.stroke();
-          break;
-        case 'cloud':
-          ctx.beginPath();
-          drawCloud(ctx, node.x, node.y, 60, 40);
-          ctx.fill();
-          ctx.stroke();
-          break;
+            ctx.beginPath();
+            // 绘制椭圆，宽度根据size调整，高度80
+            const radiusX = halfWidth; // 宽度的一半
+            const radiusY = 40; // 高度的一半
+            ctx.ellipse(node.x, node.y, radiusX, radiusY, 0, 0, Math.PI * 2);
+            ctx.fill();
+            ctx.stroke();
+            break;
+          case 'diamond':
+            ctx.beginPath();
+            // 绘制菱形，宽度根据size调整，高度80
+            ctx.moveTo(node.x, node.y - 40); // 顶部点
+            ctx.lineTo(node.x + halfWidth, node.y); // 右侧点
+            ctx.lineTo(node.x, node.y + 40); // 底部点
+            ctx.lineTo(node.x - halfWidth, node.y); // 左侧点
+            ctx.closePath();
+            ctx.fill();
+            ctx.stroke();
+            break;
       }
 
       // 绘制展开/折叠指示器
@@ -307,26 +320,39 @@ export const CanvasRenderer: React.FC<CanvasRendererProps> = ({
         ctx.strokeStyle = '#1E40AF'; // 高亮被拖拽的节点
         ctx.lineWidth = 3;
 
+        // 计算宽度缩放因子，范围75-275%
+        const sizeFactor = (node.size || 100) / 100;
+        const width = 120 * sizeFactor;
+        const halfWidth = width / 2;
+
         switch (node.shape) {
           case 'rectangle':
-            ctx.fillRect(x - 60, y - 25, 120, 50);
-            ctx.strokeRect(x - 60, y - 25, 120, 50);
+            ctx.fillRect(x - halfWidth, y - 25, width, 50);
+            ctx.strokeRect(x - halfWidth, y - 25, width, 50);
             break;
           case 'rounded':
             ctx.beginPath();
-            roundRect(ctx, x - 60, y - 25, 120, 50, 12);
+            roundRect(ctx, x - halfWidth, y - 25, width, 50, 12);
             ctx.fill();
             ctx.stroke();
             break;
           case 'circle':
             ctx.beginPath();
-            ctx.arc(x, y, 40, 0, Math.PI * 2);
+            // 绘制椭圆，宽度根据size调整，高度80
+            const radiusX = halfWidth; // 宽度的一半
+            const radiusY = 40; // 高度的一半
+            ctx.ellipse(x, y, radiusX, radiusY, 0, 0, Math.PI * 2);
             ctx.fill();
             ctx.stroke();
             break;
-          case 'cloud':
+          case 'diamond':
             ctx.beginPath();
-            drawCloud(ctx, x, y, 60, 40);
+            // 绘制菱形，宽度根据size调整，高度80
+            ctx.moveTo(x, y - 40); // 顶部点
+            ctx.lineTo(x + halfWidth, y); // 右侧点
+            ctx.lineTo(x, y + 40); // 底部点
+            ctx.lineTo(x - halfWidth, y); // 左侧点
+            ctx.closePath();
             ctx.fill();
             ctx.stroke();
             break;
@@ -494,22 +520,31 @@ export const CanvasRenderer: React.FC<CanvasRendererProps> = ({
     for (const node of nodes) {
       let isClicked = false;
       
+      // 计算宽度缩放因子，范围75-275%
+      const sizeFactor = (node.size || 100) / 100;
+      const halfWidth = 60 * sizeFactor;
+
       switch (node.shape) {
         case 'rectangle':
-          isClicked = mouseX >= node.x - 60 && mouseX <= node.x + 60 &&
+          isClicked = mouseX >= node.x - halfWidth && mouseX <= node.x + halfWidth &&
                      mouseY >= node.y - 25 && mouseY <= node.y + 25;
           break;
         case 'rounded':
-          isClicked = mouseX >= node.x - 60 && mouseX <= node.x + 60 &&
+          isClicked = mouseX >= node.x - halfWidth && mouseX <= node.x + halfWidth &&
                      mouseY >= node.y - 25 && mouseY <= node.y + 25;
           break;
         case 'circle':
-          const distance = Math.sqrt((mouseX - node.x) ** 2 + (mouseY - node.y) ** 2);
-          isClicked = distance <= 40;
+          // 椭圆的点击检测
+          const radiusX = halfWidth;
+          const radiusY = 40;
+          const normalizedX = (mouseX - node.x) / radiusX;
+          const normalizedY = (mouseY - node.y) / radiusY;
+          isClicked = normalizedX * normalizedX + normalizedY * normalizedY <= 1;
           break;
-        case 'cloud':
-          isClicked = mouseX >= node.x - 80 && mouseX <= node.x + 80 &&
-                     mouseY >= node.y - 60 && mouseY <= node.y + 60;
+        case 'diamond':
+          // 菱形的点击检测，使用菱形的边界
+          isClicked = mouseX >= node.x - halfWidth && mouseX <= node.x + halfWidth &&
+                     mouseY >= node.y - 40 && mouseY <= node.y + 40;
           break;
       }
 
@@ -634,22 +669,31 @@ export const CanvasRenderer: React.FC<CanvasRendererProps> = ({
     for (const node of nodes) {
       let isClicked = false;
       
+      // 计算宽度缩放因子，范围75-275%
+      const sizeFactor = (node.size || 100) / 100;
+      const halfWidth = 60 * sizeFactor;
+
       switch (node.shape) {
         case 'rectangle':
-          isClicked = mouseX >= node.x - 60 && mouseX <= node.x + 60 &&
+          isClicked = mouseX >= node.x - halfWidth && mouseX <= node.x + halfWidth &&
                      mouseY >= node.y - 25 && mouseY <= node.y + 25;
           break;
         case 'rounded':
-          isClicked = mouseX >= node.x - 60 && mouseX <= node.x + 60 &&
+          isClicked = mouseX >= node.x - halfWidth && mouseX <= node.x + halfWidth &&
                      mouseY >= node.y - 25 && mouseY <= node.y + 25;
           break;
         case 'circle':
-          const distance = Math.sqrt((mouseX - node.x) ** 2 + (mouseY - node.y) ** 2);
-          isClicked = distance <= 40;
+          // 椭圆的点击检测
+          const radiusX = halfWidth;
+          const radiusY = 40;
+          const normalizedX = (mouseX - node.x) / radiusX;
+          const normalizedY = (mouseY - node.y) / radiusY;
+          isClicked = normalizedX * normalizedX + normalizedY * normalizedY <= 1;
           break;
-        case 'cloud':
-          isClicked = mouseX >= node.x - 80 && mouseX <= node.x + 80 &&
-                     mouseY >= node.y - 60 && mouseY <= node.y + 60;
+        case 'diamond':
+          // 菱形的点击检测，使用菱形的边界
+          isClicked = mouseX >= node.x - halfWidth && mouseX <= node.x + halfWidth &&
+                     mouseY >= node.y - 40 && mouseY <= node.y + 40;
           break;
       }
 

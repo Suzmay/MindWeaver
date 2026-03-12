@@ -154,7 +154,7 @@ export class DragSelect {
             height: 80,
           };
           break;
-        case 'cloud':
+        case 'diamond':
           nodeRect = {
             x: node.x - 80,
             y: node.y - 60,

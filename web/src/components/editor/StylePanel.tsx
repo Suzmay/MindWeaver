@@ -1,6 +1,6 @@
 import React, { useEffect, useRef } from 'react';
 import { MindMapNode } from '../../models/Work';
-import { Square, Circle, Cloud, Palette, Type, Image, X, SlidersHorizontal, Spline, AudioWaveform } from 'lucide-react';
+import { Square, Circle, Diamond, Palette, Type, Image, X, SlidersHorizontal, Spline, AudioWaveform } from 'lucide-react';
 
 import {
   Slider,
@@ -34,11 +34,12 @@ interface StylePanelProps {
   selectedNodes: string[];
   nodes: MindMapNode[];
   onStyleChange: (nodeIds: string[], style: {
-    shape?: 'rectangle' | 'rounded' | 'circle' | 'cloud';
+    shape?: 'rectangle' | 'rounded' | 'circle' | 'diamond';
     color?: string;
     fontSize?: number;
     icon?: string;
-    connectionType?: 'straight' | 'curved' | 'dashed';
+    connectionType?: 'straight' | 'curved' | 'dashed' | 'wavy';
+    size?: number;
   }) => void;
   onTextChange: (nodeId: string, text: string) => void;
   onContentChange: (nodeId: string, content: string) => void;
@@ -67,7 +68,7 @@ const SHAPES = [
   { value: 'rounded', label: '圆角矩形', icon: Square },
   { value: 'rectangle', label: '矩形', icon: Square },
   { value: 'circle', label: '圆形', icon: Circle },
-  { value: 'cloud', label: '云形', icon: Cloud },
+  { value: 'diamond', label: '菱形', icon: Diamond },
 ];
 
 const CONNECTION_TYPES = [
@@ -249,7 +250,7 @@ export const StylePanel: React.FC<StylePanelProps> = ({
 
   // 计算样式面板的宽度和高度以避免滚动
   const panelWidth = Math.min(550, canvasWidth * 0.45); // 为额外的选项卡增加宽度
-  const panelHeight = Math.min(700, window.innerHeight - 150); // 增加高度
+  const panelHeight = Math.min(800, window.innerHeight - 100); // 增加高度
 
   // 计算节点在屏幕上的位置
   const getNodeScreenPosition = (node: MindMapNode) => {
@@ -389,7 +390,7 @@ export const StylePanel: React.FC<StylePanelProps> = ({
   // 计算初始面板位置（用于状态初始化）
   // const panelPosition = calculatePanelPosition(); // 不直接使用，但函数在useEffect中被调用
 
-  const handleShapeChange = (shape: 'rectangle' | 'rounded' | 'circle' | 'cloud') => {
+  const handleShapeChange = (shape: 'rectangle' | 'rounded' | 'circle' | 'diamond') => {
     onStyleChange(selectedNodes, { shape });
   };
 
@@ -405,7 +406,7 @@ export const StylePanel: React.FC<StylePanelProps> = ({
     onStyleChange(selectedNodes, { icon: material });
   };
 
-  const handleConnectionChange = (connectionType: 'straight' | 'curved' | 'dashed') => {
+  const handleConnectionChange = (connectionType: 'straight' | 'curved' | 'dashed' | 'wavy') => {
     onStyleChange(selectedNodes, { connectionType });
   };
 
@@ -474,10 +475,6 @@ export const StylePanel: React.FC<StylePanelProps> = ({
                 <Type className="w-5 h-5" />
                 <span>内容</span>
               </TabsTrigger>
-              <TabsTrigger value="icon" className="rounded-lg flex items-center gap-2 h-10 transition-all whitespace-nowrap hover:bg-primary/10">
-                <Image className="w-5 h-5" />
-                <span>素材</span>
-              </TabsTrigger>
             </TabsList>
 
             <TabsContent value="shape" className="flex-1 overflow-y-auto">
@@ -506,6 +503,58 @@ export const StylePanel: React.FC<StylePanelProps> = ({
                     </div>
                   </CardContent>
                 </Card>
+                
+                <Card className="border border-primary/10 shadow-sm w-full">
+                  <CardHeader className="pb-3">
+                    <CardTitle className="text-sm font-medium">形状大小</CardTitle>
+                    <CardDescription className="text-xs">调整节点的大小</CardDescription>
+                  </CardHeader>
+                  <CardContent>
+                    <div className="space-y-4">
+                      <div className="space-y-2">
+                        <div className="flex justify-between items-center">
+                          <Label className="text-sm">节点宽度</Label>
+                          <span className="text-xs font-medium text-muted-foreground">{referenceNode.size || 100}%</span>
+                        </div>
+                        <Slider
+                          value={[referenceNode.size || 100]}
+                          min={75}
+                          max={275}
+                          step={5}
+                          onValueChange={(value) => onStyleChange(selectedNodes, { size: value[0] })}
+                          className="pt-2"
+                        />
+                      </div>
+                      
+                      <div className="grid grid-cols-3 gap-2">
+                        <Button
+                          variant={referenceNode.size === 75 ? "default" : "outline"}
+                          size="sm"
+                          onClick={() => onStyleChange(selectedNodes, { size: 75 })}
+                          className="h-8"
+                        >
+                          小
+                        </Button>
+                        <Button
+                          variant={(referenceNode.size === 100 || referenceNode.size === undefined) ? "default" : "outline"}
+                          size="sm"
+                          onClick={() => onStyleChange(selectedNodes, { size: 100 })}
+                          className="h-8"
+                        >
+                          中
+                        </Button>
+                        <Button
+                          variant={referenceNode.size === 200 ? "default" : "outline"}
+                          size="sm"
+                          onClick={() => onStyleChange(selectedNodes, { size: 200 })}
+                          className="h-8"
+                        >
+                          大
+                        </Button>
+                      </div>
+                    </div>
+                  </CardContent>
+                </Card>
               </div>
             </TabsContent>
 
@@ -521,7 +570,7 @@ export const StylePanel: React.FC<StylePanelProps> = ({
                       {CONNECTION_TYPES.map((connection) => (
                         <Button
                           key={connection.value}
-                          variant={referenceNode.connectionType === connection.value ? 'default' : 'outline'}
+                          variant={((referenceNode.connectionType === connection.value) || (referenceNode.connectionType === undefined && connection.value === 'curved')) ? 'default' : 'outline'}
                           className="justify-start h-12 rounded-lg transition-all"
                           onClick={() => handleConnectionChange(connection.value as any)}
                         >
@@ -574,12 +623,25 @@ export const StylePanel: React.FC<StylePanelProps> = ({
                     <div className="space-y-3 pt-6">
                       <Label className="text-sm font-medium">自定义颜色</Label>
                       <div className="flex gap-3">
-                        <Input
-                          type="color"
-                          value={referenceNode.color}
-                          onChange={(e) => handleColorChange(e.target.value)}
-                          className="w-14 h-14 p-0 border-2 rounded-lg"
-                        />
+                        <div className="w-16 h-16 border-2 rounded-lg overflow-hidden flex items-center justify-center">
+                          <input
+                            type="color"
+                            value={referenceNode.color}
+                            onChange={(e) => handleColorChange(e.target.value)}
+                            className="w-full h-full p-0 m-0 border-0 cursor-pointer"
+                            style={{ 
+                              appearance: 'none', 
+                              background: 'none',
+                              width: '100%',
+                              height: '100%',
+                              padding: 0,
+                              margin: 0,
+                              border: 'none',
+                              outline: 'none'
+                            }}
+                            title="选择颜色"
+                          />
+                        </div>
                         <Input
                           type="text"
                           value={referenceNode.color}
@@ -670,36 +732,32 @@ export const StylePanel: React.FC<StylePanelProps> = ({
                     </div>
                   </CardContent>
                 </Card>
-              </div>
-            </TabsContent>
-
-            <TabsContent value="icon" className="flex-1 overflow-y-auto">
-              <div className="grid grid-cols-1 gap-4 w-full">
+                
                 <Card className="border border-primary/10 shadow-sm w-full">
                   <CardHeader className="pb-3">
-                    <CardTitle className="text-sm font-medium">节点素材</CardTitle>
-                    <CardDescription className="text-xs">为节点添加素材</CardDescription>
+                    <CardTitle className="text-sm font-medium">节点图标</CardTitle>
+                    <CardDescription className="text-xs">为节点添加图标</CardDescription>
                   </CardHeader>
                   <CardContent>
                     <div className="space-y-3">
                       <Input
-                        placeholder="输入素材名称"
+                        placeholder="输入图标名称"
                         onChange={(e) => handleMaterialChange(e.target.value)}
                         className="rounded-lg"
                       />
                       
                       <div className="p-4 bg-muted/30 rounded-lg text-center">
                         <Image className="w-8 h-8 mx-auto mb-2 text-muted-foreground" />
-                        <p className="text-sm text-muted-foreground">素材库正在建设中...</p>
+                        <p className="text-sm text-muted-foreground">图标库正在建设中...</p>
                         <p className="text-xs text-muted-foreground mt-1">即将支持图片、图标等素材</p>
                       </div>
                     </div>
                   </CardContent>
                 </Card>
-
-
               </div>
             </TabsContent>
+
+
           </Tabs>
         </div>
       </div>

@@ -81,11 +81,12 @@ export interface MindMapNode {
   summary?: string;
   content?: string;
   type: 'person' | 'event' | 'concept' | 'task' | 'other';
-  shape: 'rectangle' | 'rounded' | 'circle' | 'cloud';
+  shape: 'rectangle' | 'rounded' | 'circle' | 'diamond';
   color: string;
   fontSize?: number;
   icon?: string;
   connectionType?: 'straight' | 'curved' | 'dashed' | 'wavy';
+  size?: number;
   children: string[];
   metadata?: Record<string, any>;
   expanded?: boolean;
