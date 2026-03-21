@@ -32,7 +32,6 @@ import { LayoutSelectionDialog } from './editor/LayoutSelectionDialog';
 import { Work } from '../models/Work';
 import { useStorage } from '../context/StorageContext';
 import { useUser } from '../context/UserContext';
-import { useTheme } from '../context/ThemeContext';
 
 interface WorksPageProps {
   onEditWork: (workId: string) => void;
@@ -40,7 +39,6 @@ interface WorksPageProps {
 
 export function WorksPage({ onEditWork }: WorksPageProps) {
   const { } = useUser();
-  const { theme } = useTheme();
   const [viewMode, setViewMode] = useState<'grid' | 'list'>('grid');
   const [searchQuery, setSearchQuery] = useState('');
   const [sortBy, setSortBy] = useState<'title' | 'lastModified' | 'createdAt' | 'nodeCount' | 'category' | 'starred' | 'recent'>('recent');

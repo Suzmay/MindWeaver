@@ -1,4 +1,4 @@
-import { useState, useRef, useEffect } from 'react';
+import { useState, useRef, useEffect, useCallback } from 'react';
 import {
   Plus,
   Minus,
@@ -35,6 +35,7 @@ import { MiniMap } from './canvas/MiniMap';
 import { NodeOperations } from './editor/NodeOperations';
 import { Connection } from './editor/ConnectionManager';
 import { StylePanel } from './editor/StylePanel';
+import { NodeCard } from './editor/NodeCard';
 import { LayoutManager, LayoutMode, LayoutDirection } from './editor/LayoutManager';
 import { HistoryManager, HistoryState } from '../services/history/HistoryManager';
 import { MindMapNode, Work } from '../models/Work';
@@ -141,14 +142,20 @@ export function MindMapEditor({ workId, onBack }: MindMapEditorProps) {
     direction: 'horizontal'
   });
   
+  // 自定义颜色的状态
+  const [customColors, setCustomColors] = useState<string[]>([]);
+  
   // 隐藏层级的状态
   const [hiddenLevels, setHiddenLevels] = useState<Set<number>>(new Set());
   
   // 画布大小的状态（用于迷你地图）
   const [canvasSize, setCanvasSize] = useState({ width: 800, height: 600 });
   
+  // AI生成摘要的状态
+  const [isGeneratingSummary, setIsGeneratingSummary] = useState(false);
+  
   // 引用
-  const autoSaveTimerRef = useRef<number | null>(null);
+  const autoSaveTimerRef = useRef<NodeJS.Timeout | null>(null);
 
   // 监控节点变化并确保新节点在 expandedNodes 集合中
   useEffect(() => {
@@ -163,7 +170,7 @@ export function MindMapEditor({ workId, onBack }: MindMapEditorProps) {
       });
       setExpandedNodes(newExpandedNodes);
     }
-  }, [nodes, expandedNodes]);
+  }, [nodes]);
 
   // 初始化用户偏好设置并设置自动保存
   useEffect(() => {
@@ -207,6 +214,11 @@ export function MindMapEditor({ workId, onBack }: MindMapEditorProps) {
                 if (decryptedData.nodes) {
                   finalNodes = decryptedData.nodes; // 使用解密后的节点
                   hasSavedNodePositions = true;
+                }
+                
+                // 读取自定义颜色
+                if (decryptedData.customColors) {
+                  setCustomColors(decryptedData.customColors);
                 }
               }
             } catch (decryptError) {
@@ -255,7 +267,7 @@ export function MindMapEditor({ workId, onBack }: MindMapEditorProps) {
   }, [workId]);
 
   // 递归获取所有子节点 ID
-  const getAllDescendantNodeIds = (nodeId: string): string[] => {
+  const getAllDescendantNodeIds = useCallback((nodeId: string): string[] => {
     const node = nodes.find(n => n.id === nodeId);
     if (!node || !node.children || node.children.length === 0) {
       return [];
@@ -267,13 +279,55 @@ export function MindMapEditor({ workId, onBack }: MindMapEditorProps) {
     });
     
     return descendants;
-  };
+  }, [nodes]);
 
   // 处理节点展开/折叠
-  const handleNodeExpand = (nodeId: string, expanded: boolean) => {
+  const handleNodeExpand = useCallback((nodeId: string, expand?: boolean) => {
     const newExpandedNodes = new Set(expandedNodes);
-    if (expanded) {
+    const newHiddenLevels = new Set(hiddenLevels);
+    
+    // 找到该节点
+    const node = nodes.find(n => n.id === nodeId);
+    
+    // 如果没有提供 expand 参数，则切换当前状态
+    const shouldExpand = expand !== undefined ? expand : !expandedNodes.has(nodeId);
+    
+    if (shouldExpand) {
       newExpandedNodes.add(nodeId);
+      
+      // 展开节点时，从 hiddenLevels 中移除该节点的层级
+      if (node && node.level !== undefined) {
+        if (node.level === 0) {
+          // 如果是根节点被展开，显示所有层级并展开所有子节点
+          newHiddenLevels.clear();
+          // 展开所有子节点
+          const allNodeIds = nodes.map(n => n.id);
+          allNodeIds.forEach(id => newExpandedNodes.add(id));
+        } else {
+          // 从 hiddenLevels 中移除该节点的层级
+          newHiddenLevels.delete(node.level);
+          
+          // 展开该节点的所有子节点
+          const descendantIds = getAllDescendantNodeIds(nodeId);
+          descendantIds.forEach(id => {
+            newExpandedNodes.add(id);
+            // 从 hiddenLevels 中移除子节点的层级
+            const childNode = nodes.find(n => n.id === id);
+            if (childNode && childNode.level !== undefined) {
+              newHiddenLevels.delete(childNode.level);
+            }
+          });
+          
+          // 检查父层级，确保父层级也被显示
+          let currentLevel = node.level - 1;
+          while (currentLevel > 0) {
+            newHiddenLevels.delete(currentLevel);
+            currentLevel--;
+          }
+          // 确保根节点是展开的
+          newExpandedNodes.add('root');
+        }
+      }
     } else {
       // 当折叠节点时，也折叠其所有子节点
       newExpandedNodes.delete(nodeId);
@@ -281,15 +335,58 @@ export function MindMapEditor({ workId, onBack }: MindMapEditorProps) {
       descendantIds.forEach(id => {
         newExpandedNodes.delete(id);
       });
+      
+      // 检查该节点所在层级的所有节点是否都折叠了
+      if (node && node.level !== undefined) {
+        if (node.level === 0) {
+          // 如果是根节点被折叠，隐藏所有层级（从 level 1 开始）
+          const maxLevel = getMaxLevel();
+          for (let i = 1; i <= maxLevel; i++) {
+            newHiddenLevels.add(i);
+          }
+        } else {
+          // 检查该层级的所有节点是否都折叠了
+          const level = node.level;
+          const levelNodes = nodes.filter(n => n.level === level);
+          const allFolded = levelNodes.every(n => !newExpandedNodes.has(n.id));
+          
+          // 如果该层级所有节点都折叠了，自动隐藏该层级
+          if (allFolded) {
+            newHiddenLevels.add(level);
+          } else {
+            newHiddenLevels.delete(level);
+          }
+          
+          // 检查所有子层级的状态
+          const maxLevel = getMaxLevel();
+          for (let i = level + 1; i <= maxLevel; i++) {
+            const childLevelNodes = nodes.filter(n => n.level === i);
+            const allChildFolded = childLevelNodes.every(n => !newExpandedNodes.has(n.id));
+            if (allChildFolded) {
+              newHiddenLevels.add(i);
+            } else {
+              newHiddenLevels.delete(i);
+            }
+          }
+        }
+      }
     }
+    
     setExpandedNodes(newExpandedNodes);
-  };
+    setHiddenLevels(newHiddenLevels);
+  }, [expandedNodes, hiddenLevels, nodes, getAllDescendantNodeIds]);
 
   // 处理画布点击（取消选择节点）
   const handleCanvasClick = () => {
     setSelectedNode(null);
     setSelectedNodes([]);
     setIsStylePanelOpen(false);
+  };
+
+  // 处理节点选择
+  const handleNodeSelect = (nodeId: string) => {
+    setSelectedNode(nodeId);
+    setSelectedNodes([nodeId]);
   };
 
   // 根据用户偏好设置自动保存
@@ -311,14 +408,15 @@ export function MindMapEditor({ workId, onBack }: MindMapEditorProps) {
     }, intervalMs);
   };
 
-  // 自动保存函数
-  const autoSave = async () => {
+  // 手动保存函数
+  const handleSave = async () => {
     try {
-      if (work && hasUnsavedChanges) {
+      if (work) {
         // 准备保存的作品数据
         const workData = {
           nodes,
-          layout: currentLayout
+          layout: currentLayout,
+          customColors
         };
         
         // 获取加密密钥
@@ -344,6 +442,11 @@ export function MindMapEditor({ workId, onBack }: MindMapEditorProps) {
     } catch (error) {
       console.error('保存数据过程中出错:', error);
     }
+  };
+
+  // 自动保存函数
+  const autoSave = async () => {
+    await handleSave();
   };
 
   // 处理平移变化
@@ -466,7 +569,8 @@ export function MindMapEditor({ workId, onBack }: MindMapEditorProps) {
           // 准备保存的作品数据
           const workData = {
             nodes,
-            layout: currentLayout
+            layout: currentLayout,
+            customColors
           };
           
           // 获取加密密钥
@@ -562,6 +666,24 @@ export function MindMapEditor({ workId, onBack }: MindMapEditorProps) {
     }
   };
 
+  // 处理摘要更改
+  const handleSummaryChange = (nodeId: string, summary: string) => {
+    try {
+      const newNodes = nodes.map(node => {
+        if (node.id === nodeId) {
+          return { ...node, summary: summary };
+        }
+        return node;
+      });
+      
+      setNodes(newNodes);
+      addHistoryState(newNodes, connections, '修改节点摘要');
+      setHasUnsavedChanges(true);
+    } catch (error) {
+      console.error('修改节点摘要过程中出错', error);
+    }
+  };
+
   // 处理布局更改
   const handleLayoutChange = (mode: LayoutMode, direction: LayoutDirection) => {
     const layoutOptions = {
@@ -631,21 +753,70 @@ export function MindMapEditor({ workId, onBack }: MindMapEditorProps) {
   // 处理层级可见性切换（切换层级及其以下所有层级）
   const handleLevelToggle = (level: number) => {
     const newHiddenLevels = new Set(hiddenLevels);
+    const newExpandedNodes = new Set(expandedNodes);
     const maxLevel = getMaxLevel();
     
     // 检查该层级当前是否隐藏
     const isHidden = newHiddenLevels.has(level);
     
-    // 切换该层级及其以下所有层级
-    for (let i = level; i <= maxLevel; i++) {
-      if (isHidden) {
+    if (isHidden) {
+      // 显示该层级及其以下所有层级
+      for (let i = level; i <= maxLevel; i++) {
         newHiddenLevels.delete(i);
-      } else {
-        newHiddenLevels.add(i);
+        
+        // 展开该层级的所有节点
+        nodes.forEach(node => {
+          if (node.level === i) {
+            newExpandedNodes.add(node.id);
+          }
+        });
       }
+      
+      // 确保所有父层级也被显示和展开
+      for (let i = level - 1; i > 0; i--) {
+        newHiddenLevels.delete(i);
+        // 展开父层级的所有节点
+        nodes.forEach(node => {
+          if (node.level === i) {
+            newExpandedNodes.add(node.id);
+          }
+        });
+      }
+      
+      // 确保根节点是展开的
+      newExpandedNodes.add('root');
+    } else {
+      // 隐藏该层级及其以下所有层级
+      for (let i = level; i <= maxLevel; i++) {
+        newHiddenLevels.add(i);
+        // 折叠该层级的所有节点
+        nodes.forEach(node => {
+          if (node.level === i) {
+            newExpandedNodes.delete(node.id);
+            // 同时折叠所有子节点
+            const descendantIds = getAllDescendantNodeIds(node.id);
+            descendantIds.forEach(id => newExpandedNodes.delete(id));
+          }
+        });
+      }
+      
+      // 确保父层级保持展开状态
+      for (let i = 1; i < level; i++) {
+        newHiddenLevels.delete(i);
+        // 展开父层级的所有节点
+        nodes.forEach(node => {
+          if (node.level === i) {
+            newExpandedNodes.add(node.id);
+          }
+        });
+      }
+      
+      // 确保根节点是展开的
+      newExpandedNodes.add('root');
     }
     
     setHiddenLevels(newHiddenLevels);
+    setExpandedNodes(newExpandedNodes);
   };
 
   // 获取布局名称
@@ -692,6 +863,9 @@ export function MindMapEditor({ workId, onBack }: MindMapEditorProps) {
 
   // 处理节点菜单（右键点击）
   const handleNodeMenu = (nodeId: string, x: number, y: number) => {
+    // 关闭节点卡片
+    setBubbleInfo(null);
+    
     // 设置选中节点状态（与点击相同）
     setSelectedNode(nodeId);
     setSelectedNodes([nodeId]);
@@ -700,6 +874,35 @@ export function MindMapEditor({ workId, onBack }: MindMapEditorProps) {
     setContextMenuNodeId(nodeId);
     setContextMenuPosition({ x, y });
     setIsContextMenuOpen(true);
+  };
+
+  // 气泡相关状态
+  const [bubbleInfo, setBubbleInfo] = useState<{
+    nodeId: string;
+    position: { x: number; y: number };
+    direction: 'top-left' | 'top-right' | 'bottom-left' | 'bottom-right';
+    showContent: boolean; // true 显示内容，false 显示摘要
+  } | null>(null);
+
+  // 处理AI生成摘要
+  const handleGenerateSummary = async (nodeId: string, options?: { maxLength?: number }) => {
+    const node = nodes.find(n => n.id === nodeId);
+    if (!node || !node.content) {
+      return;
+    }
+
+    try {
+      setIsGeneratingSummary(true);
+      const updatedNodes = await NodeOperations.generateNodeSummary(nodes, node.id, options);
+      setNodes(updatedNodes);
+      addHistoryState(updatedNodes, connections, 'AI生成摘要');
+      setHasUnsavedChanges(true);
+    } catch (error) {
+      console.error('生成摘要失败:', error);
+      alert('生成摘要失败，请从 https://ollama.com 下载并安装Ollama，然后启动服务。\n\n推荐下载以下模型：\n# 推荐中文模型（适合生成中文摘要）\nollama pull llama2-chinese\n\n# 或使用轻量级模型（速度更快）\nollama pull qwen:0.5b\n\n# 或使用通用模型\nollama pull llama2');
+    } finally {
+      setIsGeneratingSummary(false);
+    }
   };
 
   // 处理上下文菜单关闭
@@ -966,7 +1169,7 @@ export function MindMapEditor({ workId, onBack }: MindMapEditorProps) {
           <Separator orientation="vertical" className="h-6" />
 
           {/* 保存和分享 */}
-          <Button variant="outline" size="sm" className="rounded-2xl">
+          <Button variant="outline" size="sm" className="rounded-2xl" onClick={handleSave}>
             <Save className="w-4 h-4 mr-2" />
             保存
           </Button>
@@ -997,14 +1200,32 @@ export function MindMapEditor({ workId, onBack }: MindMapEditorProps) {
           onPanChange={handlePanChange}
           selectedNode={selectedNode}
           onCanvasClick={handleCanvasClick}
+          onNodeSelect={handleNodeSelect}
           expandedNodes={expandedNodes}
           onNodeExpand={handleNodeExpand}
           onNodeMove={handleNodeMove}
           onNodeMenu={handleNodeMenu}
           hiddenLevels={hiddenLevels}
+          bubbleInfo={bubbleInfo}
+          onBubbleInfoChange={setBubbleInfo}
         />
 
-
+        {/* 节点卡片 */}
+        {bubbleInfo && (
+          <NodeCard
+            node={nodes.find(n => n.id === bubbleInfo.nodeId)!}
+            position={bubbleInfo.position}
+            direction={bubbleInfo.direction}
+            zoom={zoom}
+            pan={pan}
+            canvasContainerRef={canvasContainerRef}
+            onSummaryChange={handleSummaryChange}
+            onContentChange={handleContentChange}
+            onGenerateSummary={handleGenerateSummary}
+            isGenerating={isGeneratingSummary}
+            onClose={() => setBubbleInfo(null)}
+          />
+        )}
 
         {/* 迷你地图 */}
         <div className="absolute top-4 left-4 w-48 h-32 bg-card border-2 border-primary/20 rounded-2xl shadow-ocean overflow-hidden">
@@ -1025,6 +1246,11 @@ export function MindMapEditor({ workId, onBack }: MindMapEditorProps) {
       <StylePanel
         selectedNodes={selectedNodes}
         nodes={nodes}
+        customColors={customColors}
+        onCustomColorsChange={(colors) => {
+          setCustomColors(colors);
+          setHasUnsavedChanges(true);
+        }}
         onStyleChange={handleStyleChange}
         onTextChange={handleTextChange}
         onContentChange={handleContentChange}

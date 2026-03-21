@@ -1,4 +1,5 @@
 import { MindMapNode } from '../../models/Work';
+import { LocalAIService } from '../../services/ai/LocalAIService';
 
 export class NodeOperations {
   // 检查两个节点是否重叠
@@ -371,5 +372,23 @@ export class NodeOperations {
       result.push(...this.getDescendants(nodes, nodeId));
     }
     return result;
+  }
+
+  // 使用AI生成节点摘要
+  static async generateNodeSummary(nodes: MindMapNode[], nodeId: string, options?: { maxLength?: number }): Promise<MindMapNode[]> {
+    const node = this.findNode(nodes, nodeId);
+    if (!node || !node.content) {
+      return nodes;
+    }
+
+    try {
+      const aiService = LocalAIService.getInstance();
+      const summary = await aiService.generateSummary(node.content, options?.maxLength || 150);
+      
+      return this.updateNodeSummary(nodes, nodeId, summary);
+    } catch (error) {
+      console.error('生成摘要失败:', error);
+      throw error;
+    }
   }
 }

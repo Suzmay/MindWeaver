@@ -9,11 +9,14 @@ interface CanvasRendererProps {
   onPanChange: (pan: { x: number; y: number }) => void;
   selectedNode: string | null;
   onCanvasClick: () => void;
+  onNodeSelect: (nodeId: string) => void;
   expandedNodes: Set<string>;
-  onNodeExpand: (nodeId: string, expanded: boolean) => void;
+  onNodeExpand: (nodeId: string, expand?: boolean) => void;
   onNodeMove: (nodeId: string, x: number, y: number) => void;
   onNodeMenu: (nodeId: string, x: number, y: number) => void;
   hiddenLevels: Set<number>;
+  onBubbleInfoChange: (bubbleInfo: { nodeId: string; position: { x: number; y: number }; direction: 'top-left' | 'top-right' | 'bottom-left' | 'bottom-right'; showContent: boolean } | null) => void;
+  bubbleInfo: { nodeId: string; position: { x: number; y: number }; direction: 'top-left' | 'top-right' | 'bottom-left' | 'bottom-right'; showContent: boolean } | null;
 }
 
 export const CanvasRenderer: React.FC<CanvasRendererProps> = ({
@@ -23,11 +26,14 @@ export const CanvasRenderer: React.FC<CanvasRendererProps> = ({
   onPanChange,
   selectedNode,
   onCanvasClick,
+  onNodeSelect,
   expandedNodes,
   onNodeExpand,
   onNodeMove,
   onNodeMenu,
   hiddenLevels,
+  onBubbleInfoChange,
+  bubbleInfo,
 }) => {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const webglCanvasRef = useRef<HTMLCanvasElement>(null);
@@ -36,7 +42,7 @@ export const CanvasRenderer: React.FC<CanvasRendererProps> = ({
   const [isNodeDragging, setIsNodeDragging] = useState(false);
   const [dragStart, setDragStart] = useState({ x: 0, y: 0 });
   const [draggedNode, setDraggedNode] = useState<string | null>(null);
-  const [longPressTimer, setLongPressTimer] = useState<number | null>(null);
+  const [longPressTimer, setLongPressTimer] = useState<NodeJS.Timeout | null>(null);
   const rafRef = useRef<number | null>(null);
   // 使用 refs 进行实时位置跟踪，避免 React 状态延迟
   const draggedNodePositionRef = useRef<{ x: number; y: number } | null>(null);
@@ -168,19 +174,19 @@ export const CanvasRenderer: React.FC<CanvasRendererProps> = ({
             ctx.lineWidth = 3;
             
             // 根据连接类型设置线条样式
-            if (node.connectionType === 'dashed') {
+            if (child.connectionType === 'dashed') {
               ctx.setLineDash([5, 5]);
             } else {
               ctx.setLineDash([]);
             }
             
             ctx.beginPath();
-            if (node.connectionType === 'straight') {
+            if (child.connectionType === 'straight') {
               // 绘制直线
               ctx.moveTo(parentX, parentY);
               ctx.lineTo(childX, childY);
-            } else if (node.connectionType === 'wavy') {
-              // 绘制波浪线
+            } else if (child.connectionType === 'wavy') {
+              // 绘制波浪线 - 使用三次贝塞尔曲线实现圆滑的凸凹凸效果
               const dx = childX - parentX;
               const dy = childY - parentY;
               const distance = Math.sqrt(dx * dx + dy * dy);
@@ -189,26 +195,22 @@ export const CanvasRenderer: React.FC<CanvasRendererProps> = ({
               
               ctx.moveTo(parentX, parentY);
               
-              for (let i = 1; i <= waveCount; i++) {
-                const t = i / waveCount;
-                const x = parentX + dx * t;
-                const y = parentY + dy * t + Math.sin(t * Math.PI * 2 * waveCount) * waveHeight;
+              for (let i = 0; i < waveCount; i++) {
+                const t1 = (i + 0.25) / waveCount;
+                const t2 = (i + 0.75) / waveCount;
+                const t3 = (i + 1) / waveCount;
                 
-                if (i === 1) {
-                  ctx.lineTo(x, y);
-                } else {
-                  const prevT = (i - 1) / waveCount;
-                  const prevX = parentX + dx * prevT;
-                  const prevY = parentY + dy * prevT + Math.sin(prevT * Math.PI * 2 * waveCount) * waveHeight;
-                  
-                  const midX = (prevX + x) / 2;
-                  const midY = (prevY + y) / 2;
-                  
-                  ctx.quadraticCurveTo(prevX, prevY, midX, midY);
-                }
+                const x1 = parentX + dx * t1;
+                const y1 = parentY + dy * t1 + (i % 2 === 0 ? -waveHeight : waveHeight);
+                
+                const x2 = parentX + dx * t2;
+                const y2 = parentY + dy * t2 + (i % 2 === 0 ? waveHeight : -waveHeight);
+                
+                const x3 = parentX + dx * t3;
+                const y3 = parentY + dy * t3 + (i % 2 === 0 ? waveHeight : -waveHeight);
+                
+                ctx.bezierCurveTo(x1, y1, x2, y2, x3, y3);
               }
-              
-              ctx.lineTo(childX, childY);
             } else {
               // 绘制曲线（默认）
               ctx.moveTo(parentX, parentY);
@@ -231,20 +233,20 @@ export const CanvasRenderer: React.FC<CanvasRendererProps> = ({
       // 在拖拽期间跳过绘制被拖拽的节点（单独绘制被拖拽的节点）
       if (isNodeDragging && draggedNode === node.id) return;
       
-      // 检查节点是否应该可见（根节点或父节点已展开且层级未隐藏）
-      let shouldDraw = node.id === 'root';
-      if (!shouldDraw) {
-        // 查找父节点
+      // 检查节点层级是否被隐藏（根节点总是显示）
+      if (node.id !== 'root' && hiddenLevels.has(node.level || 0)) return;
+      
+      // 对于非根节点，检查父节点是否展开
+      if (node.id !== 'root') {
+        let parentExpanded = false;
         for (const potentialParent of nodes) {
           if (potentialParent.children.includes(node.id)) {
-            shouldDraw = expandedNodes.has(potentialParent.id) && !hiddenLevels.has(node.level || 0);
+            parentExpanded = expandedNodes.has(potentialParent.id);
             break;
           }
         }
+        if (!parentExpanded) return;
       }
-      
-      // 如果节点不应该可见，则跳过绘制
-      if (!shouldDraw) return;
       
       const isSelected = selectedNode === node.id;
       const isExpanded = expandedNodes.has(node.id);
@@ -298,15 +300,35 @@ export const CanvasRenderer: React.FC<CanvasRendererProps> = ({
         ctx.font = '12px Arial';
         ctx.textAlign = 'center';
         ctx.textBaseline = 'middle';
-        ctx.fillText(isExpanded ? '▼' : '►', node.x + 50, node.y);
+        // 根据节点大小计算右侧位置
+        const sizeFactor = (node.size || 100) / 100;
+        const halfWidth = 60 * sizeFactor;
+        const indicatorX = node.x + halfWidth - 10; // 距离右侧边缘10px
+        ctx.fillText(isExpanded ? '▼' : '►', indicatorX, node.y);
       }
 
       // 节点文本
       ctx.fillStyle = '#FFFFFF';
-      ctx.font = '14px -apple-system, system-ui, sans-serif';
+      // 应用字体样式
+      let fontWeight = node.fontWeight || 'normal';
+      let fontStyle = node.fontStyle || 'normal';
+      let fontSize = node.fontSize || 14;
+      ctx.font = `${fontWeight} ${fontStyle} ${fontSize}px -apple-system, system-ui, sans-serif`;
       ctx.textAlign = 'center';
       ctx.textBaseline = 'middle';
+      // 绘制文本
       ctx.fillText(node.title, node.x, node.y);
+      // 绘制下划线
+      if (node.textDecoration === 'underline') {
+        const textMetrics = ctx.measureText(node.title);
+        const textWidth = textMetrics.width;
+        ctx.beginPath();
+        ctx.moveTo(node.x - textWidth / 2, node.y + fontSize / 2);
+        ctx.lineTo(node.x + textWidth / 2, node.y + fontSize / 2);
+        ctx.strokeStyle = '#FFFFFF';
+        ctx.lineWidth = 1;
+        ctx.stroke();
+      }
     });
     
     // 在当前鼠标位置单独绘制被拖拽的节点
@@ -365,18 +387,38 @@ export const CanvasRenderer: React.FC<CanvasRendererProps> = ({
           ctx.font = '12px Arial';
           ctx.textAlign = 'center';
           ctx.textBaseline = 'middle';
-          ctx.fillText(isExpanded ? '▼' : '►', x + 50, y);
+          // 根据节点大小计算右侧位置
+          const sizeFactor = (node.size || 100) / 100;
+          const halfWidth = 60 * sizeFactor;
+          const indicatorX = x + halfWidth - 10; // 距离右侧边缘10px
+          ctx.fillText(isExpanded ? '▼' : '►', indicatorX, y);
         }
 
         // 节点文本
         ctx.fillStyle = '#FFFFFF';
-        ctx.font = '14px -apple-system, system-ui, sans-serif';
+        // 应用字体样式
+        let fontWeight = node.fontWeight || 'normal';
+        let fontStyle = node.fontStyle || 'normal';
+        let fontSize = node.fontSize || 14;
+        ctx.font = `${fontWeight} ${fontStyle} ${fontSize}px -apple-system, system-ui, sans-serif`;
         ctx.textAlign = 'center';
         ctx.textBaseline = 'middle';
+        // 绘制文本
         ctx.fillText(node.title, x, y);
+        // 绘制下划线
+        if (node.textDecoration === 'underline') {
+          const textMetrics = ctx.measureText(node.title);
+          const textWidth = textMetrics.width;
+          ctx.beginPath();
+          ctx.moveTo(x - textWidth / 2, y + fontSize / 2);
+          ctx.lineTo(x + textWidth / 2, y + fontSize / 2);
+          ctx.strokeStyle = '#FFFFFF';
+          ctx.lineWidth = 1;
+          ctx.stroke();
+        }
       }
     }
-
+    
     ctx.restore();
   };
 
@@ -400,37 +442,7 @@ export const CanvasRenderer: React.FC<CanvasRendererProps> = ({
     ctx.quadraticCurveTo(x, y, x + radius, y);
   };
 
-  // 绘制云形状的辅助函数
-  const drawCloud = (
-    ctx: CanvasRenderingContext2D,
-    x: number,
-    y: number,
-    w: number,
-    h: number
-  ) => {
-    // 计算参数
-    const leftRadius = w * 0.4; // 左侧大圆半径为整体宽度的40%
-    const rightRadius = w * 0.28; // 右侧小圆半径为整体宽度的28%
-    const centerDistance = (leftRadius + rightRadius) * 0.6; // 圆心水平间距为两圆半径之和的60%
-    
-    // 计算圆心位置
-    const leftCenterX = x - centerDistance / 2;
-    const rightCenterX = x + centerDistance / 2;
-    const centerY = y - h / 4; // 顶部圆心Y坐标
-    
-    // 计算底部直线位置
-    const bottomY = y + h / 2;
-    
-    // 绘制左侧大圆
-    ctx.arc(leftCenterX, centerY, leftRadius, 0, Math.PI * 2, false);
-    
-    // 绘制右侧小圆
-    ctx.arc(rightCenterX, centerY, rightRadius, 0, Math.PI * 2, false);
-    
-    // 绘制底部直线
-    ctx.moveTo(leftCenterX - leftRadius, bottomY);
-    ctx.lineTo(rightCenterX + rightRadius, bottomY);
-  };
+
 
   // 处理画布大小调整
   useEffect(() => {
@@ -500,7 +512,7 @@ export const CanvasRenderer: React.FC<CanvasRendererProps> = ({
   // 当节点、缩放、平移、选中节点、展开节点或隐藏层级变化时重绘
   useEffect(() => {
     drawWithCanvas2D();
-  }, [nodes, zoom, pan, selectedNode, expandedNodes, hiddenLevels]);
+  }, [nodes, zoom, pan, selectedNode, expandedNodes, hiddenLevels, bubbleInfo]);
 
   // 处理鼠标按下（开始拖拽或长按节点移动）
   const handleMouseDown = (e: React.MouseEvent<HTMLCanvasElement>) => {
@@ -513,6 +525,8 @@ export const CanvasRenderer: React.FC<CanvasRendererProps> = ({
     const rect = canvas.getBoundingClientRect();
     const mouseX = (e.clientX - rect.left - pan.x) / zoom;
     const mouseY = (e.clientY - rect.top - pan.y) / zoom;
+
+
 
     // 检查是否点击了节点
     let clickedOnNode = false;
@@ -551,9 +565,28 @@ export const CanvasRenderer: React.FC<CanvasRendererProps> = ({
       if (isClicked) {
         clickedOnNode = true;
         
-        // 单击切换展开/折叠状态
-        const isExpanded = expandedNodes.has(node.id);
-        onNodeExpand(node.id, !isExpanded);
+        // 只有当节点有子节点时才切换展开/折叠状态
+        if (node.children && node.children.length > 0) {
+          // 计算三角形指示器的位置和区域
+          const sizeFactor = (node.size || 100) / 100;
+          const halfWidth = 60 * sizeFactor;
+          const indicatorX = node.x + halfWidth - 10; // 距离右侧边缘10px
+          const indicatorY = node.y;
+          const indicatorSize = 12; // 字体大小
+          
+          // 检查点击是否在三角形指示器区域内
+          const isClickOnIndicator = mouseX >= indicatorX - indicatorSize/2 && 
+                                    mouseX <= indicatorX + indicatorSize/2 && 
+                                    mouseY >= indicatorY - indicatorSize/2 && 
+                                    mouseY <= indicatorY + indicatorSize/2;
+          
+          // 只有点击在三角形指示器上时才切换展开/折叠状态
+          if (isClickOnIndicator) {
+            // 单击切换展开/折叠状态
+            const isExpanded = expandedNodes.has(node.id);
+            onNodeExpand(node.id, !isExpanded);
+          }
+        }
         
         // 防止根节点被拖拽
         if (node.id !== 'root') {
@@ -573,8 +606,10 @@ export const CanvasRenderer: React.FC<CanvasRendererProps> = ({
       }
     }
 
-    // 如果没有点击节点，则开始画布拖拽
+    // 如果没有点击节点，则开始画布拖拽并关闭气泡
     if (!clickedOnNode) {
+      // 关闭气泡
+      onBubbleInfoChange(null);
       // 调用 onCanvasClick 取消选择节点
       onCanvasClick();
       setIsDragging(true);
@@ -707,8 +742,214 @@ export const CanvasRenderer: React.FC<CanvasRendererProps> = ({
 
 
 
-  // 处理鼠标移动（拖拽期间）
+  // 处理双击事件
+  const handleDoubleClick = (e: React.MouseEvent<HTMLCanvasElement>) => {
+    const canvas = canvasRef.current;
+    if (!canvas) return;
+
+    const rect = canvas.getBoundingClientRect();
+    const mouseX = (e.clientX - rect.left - pan.x) / zoom;
+    const mouseY = (e.clientY - rect.top - pan.y) / zoom;
+
+    // 检查是否点击了节点
+    for (const node of nodes) {
+      let isClicked = false;
+      
+      // 计算宽度缩放因子，范围75-275%
+      const sizeFactor = (node.size || 100) / 100;
+      const halfWidth = 60 * sizeFactor;
+
+      switch (node.shape) {
+        case 'rectangle':
+          isClicked = mouseX >= node.x - halfWidth && mouseX <= node.x + halfWidth &&
+                     mouseY >= node.y - 25 && mouseY <= node.y + 25;
+          break;
+        case 'rounded':
+          isClicked = mouseX >= node.x - halfWidth && mouseX <= node.x + halfWidth &&
+                     mouseY >= node.y - 25 && mouseY <= node.y + 25;
+          break;
+        case 'circle':
+          // 椭圆的点击检测
+          const radiusX = halfWidth;
+          const radiusY = 40;
+          const normalizedX = (mouseX - node.x) / radiusX;
+          const normalizedY = (mouseY - node.y) / radiusY;
+          isClicked = normalizedX * normalizedX + normalizedY * normalizedY <= 1;
+          break;
+        case 'diamond':
+          // 菱形的点击检测，使用菱形的边界
+          isClicked = mouseX >= node.x - halfWidth && mouseX <= node.x + halfWidth &&
+                     mouseY >= node.y - 40 && mouseY <= node.y + 40;
+          break;
+      }
+
+      if (isClicked) {
+        // 双击节点时设置选中状态，显示右键点击的边框效果
+        onNodeSelect(node.id);
+        // 计算气泡的最优位置
+        const bubbleDirection = calculateBubbleDirection(node);
+        onBubbleInfoChange({
+          nodeId: node.id,
+          position: { x: node.x, y: node.y },
+          direction: bubbleDirection,
+          showContent: false // 默认显示摘要
+        });
+        break;
+      }
+    }
+  };
+
+  // 计算气泡的最优位置
+  const calculateBubbleDirection = (node: MindMapNode): 'top-left' | 'top-right' | 'bottom-left' | 'bottom-right' => {
+    // 计算宽度缩放因子
+    const sizeFactor = (node.size || 100) / 100;
+    const halfWidth = 60 * sizeFactor;
+    
+    // 气泡实际尺寸
+    const bubbleWidth = 320;
+    const bubbleHeight = 200;
+    
+    // 画布边界
+    const canvas = canvasRef.current;
+    const canvasWidth = canvas?.width || window.innerWidth;
+    const canvasHeight = canvas?.height || window.innerHeight;
+    
+    // 小地图位置和大小（左上角，48x32）
+    const miniMapX = 16; // top-4
+    const miniMapY = 16; // left-4
+    const miniMapWidth = 192; // w-48
+    const miniMapHeight = 128; // h-32
+    
+    // 计算节点在画布上的实际位置
+    const nodeScreenX = node.x * zoom + pan.x;
+    const nodeScreenY = node.y * zoom + pan.y;
+    
+    // 计算四个方向的可用空间
+    const directions = [
+      {
+        direction: 'top-left' as const,
+        x: node.x - halfWidth - bubbleWidth,
+        y: node.y - bubbleHeight - 20,
+        screenX: nodeScreenX - halfWidth * zoom - bubbleWidth * zoom,
+        screenY: nodeScreenY - bubbleHeight * zoom - 20 * zoom
+      },
+      {
+        direction: 'top-right' as const,
+        x: node.x + halfWidth + 20,
+        y: node.y - bubbleHeight - 20,
+        screenX: nodeScreenX + halfWidth * zoom + 20 * zoom,
+        screenY: nodeScreenY - bubbleHeight * zoom - 20 * zoom
+      },
+      {
+        direction: 'bottom-left' as const,
+        x: node.x - halfWidth - bubbleWidth,
+        y: node.y + 40 + 20,
+        screenX: nodeScreenX - halfWidth * zoom - bubbleWidth * zoom,
+        screenY: nodeScreenY + 40 * zoom + 20 * zoom
+      },
+      {
+        direction: 'bottom-right' as const,
+        x: node.x + halfWidth + 20,
+        y: node.y + 40 + 20,
+        screenX: nodeScreenX + halfWidth * zoom + 20 * zoom,
+        screenY: nodeScreenY + 40 * zoom + 20 * zoom
+      }
+    ];
+    
+    // 筛选出在画布内且不与小地图重叠的方向
+    const validDirections = directions.filter(dir => {
+      const bubbleEndX = dir.screenX + bubbleWidth * zoom;
+      const bubbleEndY = dir.screenY + bubbleHeight * zoom;
+      
+      // 检查是否在画布内
+      const inCanvas = dir.screenX >= 0 && 
+                      dir.screenY >= 0 && 
+                      bubbleEndX <= canvasWidth && 
+                      bubbleEndY <= canvasHeight;
+      
+      // 检查是否与小地图重叠
+      const overlapsMiniMap = !(bubbleEndX < miniMapX ||
+                               dir.screenX > miniMapX + miniMapWidth ||
+                               bubbleEndY < miniMapY ||
+                               dir.screenY > miniMapY + miniMapHeight);
+      
+      return inCanvas && !overlapsMiniMap;
+    });
+    
+    // 检查是否与其他节点重叠
+    const availableDirections = validDirections.filter(dir => {
+      for (const otherNode of nodes) {
+        if (otherNode.id === node.id) continue;
+        
+        const otherSizeFactor = (otherNode.size || 100) / 100;
+        const otherHalfWidth = 60 * otherSizeFactor;
+        
+        const otherScreenX = otherNode.x * zoom + pan.x;
+        const otherScreenY = otherNode.y * zoom + pan.y;
+        
+        // 检查是否重叠
+        const isOverlap = !(dir.screenX + bubbleWidth * zoom < otherScreenX - otherHalfWidth * zoom ||
+                          dir.screenX > otherScreenX + otherHalfWidth * zoom ||
+                          dir.screenY + bubbleHeight * zoom < otherScreenY - 40 * zoom ||
+                          dir.screenY > otherScreenY + 40 * zoom);
+        
+        if (isOverlap) return false;
+      }
+      return true;
+    });
+    
+    // 如果有可用方向，返回第一个
+    if (availableDirections.length > 0) {
+      return availableDirections[0].direction;
+    }
+    
+    // 如果没有完全可用的方向，返回第一个有效的方向
+    if (validDirections.length > 0) {
+      return validDirections[0].direction;
+    }
+    
+    // 默认为右下角
+    return 'bottom-right';
+  };
+
+
+
+  // 处理鼠标移动（拖拽期间和悬停检测）
   const handleMouseMove = (e: React.MouseEvent<HTMLCanvasElement>) => {
+    // 检测鼠标是否悬停在三角形指示器上
+    const canvas = canvasRef.current;
+    if (canvas) {
+      const rect = canvas.getBoundingClientRect();
+      const mouseX = (e.clientX - rect.left - pan.x) / zoom;
+      const mouseY = (e.clientY - rect.top - pan.y) / zoom;
+      
+      let isOverIndicator = false;
+      
+      // 检查是否悬停在任何节点的三角形指示器上
+      for (const node of nodes) {
+        if (node.children && node.children.length > 0) {
+          // 计算三角形指示器的位置和区域
+          const sizeFactor = (node.size || 100) / 100;
+          const halfWidth = 60 * sizeFactor;
+          const indicatorX = node.x + halfWidth - 10; // 距离右侧边缘10px
+          const indicatorY = node.y;
+          const indicatorSize = 12; // 字体大小
+          
+          // 检查鼠标是否在三角形指示器区域内
+          if (mouseX >= indicatorX - indicatorSize/2 && 
+              mouseX <= indicatorX + indicatorSize/2 && 
+              mouseY >= indicatorY - indicatorSize/2 && 
+              mouseY <= indicatorY + indicatorSize/2) {
+            isOverIndicator = true;
+            break;
+          }
+        }
+      }
+      
+      // 根据悬停状态改变鼠标样式
+      canvas.style.cursor = isOverIndicator ? 'pointer' : 'grab';
+    }
+    
     if (isDragging) {
       const deltaX = e.clientX - dragStart.x;
       const deltaY = e.clientY - dragStart.y;
@@ -764,6 +1005,7 @@ export const CanvasRenderer: React.FC<CanvasRendererProps> = ({
         onMouseUp={handleMouseUp}
         onMouseLeave={handleMouseLeave}
         onContextMenu={handleContextMenu}
+        onDoubleClick={handleDoubleClick}
       />
     </div>
   );

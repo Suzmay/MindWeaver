@@ -50,7 +50,7 @@ export function MindyAssistant({}: MindyAssistantProps) {
   
   // 长按检测状态
   const [isLongPress, setIsLongPress] = useState(false);
-  const [longPressTimer, setLongPressTimer] = useState<number | null>(null);
+  const [longPressTimer, setLongPressTimer] = useState<NodeJS.Timeout | null>(null);
   const [isClickPrevented, setIsClickPrevented] = useState(false);
 
   const quickActions = ['创建导图', '新增分支', '调整配色', '导出作品'];

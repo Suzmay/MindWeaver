@@ -24,7 +24,7 @@ export class StorageService {
   private shardManager: ShardManager;
   private initialized = false;
   private initializationPromise: Promise<void> | null = null;
-  private cacheCleanupInterval: number | null = null;
+  private cacheCleanupInterval: NodeJS.Timeout | null = null;
 
   private constructor() {
     this.eventEmitter = new SimpleEventEmitter();

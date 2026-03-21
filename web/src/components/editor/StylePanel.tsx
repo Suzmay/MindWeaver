@@ -1,6 +1,6 @@
-import React, { useEffect, useRef } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { MindMapNode } from '../../models/Work';
-import { Square, Circle, Diamond, Palette, Type, Image, X, SlidersHorizontal, Spline, AudioWaveform } from 'lucide-react';
+import { Square, Circle, Diamond, Palette, X, SlidersHorizontal, Spline, AudioWaveform, BookOpen, Text, Bold, Italic, Underline, Undo, RefreshCw, Plus, List, ListOrdered, Heading1, Heading2, Image as ImageIcon } from 'lucide-react';
 
 import {
   Slider,
@@ -15,6 +15,9 @@ import {
   Input,
 } from '../ui/input';
 import {
+  Textarea,
+} from '../ui/textarea';
+import {
   Label,
 } from '../ui/label';
 import {
@@ -28,15 +31,28 @@ import {
   CardHeader,
   CardTitle,
 } from '../ui/card';
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from '../ui/dialog';
 
 
 interface StylePanelProps {
   selectedNodes: string[];
   nodes: MindMapNode[];
+  customColors: string[];
+  onCustomColorsChange: (colors: string[]) => void;
   onStyleChange: (nodeIds: string[], style: {
     shape?: 'rectangle' | 'rounded' | 'circle' | 'diamond';
     color?: string;
     fontSize?: number;
+    fontWeight?: 'normal' | 'bold';
+    fontStyle?: 'normal' | 'italic';
+    textDecoration?: 'none' | 'underline';
     icon?: string;
     connectionType?: 'straight' | 'curved' | 'dashed' | 'wavy';
     size?: number;
@@ -87,27 +103,46 @@ const CONNECTION_TYPES = [
 export const StylePanel: React.FC<StylePanelProps> = ({
   selectedNodes,
   nodes,
+  customColors,
+  onCustomColorsChange,
   onStyleChange,
   onTextChange,
   onContentChange,
   isOpen,
   onClose,
-  canvasWidth = window.innerWidth * 0.8,
   zoom = 1,
   pan = { x: 0, y: 0 },
   canvasContainerRef,
 }) => {
   const panelRef = useRef<HTMLDivElement>(null);
-  const [isDragging, setIsDragging] = React.useState(false);
-  const [panelPositionState, setPanelPositionState] = React.useState<Record<string, string>>({});
-  const longPressTimer = React.useRef<number | null>(null);
-  const dragOffset = React.useRef({ x: 0, y: 0 });
-  const rafRef = React.useRef<number | null>(null);
-  const draggingRef = React.useRef(false);
+  const [isDragging, setIsDragging] = useState(false);
+  const [panelPositionState, setPanelPositionState] = useState<Record<string, string>>({});
+  const [isColorReplaceDialogOpen, setIsColorReplaceDialogOpen] = useState(false);
+  const [pendingColor, setPendingColor] = useState<string>('');
+  const [selectedColorToReplace, setSelectedColorToReplace] = useState<number>(0);
+  const longPressTimer = useRef<number | null>(null);
+  const dragOffset = useRef({ x: 0, y: 0 });
+  const rafRef = useRef<number | null>(null);
+  const draggingRef = useRef(false);
+  
+  // 撤销和恢复功能相关状态
+  const [initialContent, setInitialContent] = useState<string>('');
+  const [history, setHistory] = useState<string[]>([]);
+  const [historyIndex, setHistoryIndex] = useState<number>(-1);
+  const historyRef = useRef({ history, historyIndex, initialContent });
+
+  // 同步状态到ref
+  useEffect(() => {
+    historyRef.current = { history, historyIndex, initialContent };
+  }, [history, historyIndex, initialContent]);
 
   useEffect(() => {
     if (isOpen) {
       const handleClickOutside = (event: MouseEvent) => {
+        // 如果对话框打开，不检查点击外部
+        if (isColorReplaceDialogOpen) {
+          return;
+        }
         if (panelRef.current && !panelRef.current.contains(event.target as Node)) {
           onClose();
         }
@@ -118,14 +153,34 @@ export const StylePanel: React.FC<StylePanelProps> = ({
         document.removeEventListener('mousedown', handleClickOutside);
       };
     }
-  }, [isOpen, onClose]);
+  }, [isOpen, onClose, isColorReplaceDialogOpen]);
 
   // 当面板打开时初始化面板位置状态
   useEffect(() => {
-    if (isOpen) {
+    if (isOpen && Object.keys(panelPositionState).length === 0) {
       setPanelPositionState(calculatePanelPosition());
     }
-  }, [isOpen, nodes, selectedNodes, pan, zoom, canvasContainerRef]);
+  }, [isOpen, canvasContainerRef]);
+
+  // 当面板关闭时重置位置状态
+  useEffect(() => {
+    if (!isOpen) {
+      setPanelPositionState({});
+    }
+  }, [isOpen]);
+
+  // 当面板打开时初始化初始内容和历史记录
+  useEffect(() => {
+    if (isOpen && selectedNodes.length > 0) {
+      const referenceNode = nodes.find((node) => node.id === selectedNodes[0]);
+      if (referenceNode) {
+        const content = referenceNode.content || '';
+        setInitialContent(content);
+        setHistory([content]);
+        setHistoryIndex(0);
+      }
+    }
+  }, [isOpen, selectedNodes[0]]);
 
   // 处理鼠标按下事件（长按开始拖动）
   const handleMouseDown = (e: React.MouseEvent<HTMLDivElement>) => {
@@ -249,7 +304,7 @@ export const StylePanel: React.FC<StylePanelProps> = ({
   if (!referenceNode) return null;
 
   // 计算样式面板的宽度和高度以避免滚动
-  const panelWidth = Math.min(550, canvasWidth * 0.45); // 为额外的选项卡增加宽度
+  const panelWidth = 480; // 增加宽度
   const panelHeight = Math.min(800, window.innerHeight - 100); // 增加高度
 
   // 计算节点在屏幕上的位置
@@ -279,7 +334,7 @@ export const StylePanel: React.FC<StylePanelProps> = ({
     const nodeWidth = 150 * zoom; // 估计节点宽度
     const nodeHeight = 60 * zoom; // 估计节点高度
     
-    // 默认位置：画布右侧
+    // 默认位置：画布右侧，顶部固定
     const position: Record<string, string> = {
       right: '4rem',
       top: '5rem'
@@ -304,28 +359,28 @@ export const StylePanel: React.FC<StylePanelProps> = ({
       // 清除之前的位置
       Object.keys(position).forEach(key => delete position[key]);
       
-      // 尝试将面板放在画布左侧
+      // 尝试将面板放在画布左侧，保持顶部位置不变
       if (nodePos.x > panelWidth + 20 && containerRect.left + 20 + panelWidth < nodePos.x) {
         position.left = '4rem';
         position.top = '5rem';
         panelLeft = parseInt(position.left);
       }
-      // 尝试将面板放在画布下方
+      // 尝试将面板放在画布下方，保持顶部位置不变
       else if (nodePos.y + nodeHeight + panelHeight + 20 < containerRect.bottom) {
         position.right = '4rem';
-        position.top = `${nodePos.y + nodeHeight + 20}px`;
+        position.top = '5rem';
         panelTop = parseInt(position.top);
       }
-      // 尝试将面板放在画布上方
+      // 尝试将面板放在画布上方，保持顶部位置不变
       else if (nodePos.y - panelHeight - 20 > containerRect.top) {
         position.right = '4rem';
-        position.top = `${nodePos.y - panelHeight - 20}px`;
+        position.top = '5rem';
         panelTop = parseInt(position.top);
       }
-      //  fallback: 画布右下角
+      //  fallback: 画布右侧，顶部固定
       else {
         position.right = '4rem';
-        position.bottom = '2rem';
+        position.top = '5rem';
       }
     }
     
@@ -339,7 +394,7 @@ export const StylePanel: React.FC<StylePanelProps> = ({
         currentLeft = parseInt(position.left);
       }
       
-      let currentTop = position.top ? parseInt(position.top) : window.innerHeight - (position.bottom ? parseInt(position.bottom) : 0) - panelHeight;
+      let currentTop = parseInt(position.top); // 始终使用top属性，保持顶部位置不变
       
       // 调整以保持在画布左侧边界内
       if (currentLeft < containerRect.left + 20) {
@@ -363,23 +418,11 @@ export const StylePanel: React.FC<StylePanelProps> = ({
       
       // 调整以保持在画布顶部边界内
       if (currentTop < containerRect.top + 20) {
-        Object.keys(adjustedPosition).forEach(key => {
-          if (key === 'top' || key === 'bottom') {
-            delete adjustedPosition[key];
-          }
-        });
         adjustedPosition.top = `${containerRect.top + 20}px`;
       }
       
-      // 调整以保持在画布底部边界内
-      if (currentTop + panelHeight > containerRect.bottom - 20) {
-        Object.keys(adjustedPosition).forEach(key => {
-          if (key === 'top' || key === 'bottom') {
-            delete adjustedPosition[key];
-          }
-        });
-        adjustedPosition.bottom = `${window.innerHeight - (containerRect.bottom - 20)}px`;
-      }
+      // 调整以保持在画布底部边界内 - 只调整高度，不改变顶部位置
+      // 这里我们不使用bottom属性，而是通过限制最大高度来确保面板不超出画布
       
       return adjustedPosition;
     };
@@ -402,12 +445,245 @@ export const StylePanel: React.FC<StylePanelProps> = ({
     onStyleChange(selectedNodes, { fontSize: fontSize[0] });
   };
 
-  const handleMaterialChange = (material: string) => {
-    onStyleChange(selectedNodes, { icon: material });
-  };
-
   const handleConnectionChange = (connectionType: 'straight' | 'curved' | 'dashed' | 'wavy') => {
     onStyleChange(selectedNodes, { connectionType });
+  };
+
+  const handleFontWeightChange = (fontWeight: 'normal' | 'bold') => {
+    onStyleChange(selectedNodes, { fontWeight });
+  };
+
+  const handleFontStyleChange = (fontStyle: 'normal' | 'italic') => {
+    onStyleChange(selectedNodes, { fontStyle });
+  };
+
+  const handleTextDecorationChange = (textDecoration: 'none' | 'underline') => {
+    onStyleChange(selectedNodes, { textDecoration });
+  };
+
+  // 文本格式处理函数
+  const applyFormat = (formatType: string) => {
+    if (!referenceNode) return;
+    
+    const content = referenceNode.content || '';
+    let newContent = content;
+    
+    // 尝试获取Textarea元素以获取光标位置
+    const textarea = document.querySelector('textarea[placeholder="输入节点内容..."]') as HTMLTextAreaElement;
+    
+    if (textarea) {
+      const start = textarea.selectionStart;
+      const end = textarea.selectionEnd;
+      
+      if (start !== end) {
+        // 处理选中文本
+        const selectedText = content.substring(start, end);
+        const selectedLines = selectedText.split('\n');
+        
+        // 处理标题和列表格式
+        if (['heading1', 'heading2', 'bulletList', 'numberedList'].includes(formatType)) {
+          let modifiedLines: string[] = [];
+          
+          selectedLines.forEach((line, index) => {
+            let modifiedLine = line;
+            switch (formatType) {
+              case 'heading1':
+                // 移除可能存在的现有标题标记
+                modifiedLine = line.replace(/^#{1,6}\s*/, '');
+                modifiedLine = `# ${modifiedLine}`;
+                break;
+              case 'heading2':
+                // 移除可能存在的现有标题标记
+                modifiedLine = line.replace(/^#{1,6}\s*/, '');
+                modifiedLine = `## ${modifiedLine}`;
+                break;
+              case 'bulletList':
+                // 移除可能存在的现有列表标记
+                modifiedLine = line.replace(/^([-*+]|\d+\.)\s*/, '');
+                modifiedLine = `- ${modifiedLine}`;
+                break;
+              case 'numberedList':
+                // 移除可能存在的现有列表标记
+                modifiedLine = line.replace(/^([-*+]|\d+\.)\s*/, '');
+                modifiedLine = `${index + 1}. ${modifiedLine}`;
+                break;
+              default:
+                break;
+            }
+            modifiedLines.push(modifiedLine);
+          });
+          
+          const modifiedText = modifiedLines.join('\n');
+          newContent = content.substring(0, start) + modifiedText + content.substring(end);
+        } else {
+          // 处理粗体、斜体、下划线
+          switch (formatType) {
+            case 'bold':
+              newContent = content.substring(0, start) + `**${selectedText}**` + content.substring(end);
+              break;
+            case 'italic':
+              newContent = content.substring(0, start) + `*${selectedText}*` + content.substring(end);
+              break;
+            case 'underline':
+              newContent = content.substring(0, start) + `__${selectedText}__` + content.substring(end);
+              break;
+            default:
+              break;
+          }
+        }
+      } else {
+        // 处理光标位置
+        // 计算当前光标所在的行
+        const lines = content.substring(0, start).split('\n');
+        const currentLineStart = lines.slice(0, -1).reduce((acc, line) => acc + line.length + 1, 0);
+        const currentLineEnd = content.indexOf('\n', start) === -1 ? content.length : content.indexOf('\n', start);
+        const currentLine = content.substring(currentLineStart, currentLineEnd);
+        
+        // 根据格式类型处理当前行
+        let modifiedLine = currentLine;
+        switch (formatType) {
+          case 'heading1':
+            // 移除可能存在的现有标题标记
+            modifiedLine = currentLine.replace(/^#{1,6}\s*/, '');
+            modifiedLine = `# ${modifiedLine}`;
+            break;
+          case 'heading2':
+            // 移除可能存在的现有标题标记
+            modifiedLine = currentLine.replace(/^#{1,6}\s*/, '');
+            modifiedLine = `## ${modifiedLine}`;
+            break;
+          case 'bulletList':
+            // 移除可能存在的现有列表标记
+            modifiedLine = currentLine.replace(/^([-*+]|\d+\.)\s*/, '');
+            modifiedLine = `- ${modifiedLine}`;
+            break;
+          case 'numberedList':
+            // 移除可能存在的现有列表标记
+            modifiedLine = currentLine.replace(/^([-*+]|\d+\.)\s*/, '');
+            modifiedLine = `1. ${modifiedLine}`;
+            break;
+          case 'bold':
+            // 在光标位置插入粗体标记
+            newContent = content.substring(0, start) + '****' + content.substring(start);
+            setTimeout(() => {
+              textarea.selectionStart = textarea.selectionEnd = start + 2;
+            }, 0);
+            break;
+          case 'italic':
+            // 在光标位置插入斜体标记
+            newContent = content.substring(0, start) + '**' + content.substring(start);
+            setTimeout(() => {
+              textarea.selectionStart = textarea.selectionEnd = start + 1;
+            }, 0);
+            break;
+          case 'underline':
+            // 在光标位置插入下划线标记
+            newContent = content.substring(0, start) + '____' + content.substring(start);
+            setTimeout(() => {
+              textarea.selectionStart = textarea.selectionEnd = start + 2;
+            }, 0);
+            break;
+          default:
+            break;
+        }
+        
+        // 如果是标题或列表格式，替换当前行
+        if (['heading1', 'heading2', 'bulletList', 'numberedList'].includes(formatType)) {
+          newContent = content.substring(0, currentLineStart) + modifiedLine + content.substring(currentLineEnd);
+        }
+      }
+    } else {
+      // 如果无法获取Textarea元素，使用简化处理
+      switch (formatType) {
+        case 'heading1':
+          newContent = `# ${content}`;
+          break;
+        case 'heading2':
+          newContent = `## ${content}`;
+          break;
+        case 'bulletList':
+          newContent = content.split('\n').map(line => `- ${line}`).join('\n');
+          break;
+        case 'numberedList':
+          newContent = content.split('\n').map((line, index) => `${index + 1}. ${line}`).join('\n');
+          break;
+        case 'bold':
+          newContent = `**${content}**`;
+          break;
+        case 'italic':
+          newContent = `*${content}*`;
+          break;
+        case 'underline':
+          newContent = `__${content}__`;
+          break;
+        default:
+          break;
+      }
+    }
+    
+    // 更新历史记录
+    setHistory(prev => {
+      const newHistory = prev.slice(0, historyIndex + 1);
+      newHistory.push(newContent);
+      return newHistory;
+    });
+    setHistoryIndex(prev => prev + 1);
+    
+    onContentChange(referenceNode.id, newContent);
+  };
+
+  // 撤销功能
+  const handleUndo = () => {
+    if (!referenceNode || historyRef.current.historyIndex <= 0) return;
+    
+    // 撤销到上一个历史记录
+    const previousIndex = historyRef.current.historyIndex - 1;
+    const previousContent = historyRef.current.history[previousIndex];
+    setHistoryIndex(previousIndex);
+    onContentChange(referenceNode.id, previousContent);
+  };
+
+  // 恢复功能（恢复到初始内容）
+  const handleReset = () => {
+    if (!referenceNode) return;
+    const content = historyRef.current.initialContent;
+    setHistory([content]);
+    setHistoryIndex(0);
+    onContentChange(referenceNode.id, content);
+  };
+
+  const handleAddCustomColor = () => {
+    const currentColor = referenceNode.color;
+    // 检查颜色是否已经在预设颜色中
+    if (!COLORS.includes(currentColor)) {
+      // 检查颜色是否已经在自定义颜色中
+      if (!customColors.includes(currentColor)) {
+        // 限制自定义颜色数量为10个
+        if (customColors.length >= 10) {
+          // 打开对话框让用户选择
+          setPendingColor(currentColor);
+          setSelectedColorToReplace(0);
+          setIsColorReplaceDialogOpen(true);
+        } else {
+          // 添加新颜色
+          const newCustomColors = [...customColors, currentColor];
+          onCustomColorsChange(newCustomColors);
+        }
+      }
+    }
+  };
+
+  const handleConfirmReplaceColor = () => {
+    const newCustomColors = [...customColors];
+    newCustomColors[selectedColorToReplace] = pendingColor;
+    onCustomColorsChange(newCustomColors);
+    setIsColorReplaceDialogOpen(false);
+    setPendingColor('');
+  };
+
+  const handleCancelReplaceColor = () => {
+    setIsColorReplaceDialogOpen(false);
+    setPendingColor('');
   };
 
   // 处理面板上的鼠标释放事件
@@ -422,11 +698,11 @@ export const StylePanel: React.FC<StylePanelProps> = ({
   return (
     <div 
       ref={panelRef}
-      className={`fixed bg-card border border-primary/20 rounded-2xl shadow-lg p-5 z-40 overflow-x-auto overflow-y-hidden max-h-[calc(100vh-120px)] ${isDragging ? 'cursor-grabbing' : 'cursor-grab'}`}
+      className={`fixed bg-card border border-primary/20 rounded-2xl shadow-lg p-5 z-60 overflow-x-auto overflow-y-auto ${isDragging ? 'cursor-grabbing' : 'cursor-grab'}`}
       style={{
         width: `${panelWidth}px`,
         minHeight: '500px',
-        maxHeight: `${panelHeight}px`,
+        maxHeight: 'calc(100vh - 120px)',
         ...panelPositionState,
         willChange: 'transform, left, top'
       }}
@@ -450,29 +726,29 @@ export const StylePanel: React.FC<StylePanelProps> = ({
         {/* 标签页 */}
         <div className="flex-1 flex overflow-x-auto">
           <Tabs defaultValue="shape" className="w-full flex flex-col">
-            <TabsList className="flex mb-4 gap-2 bg-muted/50 rounded-xl p-1 overflow-x-auto h-12">
-              <TabsTrigger value="shape" className="rounded-lg flex items-center gap-2 h-10 transition-all whitespace-nowrap hover:bg-primary/10">
-                <Square className="w-5 h-5" />
+            <TabsList className="flex mb-4 gap-1 bg-muted/50 rounded-xl p-1 overflow-x-auto h-12 justify-center">
+              <TabsTrigger value="shape" className="rounded-lg flex items-center gap-2 h-10 transition-all whitespace-nowrap hover:bg-primary/10 px-3">
+                <Square className="w-4 h-4" />
                 <span>形状</span>
               </TabsTrigger>
-              <TabsTrigger value="connection" className="rounded-lg flex items-center gap-2 h-10 transition-all whitespace-nowrap hover:bg-primary/10">
-                <svg className="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+              <TabsTrigger value="connection" className="rounded-lg flex items-center gap-2 h-10 transition-all whitespace-nowrap hover:bg-primary/10 px-3">
+                <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
                   <path d="M12 2L2 7l10 5 10-5-10-5z" />
                   <path d="M2 17l10 5 10-5" />
                   <path d="M2 12l10 5 10-5" />
                 </svg>
                 <span>连接线</span>
               </TabsTrigger>
-              <TabsTrigger value="color" className="rounded-lg flex items-center gap-2 h-10 transition-all whitespace-nowrap hover:bg-primary/10">
-                <Palette className="w-5 h-5" />
+              <TabsTrigger value="color" className="rounded-lg flex items-center gap-2 h-10 transition-all whitespace-nowrap hover:bg-primary/10 px-3">
+                <Palette className="w-4 h-4" />
                 <span>颜色</span>
               </TabsTrigger>
-              <TabsTrigger value="title" className="rounded-lg flex items-center gap-2 h-10 transition-all whitespace-nowrap hover:bg-primary/10">
-                <Type className="w-5 h-5" />
+              <TabsTrigger value="title" className="rounded-lg flex items-center gap-2 h-10 transition-all whitespace-nowrap hover:bg-primary/10 px-3">
+                <Text className="w-4 h-4" />
                 <span>标题</span>
               </TabsTrigger>
-              <TabsTrigger value="content" className="rounded-lg flex items-center gap-2 h-10 transition-all whitespace-nowrap hover:bg-primary/10">
-                <Type className="w-5 h-5" />
+              <TabsTrigger value="content" className="rounded-lg flex items-center gap-2 h-10 transition-all whitespace-nowrap hover:bg-primary/10 px-3">
+                <BookOpen className="w-4 h-4" />
                 <span>内容</span>
               </TabsTrigger>
             </TabsList>
@@ -618,6 +894,26 @@ export const StylePanel: React.FC<StylePanelProps> = ({
                           aria-label={`选择颜色 ${color}`}
                         />
                       ))}
+                      {/* 自定义颜色 */}
+                      {customColors.map((color) => (
+                        <button
+                          key={`custom-${color}`}
+                          type="button"
+                          className={`w-10 h-10 rounded-full border-2 transition-all flex-shrink-0 ${referenceNode.color === color ? 'border-primary ring-2 ring-primary/30 scale-110' : 'border-transparent hover:border-border hover:scale-105'}`}
+                          style={{ backgroundColor: color }}
+                          onClick={() => handleColorChange(color)}
+                          aria-label={`选择自定义颜色 ${color}`}
+                        />
+                      ))}
+                      {/* 添加自定义颜色按钮 */}
+                      <button
+                        type="button"
+                        className="w-10 h-10 rounded-full border-2 border-dashed border-border transition-all flex-shrink-0 hover:border-primary hover:scale-105 flex items-center justify-center"
+                        onClick={handleAddCustomColor}
+                        aria-label="添加自定义颜色"
+                      >
+                        <Plus className="w-4 h-4 text-muted-foreground" />
+                      </button>
                     </div>
 
                     <div className="space-y-3 pt-6">
@@ -689,7 +985,7 @@ export const StylePanel: React.FC<StylePanelProps> = ({
                         <span className="text-xs font-medium text-muted-foreground">{referenceNode.fontSize || 14}px</span>
                       </div>
                       <Slider
-                        defaultValue={[referenceNode.fontSize || 14]}
+                        value={[referenceNode.fontSize || 14]}
                         min={8}
                         max={32}
                         step={1}
@@ -698,14 +994,30 @@ export const StylePanel: React.FC<StylePanelProps> = ({
                       />
                     </div>
 
-                    <div className="grid grid-cols-2 gap-3">
-                      <Button variant="outline" className="h-9">
-                        <Type className="w-4 h-4 mr-2" />
+                    <div className="grid grid-cols-3 gap-3">
+                      <Button 
+                        variant={referenceNode.fontWeight === 'bold' ? 'default' : 'outline'}
+                        className="h-9 rounded-lg transition-all hover:bg-primary/10"
+                        onClick={() => handleFontWeightChange(referenceNode.fontWeight === 'bold' ? 'normal' : 'bold')}
+                      >
+                        <Bold className="w-4 h-4 mr-2" />
                         粗体
                       </Button>
-                      <Button variant="outline" className="h-9">
-                        <Type className="w-4 h-4 mr-2" />
+                      <Button 
+                        variant={referenceNode.fontStyle === 'italic' ? 'default' : 'outline'}
+                        className="h-9 rounded-lg transition-all hover:bg-primary/10"
+                        onClick={() => handleFontStyleChange(referenceNode.fontStyle === 'italic' ? 'normal' : 'italic')}
+                      >
+                        <Italic className="w-4 h-4 mr-2" />
                         斜体
+                      </Button>
+                      <Button 
+                        variant={referenceNode.textDecoration === 'underline' ? 'default' : 'outline'}
+                        className="h-9 rounded-lg transition-all hover:bg-primary/10"
+                        onClick={() => handleTextDecorationChange(referenceNode.textDecoration === 'underline' ? 'none' : 'underline')}
+                      >
+                        <Underline className="w-4 h-4 mr-2" />
+                        下划线
                       </Button>
                     </div>
                   </CardContent>
@@ -714,42 +1026,177 @@ export const StylePanel: React.FC<StylePanelProps> = ({
             </TabsContent>
 
             <TabsContent value="content" className="flex-1 overflow-y-auto">
-              <div className="grid grid-cols-1 gap-4 w-full">
-                <Card className="border border-primary/10 shadow-sm w-full">
+              <div className="flex flex-col h-full">
+                <Card className="border border-primary/10 shadow-sm w-full flex-grow">
                   <CardHeader className="pb-3">
                     <CardTitle className="text-sm font-medium">节点内容</CardTitle>
                     <CardDescription className="text-xs">修改节点的详细内容</CardDescription>
                   </CardHeader>
-                  <CardContent className="space-y-4">
-                    <div className="space-y-2">
-                      <Label className="text-sm">节点内容</Label>
-                      <Input
-                        value={referenceNode.content || ''}
-                        onChange={(e) => onContentChange(referenceNode.id, e.target.value)}
-                        className="rounded-lg border-2"
-                        placeholder="输入节点内容"
-                      />
-                    </div>
-                  </CardContent>
-                </Card>
-                
-                <Card className="border border-primary/10 shadow-sm w-full">
-                  <CardHeader className="pb-3">
-                    <CardTitle className="text-sm font-medium">节点图标</CardTitle>
-                    <CardDescription className="text-xs">为节点添加图标</CardDescription>
-                  </CardHeader>
-                  <CardContent>
-                    <div className="space-y-3">
-                      <Input
-                        placeholder="输入图标名称"
-                        onChange={(e) => handleMaterialChange(e.target.value)}
-                        className="rounded-lg"
-                      />
-                      
-                      <div className="p-4 bg-muted/30 rounded-lg text-center">
-                        <Image className="w-8 h-8 mx-auto mb-2 text-muted-foreground" />
-                        <p className="text-sm text-muted-foreground">图标库正在建设中...</p>
-                        <p className="text-xs text-muted-foreground mt-1">即将支持图片、图标等素材</p>
+                  <CardContent className="space-y-0 flex flex-col h-full">
+                    <div className="flex-grow flex flex-col">
+                      {/* 文字编辑工具栏 */}
+                      <div className="flex gap-1 p-1 bg-muted/30 rounded-lg mb-0.5 justify-center">
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          className="h-8 w-8 p-0 rounded"
+                          title="大标题"
+                          onClick={() => applyFormat('heading1')}
+                        >
+                          <Heading1 className="w-4 h-4" />
+                        </Button>
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          className="h-8 w-8 p-0 rounded"
+                          title="小标题"
+                          onClick={() => applyFormat('heading2')}
+                        >
+                          <Heading2 className="w-4 h-4" />
+                        </Button>
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          className="h-8 w-8 p-0 rounded"
+                          title="项目符号"
+                          onClick={() => applyFormat('bulletList')}
+                        >
+                          <List className="w-4 h-4" />
+                        </Button>
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          className="h-8 w-8 p-0 rounded"
+                          title="编号列表"
+                          onClick={() => applyFormat('numberedList')}
+                        >
+                          <ListOrdered className="w-4 h-4" />
+                        </Button>
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          className="h-8 w-8 p-0 rounded"
+                          title="插入图片"
+                        >
+                          <ImageIcon className="w-4 h-4" />
+                        </Button>
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          className="h-8 w-8 p-0 rounded"
+                          title="粗体"
+                          onClick={() => applyFormat('bold')}
+                        >
+                          <Bold className="w-4 h-4" />
+                        </Button>
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          className="h-8 w-8 p-0 rounded"
+                          title="斜体"
+                          onClick={() => applyFormat('italic')}
+                        >
+                          <Italic className="w-4 h-4" />
+                        </Button>
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          className="h-8 w-8 p-0 rounded"
+                          title="下划线"
+                          onClick={() => applyFormat('underline')}
+                        >
+                          <Underline className="w-4 h-4" />
+                        </Button>
+
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          className="h-8 w-8 p-0 rounded"
+                          title="撤销"
+                          onClick={handleUndo}
+                        >
+                          <Undo className="w-4 h-4" />
+                        </Button>
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          className="h-8 w-8 p-0 rounded"
+                          title="重置"
+                          onClick={handleReset}
+                        >
+                          <RefreshCw className="w-4 h-4" />
+                        </Button>
+                      </div>
+                      {/* 内容输入框 */}
+                      <div className="flex-grow">
+                        <Textarea
+                          value={referenceNode.content || ''}
+                          onChange={(e) => {
+                            const newValue = e.target.value;
+                            const oldValue = referenceNode.content || '';
+                            
+                            // 检查是否是按下回车键（通过比较换行符数量）
+                            const newLineCount = (newValue.match(/\n/g) || []).length;
+                            const oldLineCount = (oldValue.match(/\n/g) || []).length;
+                            
+                            if (newLineCount > oldLineCount) {
+                              // 确实是按下了回车键
+                              const lines = newValue.split('\n');
+                              const newLineIndex = lines.length - 1;
+                              
+                              // 确保新行存在且不为空
+                              if (newLineIndex > 0 && lines[newLineIndex].trim() === '') {
+                                const previousLine = lines[newLineIndex - 1].trim();
+                                
+                                // 检查前一行是否是列表项
+                                const bulletListMatch = previousLine.match(/^[-*+]\s/);
+                                const numberedListMatch = previousLine.match(/^\d+\.\s/);
+                                
+                                if (bulletListMatch) {
+                                  // 保持项目符号列表格式
+                                  lines[newLineIndex] = '- ';
+                                  const updatedValue = lines.join('\n');
+                                  // 更新历史记录
+                                  setHistory(prev => {
+                                    const newHistory = prev.slice(0, historyIndex + 1);
+                                    newHistory.push(updatedValue);
+                                    return newHistory;
+                                  });
+                                  setHistoryIndex(prev => prev + 1);
+                                  onContentChange(referenceNode.id, updatedValue);
+                                  return;
+                                } else if (numberedListMatch) {
+                                  // 保持编号列表格式，递增编号
+                                  const currentNumber = parseInt(numberedListMatch[0]);
+                                  lines[newLineIndex] = `${currentNumber + 1}. `;
+                                  const updatedValue = lines.join('\n');
+                                  // 更新历史记录
+                                  setHistory(prev => {
+                                    const newHistory = prev.slice(0, historyIndex + 1);
+                                    newHistory.push(updatedValue);
+                                    return newHistory;
+                                  });
+                                  setHistoryIndex(prev => prev + 1);
+                                  onContentChange(referenceNode.id, updatedValue);
+                                  return;
+                                }
+                              }
+                            }
+                            
+                            // 其他情况，直接更新值
+                            // 更新历史记录
+                            setHistory(prev => {
+                              const newHistory = prev.slice(0, historyIndex + 1);
+                              newHistory.push(newValue);
+                              return newHistory;
+                            });
+                            setHistoryIndex(prev => prev + 1);
+                            onContentChange(referenceNode.id, newValue);
+                          }}
+                          className="rounded-lg border-2 w-full h-full resize-none"
+                          placeholder="输入节点内容..."
+                          style={{ minHeight: '300px' }}
+                        />
                       </div>
                     </div>
                   </CardContent>
@@ -773,6 +1220,44 @@ export const StylePanel: React.FC<StylePanelProps> = ({
           </p>
         </div>
       )}
+
+      {/* 颜色替换对话框 */}
+      <Dialog open={isColorReplaceDialogOpen} onOpenChange={setIsColorReplaceDialogOpen}>
+        <DialogContent className="w-[300px]">
+          <DialogHeader>
+            <DialogTitle>自定义颜色已达上限</DialogTitle>
+            <DialogDescription>
+              最多支持10个自定义颜色的保存，请选择覆盖的颜色：
+            </DialogDescription>
+          </DialogHeader>
+          <div className="py-4">
+            <div className="flex flex-wrap gap-3">
+              {customColors.map((color, index) => (
+                <button
+                  key={index}
+                  type="button"
+                  className={`w-10 h-10 rounded-full border-2 transition-all flex-shrink-0 ${selectedColorToReplace === index ? 'border-primary ring-2 ring-primary/30 scale-110' : 'border-transparent hover:border-border hover:scale-105'}`}
+                  style={{ backgroundColor: color }}
+                  onClick={() => setSelectedColorToReplace(index)}
+                  aria-label={`选择要覆盖的颜色 ${index + 1}`}
+                />
+              ))}
+            </div>
+            <div className="mt-4 flex items-center gap-3">
+              <div className="w-10 h-10 rounded-full border-2 border-primary flex-shrink-0" style={{ backgroundColor: pendingColor }} />
+              <span className="text-sm text-muted-foreground">将被添加的新颜色</span>
+            </div>
+          </div>
+          <DialogFooter className="flex justify-end gap-2">
+            <Button variant="outline" onClick={handleCancelReplaceColor}>
+              取消
+            </Button>
+            <Button onClick={handleConfirmReplaceColor}>
+              确认
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 };

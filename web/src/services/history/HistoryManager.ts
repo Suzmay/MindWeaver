@@ -12,7 +12,7 @@ export class HistoryManager {
   private history: HistoryState[];
   private currentIndex: number;
   private maxHistorySize: number;
-  private autoSaveInterval: number | null;
+  private autoSaveInterval: NodeJS.Timeout | null;
 
   constructor(maxHistorySize: number = 50) {
     this.history = [];

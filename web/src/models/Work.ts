@@ -84,6 +84,9 @@ export interface MindMapNode {
   shape: 'rectangle' | 'rounded' | 'circle' | 'diamond';
   color: string;
   fontSize?: number;
+  fontWeight?: 'normal' | 'bold';
+  fontStyle?: 'normal' | 'italic';
+  textDecoration?: 'none' | 'underline';
   icon?: string;
   connectionType?: 'straight' | 'curved' | 'dashed' | 'wavy';
   size?: number;
