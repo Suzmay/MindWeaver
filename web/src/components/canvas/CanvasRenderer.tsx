@@ -17,6 +17,17 @@ interface CanvasRendererProps {
   hiddenLevels: Set<number>;
   onBubbleInfoChange: (bubbleInfo: { nodeId: string; position: { x: number; y: number }; direction: 'top-left' | 'top-right' | 'bottom-left' | 'bottom-right'; showContent: boolean } | null) => void;
   bubbleInfo: { nodeId: string; position: { x: number; y: number }; direction: 'top-left' | 'top-right' | 'bottom-left' | 'bottom-right'; showContent: boolean } | null;
+  showGrid?: boolean;
+  showAnimation?: boolean;
+  readOnly?: boolean;
+  onNodeFocus?: (nodeId: string) => void;
+  focusState?: {
+    focusedNode: string | null;
+    isFocusMode: boolean;
+    focusAnimationProgress: number;
+  };
+  parentMap?: Map<string, string>; // 子节点 ID 到父节点 ID 的映射表
+  onFocusContentCardPosition?: (position: { x: number; y: number; width: number; height: number } | null) => void;
 }
 
 export const CanvasRenderer: React.FC<CanvasRendererProps> = ({
@@ -34,6 +45,13 @@ export const CanvasRenderer: React.FC<CanvasRendererProps> = ({
   hiddenLevels,
   onBubbleInfoChange,
   bubbleInfo,
+  showGrid = true,
+  showAnimation = false,
+  readOnly = false,
+  onNodeFocus,
+  focusState,
+  parentMap,
+  onFocusContentCardPosition,
 }) => {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const webglCanvasRef = useRef<HTMLCanvasElement>(null);
@@ -44,6 +62,8 @@ export const CanvasRenderer: React.FC<CanvasRendererProps> = ({
   const [draggedNode, setDraggedNode] = useState<string | null>(null);
   const [longPressTimer, setLongPressTimer] = useState<NodeJS.Timeout | null>(null);
   const rafRef = useRef<number | null>(null);
+  const animationRafRef = useRef<number | null>(null);
+  const animationTimeRef = useRef(0);
   // 使用 refs 进行实时位置跟踪，避免 React 状态延迟
   const draggedNodePositionRef = useRef<{ x: number; y: number } | null>(null);
   const isNodeDraggingRef = useRef(false);
@@ -89,6 +109,204 @@ export const CanvasRenderer: React.FC<CanvasRendererProps> = ({
     }
   }, [isWebGLAvailable]);
 
+  // 获取与聚焦节点相关的所有节点（只包括直接关系）
+  const getRelatedNodesSet = (focusedNodeId: string): Set<string> => {
+    const relatedNodes = new Set<string>();
+    relatedNodes.add(focusedNodeId);
+
+    const parentId = parentMap?.get(focusedNodeId);
+    if (parentId) {
+      relatedNodes.add(parentId);
+    }
+
+    const node = nodes.find(n => n.id === focusedNodeId);
+    if (node && node.children) {
+      for (const childId of node.children) {
+        relatedNodes.add(childId);
+      }
+    }
+
+    return relatedNodes;
+  };
+
+  // 计算节点在聚焦模式下的位置（考虑卡片位置和避免重叠）
+  const getFocusNodePosition = (
+    nodeId: string, 
+    relatedNodes: Set<string>, 
+    focusState: any,
+    cardPosition?: { x: number; y: number; width: number; height: number } | null
+  ) => {
+    if (!focusState?.isFocusMode || !focusState.focusedNode) {
+      const node = nodes.find(n => n.id === nodeId);
+      return { x: node?.x || 0, y: node?.y || 0 };
+    }
+
+    if (nodeId === focusState.focusedNode) {
+      return { x: 0, y: 0 };
+    }
+
+    const focusedNode = nodes.find(n => n.id === focusState.focusedNode);
+    const canvas = canvasRef.current;
+    if (!canvas || !focusedNode) return { x: 0, y: 0 };
+    
+    const canvasWidth = canvas.width / zoom;
+    const canvasHeight = canvas.height / zoom;
+    const padding = 15;
+    
+    const relatedNodeIds = Array.from(relatedNodes).filter(id => id !== focusState.focusedNode);
+    const nodeIndex = relatedNodeIds.indexOf(nodeId);
+    
+    if (nodeIndex === -1) return { x: 0, y: 0 };
+
+    const nodeCount = relatedNodeIds.length;
+    const isParent = parentMap?.get(focusState.focusedNode) === nodeId;
+    const isChild = focusedNode.children.includes(nodeId);
+    
+    let x, y, radius;
+
+    // 卡片在右侧占据的空间
+    const cardRightX = cardPosition ? cardPosition.x + cardPosition.width / 2 : canvasWidth / 4;
+    const cardLeftX = cardPosition ? cardPosition.x - cardPosition.width / 2 : canvasWidth / 4;
+    const cardTopY = cardPosition ? cardPosition.y - cardPosition.height / 2 : 0;
+    const cardBottomY = cardPosition ? cardPosition.y + cardPosition.height / 2 : 0;
+    
+    if (nodeCount === 1) {
+      // 只有一个节点，放在左侧与卡片对称
+      x = -canvasWidth / 4;
+      y = 0;
+    } else if (nodeCount === 2) {
+      // 两个节点，左侧上下分布
+      if (nodeIndex === 0) {
+        x = -canvasWidth / 3;
+        y = -canvasHeight / 6;
+      } else {
+        x = -canvasWidth / 3;
+        y = canvasHeight / 6;
+      }
+    } else if (nodeCount === 3) {
+      // 三个节点，左侧和上方分布
+      const angles = [Math.PI, Math.PI * 0.75, Math.PI * 1.25]; // 左、左上、左下
+      radius = Math.min(canvasWidth, canvasHeight) / 3;
+      x = Math.cos(angles[nodeIndex]) * radius;
+      y = Math.sin(angles[nodeIndex]) * radius;
+    } else {
+      // 多个节点，使用扇形布局（避开右侧卡片区域）
+      // 角度范围：从 30° (右上) 到 210° (左下)，即避开右侧 60° 扇形
+      const startAngle = Math.PI / 6; // 30°
+      const endAngle = Math.PI * 1.166; // 210°
+      const angleRange = endAngle - startAngle;
+      
+      // 根据节点类型调整角度分布
+      let angleOffset = startAngle;
+      if (isParent && nodeCount > 3) {
+        // 父节点优先放在上方
+        angleOffset = Math.PI / 2;
+      }
+      
+      const angle = startAngle + (nodeIndex / (nodeCount - 1)) * angleRange;
+      radius = Math.min(canvasWidth, canvasHeight) / 3;
+      
+      x = Math.cos(angle) * radius;
+      y = Math.sin(angle) * radius;
+    }
+
+    // 检测与卡片的碰撞，如果重叠则向外移动
+    if (cardPosition) {
+      const nodeSize = 60; // 节点半宽
+      const nodeHeight = 40; // 节点半高
+      
+      // 检查是否与卡片重叠
+      const overlapX = Math.abs(x - cardPosition.x) < (nodeSize + cardPosition.width / 2);
+      const overlapY = Math.abs(y - cardPosition.y) < (nodeHeight + cardPosition.height / 2);
+      
+      if (overlapX && overlapY) {
+        // 计算从卡片中心到节点的方向
+        const dx = x - cardPosition.x;
+        const dy = y - cardPosition.y;
+        const distance = Math.sqrt(dx * dx + dy * dy);
+        
+        if (distance > 0) {
+          // 沿远离卡片的方向移动
+          const minDistance = Math.max(cardPosition.width, cardPosition.height) / 2 + Math.max(nodeSize, nodeHeight) + 20;
+          const scale = minDistance / distance;
+          x = cardPosition.x + dx * scale;
+          y = cardPosition.y + dy * scale;
+        }
+      }
+    }
+
+    // 确保节点不超出屏幕
+    x = Math.max(-canvasWidth / 2 + padding, Math.min(canvasWidth / 2 - padding, x));
+    y = Math.max(-canvasHeight / 2 + padding, Math.min(canvasHeight / 2 - padding, y));
+
+    return { x, y };
+  };
+
+  // 计算内容卡片在聚焦模式下的位置（固定右侧，根据内容动态调整高度）
+  const getContentCardPosition = (relatedNodes: Set<string>, focusState: any) => {
+    if (!focusState?.isFocusMode || !focusState.focusedNode) {
+      return null;
+    }
+
+    const focusedNode = nodes.find(n => n.id === focusState.focusedNode);
+    const canvas = canvasRef.current;
+    if (!canvas || !focusedNode) return null;
+    
+    const canvasWidth = canvas.width / zoom;
+    const canvasHeight = canvas.height / zoom;
+    const padding = 15;
+    
+    // 计算卡片尺寸
+    const sizeFactor = (focusedNode.size || 100) / 100;
+    const cardWidth = Math.max(120 * sizeFactor, 280);
+    
+    // 固定放在右侧，确保与右边缘有15px距离
+    // x坐标 = (画布宽度/2 - 卡片宽度/2 - 边距)
+    const x = canvasWidth / 2 - cardWidth / 2 - padding;
+    let y = 0;
+    
+    // 根据实际内容行数计算高度
+    const content = focusedNode.content || '';
+    const title = focusedNode.title || '';
+    
+    // 计算标题行数（标题通常较短，一行或两行）
+    const titleLines = title.length > 0 ? Math.ceil(title.length / 25) : 0;
+    
+    // 计算内容行数
+    const contentLines = content.split('\n').reduce((total, line) => {
+      // 每行根据长度计算需要的行数（假设每行约35个字符）
+      const lineCount = Math.ceil(line.length / 35);
+      return total + Math.max(1, lineCount);
+    }, 0);
+    
+    // 空行也占一行
+    const emptyLines = (content.match(/\n\n/g) || []).length;
+    
+    // 总高度 = 标题区域 + 内容区域 + 内边距
+    // 标题：每行20px，内容：每行18px，内边距：上下各16px，标题和内容间距：8px
+    const totalLines = titleLines + contentLines + emptyLines;
+    const cardHeight = Math.max(100, Math.min(
+      titleLines * 22 + contentLines * 20 + emptyLines * 10 + 60,
+      canvasHeight * 0.7
+    ));
+    
+    // 确保卡片不超出画布上下边界
+    const halfHeight = cardHeight / 2;
+    y = Math.max(-canvasHeight / 2 + halfHeight + padding, 
+                 Math.min(canvasHeight / 2 - halfHeight - padding, y));
+
+    return { x, y, width: cardWidth, height: cardHeight };
+  };
+
+  // 获取在聚焦模式下应该检查的节点列表
+  const getNodesToCheck = () => {
+    if (!focusState?.isFocusMode || !focusState.focusedNode) {
+      return nodes;
+    }
+    const relatedNodes = getRelatedNodesSet(focusState.focusedNode);
+    return nodes.filter(node => relatedNodes.has(node.id));
+  };
+
   // 使用 Canvas 2D 绘制
   const drawWithCanvas2D = () => {
     const canvas = canvasRef.current;
@@ -96,6 +314,11 @@ export const CanvasRenderer: React.FC<CanvasRendererProps> = ({
 
     const ctx = canvas.getContext('2d');
     if (!ctx) return;
+
+    // 获取与聚焦节点相关的所有节点（只包括直接关系）
+    const getRelatedNodes = (focusedNodeId: string): Set<string> => {
+      return getRelatedNodesSet(focusedNodeId);
+    };
 
     // 清空画布
     ctx.clearRect(0, 0, canvas.width, canvas.height);
@@ -105,45 +328,143 @@ export const CanvasRenderer: React.FC<CanvasRendererProps> = ({
     ctx.translate(pan.x, pan.y);
     ctx.scale(zoom, zoom);
 
-    // 绘制网格
-    ctx.strokeStyle = isDarkMode ? '#333333' : '#e0e0e0';
-    ctx.lineWidth = 1;
-    const gridSize = 50;
-    
-    // 根据当前平移和缩放计算网格的起始和结束位置
-    // 扩展到可见区域之外，创建无限网格效果
-    const extendedRange = 100; // 在可见区域之外绘制的网格线数量
-    const totalGridLines = extendedRange * 2;
-    
-    // 计算网格坐标系中的当前平移位置
-    const panGridX = pan.x / zoom;
-    const panGridY = pan.y / zoom;
-    
-    // 计算可见区域中心的网格坐标
-    const centerX = panGridX;
-    const centerY = panGridY;
-    
-    // 计算网格线的起始和结束位置
-    const gridStartX = centerX - (gridSize * totalGridLines);
-    const gridEndX = centerX + (gridSize * totalGridLines);
-    const gridStartY = centerY - (gridSize * totalGridLines);
-    const gridEndY = centerY + (gridSize * totalGridLines);
-    
-    // 绘制垂直网格线
-    for (let x = Math.floor(gridStartX / gridSize) * gridSize; x <= gridEndX; x += gridSize) {
-      ctx.beginPath();
-      ctx.moveTo(x, gridStartY);
-      ctx.lineTo(x, gridEndY);
-      ctx.stroke();
+    // 绘制网格（如果启用）
+    if (showGrid) {
+      ctx.strokeStyle = isDarkMode ? '#333333' : '#e0e0e0';
+      ctx.lineWidth = 1;
+      const gridSize = 50;
+      
+      const extendedRange = 100;
+      const totalGridLines = extendedRange * 2;
+      
+      const panGridX = pan.x / zoom;
+      const panGridY = pan.y / zoom;
+      
+      const centerX = panGridX;
+      const centerY = panGridY;
+      
+      const gridStartX = centerX - (gridSize * totalGridLines);
+      const gridEndX = centerX + (gridSize * totalGridLines);
+      const gridStartY = centerY - (gridSize * totalGridLines);
+      const gridEndY = centerY + (gridSize * totalGridLines);
+      
+      for (let x = Math.floor(gridStartX / gridSize) * gridSize; x <= gridEndX; x += gridSize) {
+        ctx.beginPath();
+        ctx.moveTo(x, gridStartY);
+        ctx.lineTo(x, gridEndY);
+        ctx.stroke();
+      }
+      
+      for (let y = Math.floor(gridStartY / gridSize) * gridSize; y <= gridEndY; y += gridSize) {
+        ctx.beginPath();
+        ctx.moveTo(gridStartX, y);
+        ctx.lineTo(gridEndX, y);
+        ctx.stroke();
+      }
     }
-    
-    // 绘制水平网格线
-    for (let y = Math.floor(gridStartY / gridSize) * gridSize; y <= gridEndY; y += gridSize) {
-      ctx.beginPath();
-      ctx.moveTo(gridStartX, y);
-      ctx.lineTo(gridEndX, y);
-      ctx.stroke();
-    }
+
+    // 聚焦模式相关节点集合
+    const relatedNodes = focusState?.isFocusMode && focusState.focusedNode 
+      ? getRelatedNodes(focusState.focusedNode)
+      : new Set<string>();
+
+    // 计算内容卡片位置（固定右侧）
+    const contentCardPos = focusState?.isFocusMode && focusState.focusedNode
+      ? getContentCardPosition(relatedNodes, focusState)
+      : null;
+
+    // 为聚焦模式准备节点布局数据
+    const focusLayout = focusState?.isFocusMode ? {
+      focusedNode: nodes.find(n => n.id === focusState.focusedNode),
+      relatedNodes: Array.from(relatedNodes).filter(id => id !== focusState.focusedNode),
+      canvasWidth: canvas.width / zoom,
+      canvasHeight: canvas.height / zoom,
+      padding: 15,
+      contentCardPos,
+    } : null;
+
+    // 计算节点在聚焦模式下的位置（考虑卡片位置，避开右侧）
+    const getFocusNodePosition = (nodeId: string) => {
+      if (!focusLayout || !focusLayout.focusedNode) return { x: nodes.find(n => n.id === nodeId)?.x || 0, y: nodes.find(n => n.id === nodeId)?.y || 0 };
+
+      if (nodeId === focusLayout.focusedNode.id) {
+        // 聚焦节点在中心
+        return { x: 0, y: 0 };
+      }
+
+      const nodeIndex = focusLayout.relatedNodes.indexOf(nodeId);
+      if (nodeIndex === -1) return { x: 0, y: 0 };
+
+      const { canvasWidth, canvasHeight, padding, contentCardPos } = focusLayout;
+      const nodeCount = focusLayout.relatedNodes.length;
+      const focusedNode = focusLayout.focusedNode;
+      
+      let x, y;
+
+      // 检查是否是父节点
+      const isParent = parentMap?.get(focusedNode.id) === nodeId;
+      // 检查是否是子节点
+      const isChild = focusedNode.children.includes(nodeId);
+      
+      // 卡片占据的右侧区域
+      const cardX = contentCardPos ? contentCardPos.x : canvasWidth / 3;
+      const cardWidth = contentCardPos ? contentCardPos.width : 250;
+      const cardHeight = contentCardPos ? contentCardPos.height : 150;
+      const cardLeftEdge = cardX - cardWidth / 2 - 20; // 左边缘 + 间距
+      
+      if (nodeCount === 1) {
+        // 1个相关节点：放在左侧
+        x = -canvasWidth / 4;
+        y = 0;
+      } else if (nodeCount === 2) {
+        // 2个相关节点：左侧上下分布
+        if (nodeIndex === 0) {
+          x = -canvasWidth / 3;
+          y = -canvasHeight / 6;
+        } else {
+          x = -canvasWidth / 3;
+          y = canvasHeight / 6;
+        }
+      } else if (nodeCount === 3) {
+        // 3个相关节点：左侧和上方分布
+        const angles = [Math.PI, Math.PI * 0.75, Math.PI * 1.25];
+        const radius = Math.min(canvasWidth, canvasHeight) / 3;
+        x = Math.cos(angles[nodeIndex]) * radius;
+        y = Math.sin(angles[nodeIndex]) * radius;
+      } else {
+        // 多个相关节点：扇形布局（避开右侧卡片区域）
+        // 角度范围：从 30° (右上) 到 210° (左下)，避开右侧 60° 扇形
+        const startAngle = Math.PI / 6; // 30°
+        const endAngle = Math.PI * 1.166; // 210°
+        const angleRange = endAngle - startAngle;
+        
+        const angle = startAngle + (nodeIndex / (nodeCount - 1)) * angleRange;
+        const radius = Math.min(canvasWidth, canvasHeight) / 3;
+        x = Math.cos(angle) * radius;
+        y = Math.sin(angle) * radius;
+      }
+
+      // 检测与卡片的碰撞，如果重叠则向外移动
+      if (contentCardPos) {
+        const nodeSize = 60; // 节点半宽
+        const nodeHeight = 40; // 节点半高
+        
+        // 检查是否与卡片重叠
+        const overlapX = x > cardLeftEdge - nodeSize;
+        const overlapY = Math.abs(y - contentCardPos.y) < (nodeHeight + cardHeight / 2);
+        
+        if (overlapX && overlapY) {
+          // 向左移动，避开卡片
+          x = cardLeftEdge - nodeSize;
+        }
+      }
+
+      // 确保节点不超出屏幕
+      x = Math.max(-canvasWidth / 2 + padding, Math.min(canvasWidth / 2 - padding, x));
+      y = Math.max(-canvasHeight / 2 + padding, Math.min(canvasHeight / 2 - padding, y));
+
+      return { x, y };
+    };
 
     // 只为展开的节点和可见子节点绘制连接
     nodes.forEach((node) => {
@@ -152,13 +473,31 @@ export const CanvasRenderer: React.FC<CanvasRendererProps> = ({
         node.children.forEach((childId) => {
           const child = nodes.find((n) => n.id === childId);
           if (child && !hiddenLevels.has(child.level || 0)) {
-            // 获取实际位置（考虑拖拽）
+            // 聚焦模式下，只绘制与聚焦节点相关的连接
+            if (focusState?.isFocusMode) {
+              const isRelated = relatedNodes.has(node.id) && relatedNodes.has(childId);
+              if (!isRelated) {
+                return; // 跳过非相关连接
+              }
+            }
+            
+            // 获取节点位置
             let parentX = node.x;
             let parentY = node.y;
             let childX = child.x;
             let childY = child.y;
             
-            // 如果节点正在被拖拽，使用拖拽位置
+            // 聚焦模式下调整位置
+            if (focusState?.isFocusMode) {
+              const parentPos = getFocusNodePosition(node.id);
+              const childPos = getFocusNodePosition(childId);
+              parentX = parentPos.x;
+              parentY = parentPos.y;
+              childX = childPos.x;
+              childY = childPos.y;
+            }
+            
+            // 拖拽时的位置调整
             if (isNodeDragging || isNodeDraggingRef.current) {
               if ((draggedNode === node.id || draggedNodeRef.current === node.id) && draggedNodePositionRef.current) {
                 parentX = draggedNodePositionRef.current.x;
@@ -170,166 +509,486 @@ export const CanvasRenderer: React.FC<CanvasRendererProps> = ({
               }
             }
             
-            ctx.strokeStyle = node.color;
-            ctx.lineWidth = 3;
-            
-            // 根据连接类型设置线条样式
-            if (child.connectionType === 'dashed') {
-              ctx.setLineDash([5, 5]);
-            } else {
+            // 绘制连接线
+            if (showAnimation) {
+              const connectionHash = (node.id + child.id).split('').reduce((acc, char) => acc + char.charCodeAt(0), 0);
+              const waveOffset = connectionHash * 0.1;
+              const waveAmplitude = 8;
+              const waveFrequency = 0.5;
+              
+              const midX = (parentX + childX) / 2;
+              const midY = (parentY + childY) / 2 - 50;
+              const animatedMidY = midY + Math.sin(animationTimeRef.current * waveFrequency + waveOffset) * waveAmplitude;
+              
+              ctx.strokeStyle = node.color;
+              ctx.lineWidth = 3;
+              
+              // 聚焦模式下，为连接线添加不透明度
+              if (focusState?.isFocusMode) {
+                const isFocusedConnection = (node.id === focusState.focusedNode || child.id === focusState.focusedNode);
+                if (!isFocusedConnection) {
+                  ctx.globalAlpha = 0.5; // 非聚焦连接50%透明度
+                }
+              }
+              
+              if (child.connectionType === 'dashed') {
+                ctx.setLineDash([5, 5]);
+              } else {
+                ctx.setLineDash([]);
+              }
+              
+              ctx.beginPath();
+              if (child.connectionType === 'straight') {
+                ctx.moveTo(parentX, parentY);
+                ctx.lineTo(childX, childY);
+              } else if (child.connectionType === 'wavy') {
+                const dx = childX - parentX;
+                const dy = childY - parentY;
+                const distance = Math.sqrt(dx * dx + dy * dy);
+                const waveCount = Math.max(3, Math.floor(distance / 50));
+                const waveHeight = 15;
+                
+                ctx.moveTo(parentX, parentY);
+                
+                for (let i = 0; i < waveCount; i++) {
+                  const t1 = (i + 0.25) / waveCount;
+                  const t2 = (i + 0.75) / waveCount;
+                  const t3 = (i + 1) / waveCount;
+                  
+                  const x1 = parentX + dx * t1;
+                  const y1 = parentY + dy * t1 + (i % 2 === 0 ? -waveHeight : waveHeight) + Math.sin(animationTimeRef.current * waveFrequency + waveOffset + i) * 3;
+                  
+                  const x2 = parentX + dx * t2;
+                  const y2 = parentY + dy * t2 + (i % 2 === 0 ? waveHeight : -waveHeight) + Math.sin(animationTimeRef.current * waveFrequency + waveOffset + i + 1) * 3;
+                  
+                  const x3 = parentX + dx * t3;
+                  const y3 = parentY + dy * t3 + (i % 2 === 0 ? waveHeight : -waveHeight) + Math.sin(animationTimeRef.current * waveFrequency + waveOffset + i + 2) * 3;
+                  
+                  ctx.bezierCurveTo(x1, y1, x2, y2, x3, y3);
+                }
+              } else {
+                ctx.moveTo(parentX, parentY);
+                ctx.quadraticCurveTo(midX, animatedMidY, childX, childY);
+              }
+              ctx.stroke();
               ctx.setLineDash([]);
-            }
-            
-            ctx.beginPath();
-            if (child.connectionType === 'straight') {
-              // 绘制直线
-              ctx.moveTo(parentX, parentY);
-              ctx.lineTo(childX, childY);
-            } else if (child.connectionType === 'wavy') {
-              // 绘制波浪线 - 使用三次贝塞尔曲线实现圆滑的凸凹凸效果
-              const dx = childX - parentX;
-              const dy = childY - parentY;
-              const distance = Math.sqrt(dx * dx + dy * dy);
-              const waveCount = Math.max(3, Math.floor(distance / 50));
-              const waveHeight = 15;
               
-              ctx.moveTo(parentX, parentY);
-              
-              for (let i = 0; i < waveCount; i++) {
-                const t1 = (i + 0.25) / waveCount;
-                const t2 = (i + 0.75) / waveCount;
-                const t3 = (i + 1) / waveCount;
-                
-                const x1 = parentX + dx * t1;
-                const y1 = parentY + dy * t1 + (i % 2 === 0 ? -waveHeight : waveHeight);
-                
-                const x2 = parentX + dx * t2;
-                const y2 = parentY + dy * t2 + (i % 2 === 0 ? waveHeight : -waveHeight);
-                
-                const x3 = parentX + dx * t3;
-                const y3 = parentY + dy * t3 + (i % 2 === 0 ? waveHeight : -waveHeight);
-                
-                ctx.bezierCurveTo(x1, y1, x2, y2, x3, y3);
+              // 恢复透明度
+              if (focusState?.isFocusMode) {
+                ctx.globalAlpha = 1;
               }
             } else {
-              // 绘制曲线（默认）
-              ctx.moveTo(parentX, parentY);
-              ctx.quadraticCurveTo(
-                (parentX + childX) / 2,
-                (parentY + childY) / 2 - 50,
-                childX,
-                childY
-              );
+              ctx.strokeStyle = node.color;
+              ctx.lineWidth = 3;
+              
+              // 聚焦模式下，为连接线添加不透明度
+              if (focusState?.isFocusMode) {
+                const isFocusedConnection = (node.id === focusState.focusedNode || child.id === focusState.focusedNode);
+                if (!isFocusedConnection) {
+                  ctx.globalAlpha = 0.5; // 非聚焦连接50%透明度
+                }
+              }
+              
+              if (child.connectionType === 'dashed') {
+                ctx.setLineDash([5, 5]);
+              } else {
+                ctx.setLineDash([]);
+              }
+              
+              ctx.beginPath();
+              if (child.connectionType === 'straight') {
+                ctx.moveTo(parentX, parentY);
+                ctx.lineTo(childX, childY);
+              } else if (child.connectionType === 'wavy') {
+                const dx = childX - parentX;
+                const dy = childY - parentY;
+                const distance = Math.sqrt(dx * dx + dy * dy);
+                const waveCount = Math.max(3, Math.floor(distance / 50));
+                const waveHeight = 15;
+                
+                ctx.moveTo(parentX, parentY);
+                
+                for (let i = 0; i < waveCount; i++) {
+                  const t1 = (i + 0.25) / waveCount;
+                  const t2 = (i + 0.75) / waveCount;
+                  const t3 = (i + 1) / waveCount;
+                  
+                  const x1 = parentX + dx * t1;
+                  const y1 = parentY + dy * t1 + (i % 2 === 0 ? -waveHeight : waveHeight);
+                  
+                  const x2 = parentX + dx * t2;
+                  const y2 = parentY + dy * t2 + (i % 2 === 0 ? waveHeight : -waveHeight);
+                  
+                  const x3 = parentX + dx * t3;
+                  const y3 = parentY + dy * t3 + (i % 2 === 0 ? waveHeight : -waveHeight);
+                  
+                  ctx.bezierCurveTo(x1, y1, x2, y2, x3, y3);
+                }
+              } else {
+                ctx.moveTo(parentX, parentY);
+                ctx.quadraticCurveTo(
+                  (parentX + childX) / 2,
+                  (parentY + childY) / 2 - 50,
+                  childX,
+                  childY
+                );
+              }
+              ctx.stroke();
+              ctx.setLineDash([]);
+              
+              // 恢复透明度
+              if (focusState?.isFocusMode) {
+                ctx.globalAlpha = 1;
+              }
             }
-            ctx.stroke();
-            ctx.setLineDash([]); // 恢复默认线条样式
           }
         });
       }
     });
 
-    // 绘制节点
-    nodes.forEach((node) => {
-      // 在拖拽期间跳过绘制被拖拽的节点（单独绘制被拖拽的节点）
-      if (isNodeDragging && draggedNode === node.id) return;
-      
-      // 检查节点层级是否被隐藏（根节点总是显示）
-      if (node.id !== 'root' && hiddenLevels.has(node.level || 0)) return;
-      
-      // 对于非根节点，检查父节点是否展开
-      if (node.id !== 'root') {
-        let parentExpanded = false;
-        for (const potentialParent of nodes) {
-          if (potentialParent.children.includes(node.id)) {
-            parentExpanded = expandedNodes.has(potentialParent.id);
-            break;
+    // 绘制内容卡片和聚焦节点之间的连接线
+    if (focusState?.isFocusMode && focusState.focusedNode) {
+      const contentCardPos = getContentCardPosition(relatedNodes, focusState);
+      if (contentCardPos) {
+        const focusedNode = nodes.find(n => n.id === focusState.focusedNode);
+        if (focusedNode) {
+          ctx.strokeStyle = focusedNode.color;
+          ctx.lineWidth = 3;
+          ctx.globalAlpha = 0.75;
+          
+          const focusNodeX = 0;
+          const focusNodeY = 0;
+          const contentCardCenterX = contentCardPos.x;
+          const contentCardCenterY = contentCardPos.y;
+          const cardWidth = contentCardPos.width;
+          const cardHeight = contentCardPos.height;
+          
+          // 计算卡片边缘的连接点（而不是中心）
+          let contentCardEdgeX = contentCardCenterX;
+          let contentCardEdgeY = contentCardCenterY;
+          
+          // 根据卡片相对于聚焦节点的位置，确定连接到哪条边
+          const dx = contentCardCenterX - focusNodeX;
+          const dy = contentCardCenterY - focusNodeY;
+          
+          if (Math.abs(dx) > Math.abs(dy)) {
+            // 卡片主要在水平方向，连接到左边缘或右边缘
+            if (dx > 0) {
+              // 卡片在右侧，连接到左边缘
+              contentCardEdgeX = contentCardCenterX - cardWidth / 2;
+            } else {
+              // 卡片在左侧，连接到右边缘
+              contentCardEdgeX = contentCardCenterX + cardWidth / 2;
+            }
+          } else {
+            // 卡片主要在垂直方向，连接到上边缘或下边缘
+            if (dy > 0) {
+              // 卡片在下方，连接到上边缘
+              contentCardEdgeY = contentCardCenterY - cardHeight / 2;
+            } else {
+              // 卡片在上方，连接到下边缘
+              contentCardEdgeY = contentCardCenterY + cardHeight / 2;
+            }
           }
+          
+          ctx.beginPath();
+          ctx.moveTo(focusNodeX, focusNodeY);
+          ctx.quadraticCurveTo(
+            (focusNodeX + contentCardEdgeX) / 2,
+            (focusNodeY + contentCardEdgeY) / 2 - 50,
+            contentCardEdgeX,
+            contentCardEdgeY
+          );
+          ctx.stroke();
+          
+          ctx.globalAlpha = 1;
         }
-        if (!parentExpanded) return;
       }
-      
-      const isSelected = selectedNode === node.id;
-      const isExpanded = expandedNodes.has(node.id);
+    }
 
-      // 节点背景
+  // 绘制节点
+  nodes.forEach((node) => {
+    if (isNodeDragging && draggedNode === node.id) return;
+    
+    if (node.id !== 'root' && hiddenLevels.has(node.level || 0)) return;
+    
+    if (node.id !== 'root') {
+      let parentExpanded = false;
+      for (const potentialParent of nodes) {
+        if (potentialParent.children.includes(node.id)) {
+          parentExpanded = expandedNodes.has(potentialParent.id);
+          break;
+        }
+      }
+      if (!parentExpanded) return;
+    }
+    
+    const isSelected = selectedNode === node.id;
+    const isExpanded = expandedNodes.has(node.id);
+    const isFocused = focusState?.focusedNode === node.id;
+    const isFocusRelated = focusState?.isFocusMode ? relatedNodes.has(node.id) : false;
+    
+    // 聚焦模式下，只显示与聚焦节点相关的节点
+    if (focusState?.isFocusMode && !isFocusRelated) {
+      return; // 跳过非相关节点
+    }
+    
+    // 获取节点位置
+    let drawX = node.x;
+    let drawY = node.y;
+    
+    // 聚焦模式下调整位置
+    if (focusState?.isFocusMode && isFocusRelated) {
+      const pos = getFocusNodePosition(node.id);
+      drawX = pos.x;
+      drawY = pos.y;
+    }
+    
+    // 动画效果
+    if (showAnimation) {
+      const nodeHash = node.id.split('').reduce((acc, char) => acc + char.charCodeAt(0), 0);
+      const nodeOffset = nodeHash * 0.2;
+      const nodeWaveAmplitude = 3;
+      drawY += Math.sin(animationTimeRef.current * 0.7 + nodeOffset) * nodeWaveAmplitude;
+    }
+
+    // 聚焦模式下的特殊处理
+    if (focusState?.isFocusMode) {
+      if (isFocused) {
+        // 聚焦节点：放大、但保持原始颜色
+        // 固定缩放比例为 1.2，避免在动画时继续放大
+        const scale = 1.2;
+        ctx.fillStyle = node.color; // 使用原始颜色，不增加亮度
+        ctx.strokeStyle = '#1E40AF'; // 改为深蓝色，与编辑时的选中边框颜色一致
+        ctx.lineWidth = 3;
+        
+        // 绘制放大的节点
+        const sizeFactor = (node.size || 100) / 100;
+        const width = 120 * sizeFactor * scale;
+        const halfWidth = width / 2;
+        
+        switch (node.shape) {
+          case 'rectangle':
+            ctx.fillRect(drawX - halfWidth, drawY - 25 * scale, width, 50 * scale);
+            ctx.strokeRect(drawX - halfWidth, drawY - 25 * scale, width, 50 * scale);
+            break;
+          case 'rounded':
+            ctx.beginPath();
+            roundRect(ctx, drawX - halfWidth, drawY - 25 * scale, width, 50 * scale, 12 * scale);
+            ctx.fill();
+            ctx.stroke();
+            break;
+          case 'circle':
+            ctx.beginPath();
+            const radiusX = halfWidth;
+            const radiusY = 40 * scale;
+            ctx.ellipse(drawX, drawY, radiusX, radiusY, 0, 0, Math.PI * 2);
+            ctx.fill();
+            ctx.stroke();
+            break;
+          case 'diamond':
+            ctx.beginPath();
+            ctx.moveTo(drawX, drawY - 40 * scale);
+            ctx.lineTo(drawX + halfWidth, drawY);
+            ctx.lineTo(drawX, drawY + 40 * scale);
+            ctx.lineTo(drawX - halfWidth, drawY);
+            ctx.closePath();
+            ctx.fill();
+            ctx.stroke();
+            break;
+        }
+        
+        // 绘制节点文本（支持换行）
+        ctx.fillStyle = '#FFFFFF';
+        let fontWeight = node.fontWeight || 'normal';
+        let fontStyle = node.fontStyle || 'normal';
+        let fontSize = (node.fontSize || 14) * scale;
+        ctx.font = `${fontWeight} ${fontStyle} ${fontSize}px -apple-system, system-ui, sans-serif`;
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'middle';
+        
+        // 计算最大文本宽度（节点宽度减去边距）
+        const nodeWidth = 120 * sizeFactor * scale;
+        const maxTextWidth = nodeWidth - 20; // 左右各留10px边距
+        const lineHeight = fontSize * 1.2;
+        
+        drawWrappedText(ctx, node.title, drawX, drawY, maxTextWidth, lineHeight);
+        
+        if (node.textDecoration === 'underline') {
+          const textMetrics = ctx.measureText(node.title);
+          const textWidth = Math.min(textMetrics.width, maxTextWidth);
+          ctx.beginPath();
+          ctx.moveTo(drawX - textWidth / 2, drawY + fontSize / 2);
+          ctx.lineTo(drawX + textWidth / 2, drawY + fontSize / 2);
+          ctx.strokeStyle = '#FFFFFF';
+          ctx.lineWidth = 1;
+          ctx.stroke();
+        }
+      } else if (isFocusRelated) {
+        // 相关节点：虚化
+        ctx.globalAlpha = 0.75;
+        ctx.fillStyle = node.color;
+        ctx.strokeStyle = isSelected ? '#1E40AF' : node.color;
+        ctx.lineWidth = isSelected ? 3 : 1;
+        
+        // 绘制虚化的节点
+        const sizeFactor = (node.size || 100) / 100;
+        const width = 120 * sizeFactor;
+        const halfWidth = width / 2;
+
+        switch (node.shape) {
+          case 'rectangle':
+            ctx.fillRect(drawX - halfWidth, drawY - 25, width, 50);
+            ctx.strokeRect(drawX - halfWidth, drawY - 25, width, 50);
+            break;
+          case 'rounded':
+            ctx.beginPath();
+            roundRect(ctx, drawX - halfWidth, drawY - 25, width, 50, 12);
+            ctx.fill();
+            ctx.stroke();
+            break;
+          case 'circle':
+              ctx.beginPath();
+              const radiusX = halfWidth;
+              const radiusY = 40;
+              ctx.ellipse(drawX, drawY, radiusX, radiusY, 0, 0, Math.PI * 2);
+              ctx.fill();
+              ctx.stroke();
+              break;
+            case 'diamond':
+              ctx.beginPath();
+              ctx.moveTo(drawX, drawY - 40);
+              ctx.lineTo(drawX + halfWidth, drawY);
+              ctx.lineTo(drawX, drawY + 40);
+              ctx.lineTo(drawX - halfWidth, drawY);
+              ctx.closePath();
+              ctx.fill();
+              ctx.stroke();
+              break;
+        }
+
+        if (!readOnly && node.children.length > 0) {
+          ctx.fillStyle = '#FFFFFF';
+          ctx.font = '12px Arial';
+          ctx.textAlign = 'center';
+          ctx.textBaseline = 'middle';
+          const sizeFactor = (node.size || 100) / 100;
+          const halfWidth = 60 * sizeFactor;
+          const indicatorX = drawX + halfWidth - 10;
+          ctx.fillText(isExpanded ? '▼' : '►', indicatorX, drawY);
+        }
+
+        // 绘制节点文本（支持换行）
+        ctx.fillStyle = '#FFFFFF';
+        let fontWeight = node.fontWeight || 'normal';
+        let fontStyle = node.fontStyle || 'normal';
+        let fontSize = node.fontSize || 14;
+        ctx.font = `${fontWeight} ${fontStyle} ${fontSize}px -apple-system, system-ui, sans-serif`;
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'middle';
+        
+        // 计算最大文本宽度（节点宽度减去边距）
+        const relatedSizeFactor = (node.size || 100) / 100;
+        const relatedNodeWidth = 120 * relatedSizeFactor;
+        const maxTextWidth = relatedNodeWidth - 20; // 左右各留10px边距
+        const lineHeight = fontSize * 1.2;
+        
+        drawWrappedText(ctx, node.title, drawX, drawY, maxTextWidth, lineHeight);
+        
+        if (node.textDecoration === 'underline') {
+          const textMetrics = ctx.measureText(node.title);
+          const textWidth = Math.min(textMetrics.width, maxTextWidth);
+          ctx.beginPath();
+          ctx.moveTo(drawX - textWidth / 2, drawY + fontSize / 2);
+          ctx.lineTo(drawX + textWidth / 2, drawY + fontSize / 2);
+          ctx.strokeStyle = '#FFFFFF';
+          ctx.lineWidth = 1;
+          ctx.stroke();
+        }
+        
+        ctx.globalAlpha = 1; // 恢复透明度
+      }
+    } else {
+      // 正常模式下的绘制
       ctx.fillStyle = node.color;
       ctx.strokeStyle = isSelected ? '#1E40AF' : node.color;
       ctx.lineWidth = isSelected ? 3 : 1;
 
-      // 计算宽度缩放因子，范围75-275%
       const sizeFactor = (node.size || 100) / 100;
       const width = 120 * sizeFactor;
       const halfWidth = width / 2;
 
       switch (node.shape) {
         case 'rectangle':
-          ctx.fillRect(node.x - halfWidth, node.y - 25, width, 50);
-          ctx.strokeRect(node.x - halfWidth, node.y - 25, width, 50);
+          ctx.fillRect(drawX - halfWidth, drawY - 25, width, 50);
+          ctx.strokeRect(drawX - halfWidth, drawY - 25, width, 50);
           break;
         case 'rounded':
           ctx.beginPath();
-          roundRect(ctx, node.x - halfWidth, node.y - 25, width, 50, 12);
+          roundRect(ctx, drawX - halfWidth, drawY - 25, width, 50, 12);
           ctx.fill();
           ctx.stroke();
           break;
         case 'circle':
             ctx.beginPath();
-            // 绘制椭圆，宽度根据size调整，高度80
-            const radiusX = halfWidth; // 宽度的一半
-            const radiusY = 40; // 高度的一半
-            ctx.ellipse(node.x, node.y, radiusX, radiusY, 0, 0, Math.PI * 2);
+            const radiusX = halfWidth;
+            const radiusY = 40;
+            ctx.ellipse(drawX, drawY, radiusX, radiusY, 0, 0, Math.PI * 2);
             ctx.fill();
             ctx.stroke();
             break;
           case 'diamond':
             ctx.beginPath();
-            // 绘制菱形，宽度根据size调整，高度80
-            ctx.moveTo(node.x, node.y - 40); // 顶部点
-            ctx.lineTo(node.x + halfWidth, node.y); // 右侧点
-            ctx.lineTo(node.x, node.y + 40); // 底部点
-            ctx.lineTo(node.x - halfWidth, node.y); // 左侧点
+            ctx.moveTo(drawX, drawY - 40);
+            ctx.lineTo(drawX + halfWidth, drawY);
+            ctx.lineTo(drawX, drawY + 40);
+            ctx.lineTo(drawX - halfWidth, drawY);
             ctx.closePath();
             ctx.fill();
             ctx.stroke();
             break;
       }
 
-      // 绘制展开/折叠指示器
-      if (node.children.length > 0) {
+      if (!readOnly && node.children.length > 0) {
         ctx.fillStyle = '#FFFFFF';
         ctx.font = '12px Arial';
         ctx.textAlign = 'center';
         ctx.textBaseline = 'middle';
-        // 根据节点大小计算右侧位置
         const sizeFactor = (node.size || 100) / 100;
         const halfWidth = 60 * sizeFactor;
-        const indicatorX = node.x + halfWidth - 10; // 距离右侧边缘10px
-        ctx.fillText(isExpanded ? '▼' : '►', indicatorX, node.y);
+        const indicatorX = drawX + halfWidth - 10;
+        ctx.fillText(isExpanded ? '▼' : '►', indicatorX, drawY);
       }
 
-      // 节点文本
+      // 绘制节点文本（支持换行）
       ctx.fillStyle = '#FFFFFF';
-      // 应用字体样式
       let fontWeight = node.fontWeight || 'normal';
       let fontStyle = node.fontStyle || 'normal';
       let fontSize = node.fontSize || 14;
       ctx.font = `${fontWeight} ${fontStyle} ${fontSize}px -apple-system, system-ui, sans-serif`;
       ctx.textAlign = 'center';
       ctx.textBaseline = 'middle';
-      // 绘制文本
-      ctx.fillText(node.title, node.x, node.y);
-      // 绘制下划线
+      
+      // 计算最大文本宽度（节点宽度减去边距）
+      const textSizeFactor = (node.size || 100) / 100;
+      const textNodeWidth = 120 * textSizeFactor;
+      const maxTextWidth = textNodeWidth - 20; // 左右各留10px边距
+      const lineHeight = fontSize * 1.2;
+      
+      drawWrappedText(ctx, node.title, drawX, drawY, maxTextWidth, lineHeight);
+      
       if (node.textDecoration === 'underline') {
         const textMetrics = ctx.measureText(node.title);
-        const textWidth = textMetrics.width;
+        const textWidth = Math.min(textMetrics.width, maxTextWidth);
         ctx.beginPath();
-        ctx.moveTo(node.x - textWidth / 2, node.y + fontSize / 2);
-        ctx.lineTo(node.x + textWidth / 2, node.y + fontSize / 2);
+        ctx.moveTo(drawX - textWidth / 2, drawY + fontSize / 2);
+        ctx.lineTo(drawX + textWidth / 2, drawY + fontSize / 2);
         ctx.strokeStyle = '#FFFFFF';
         ctx.lineWidth = 1;
         ctx.stroke();
       }
-    });
+    }
+  });
     
     // 在当前鼠标位置单独绘制被拖拽的节点
     if ((isNodeDragging || isNodeDraggingRef.current) && (draggedNode || draggedNodeRef.current) && draggedNodePositionRef.current) {
@@ -381,7 +1040,7 @@ export const CanvasRenderer: React.FC<CanvasRendererProps> = ({
         }
 
         // 如果节点有子节点，绘制展开/折叠指示器
-        if (node.children.length > 0) {
+        if (!readOnly && node.children.length > 0) {
           const isExpanded = expandedNodes.has(node.id);
           ctx.fillStyle = '#FFFFFF';
           ctx.font = '12px Arial';
@@ -394,21 +1053,27 @@ export const CanvasRenderer: React.FC<CanvasRendererProps> = ({
           ctx.fillText(isExpanded ? '▼' : '►', indicatorX, y);
         }
 
-        // 节点文本
+        // 节点文本（支持换行）
         ctx.fillStyle = '#FFFFFF';
-        // 应用字体样式
         let fontWeight = node.fontWeight || 'normal';
         let fontStyle = node.fontStyle || 'normal';
         let fontSize = node.fontSize || 14;
         ctx.font = `${fontWeight} ${fontStyle} ${fontSize}px -apple-system, system-ui, sans-serif`;
         ctx.textAlign = 'center';
         ctx.textBaseline = 'middle';
-        // 绘制文本
-        ctx.fillText(node.title, x, y);
+        
+        // 计算最大文本宽度（节点宽度减去边距）
+        const dragSizeFactor = (node.size || 100) / 100;
+        const dragNodeWidth = 120 * dragSizeFactor;
+        const maxTextWidth = dragNodeWidth - 20; // 左右各留10px边距
+        const lineHeight = fontSize * 1.2;
+        
+        drawWrappedText(ctx, node.title, x, y, maxTextWidth, lineHeight);
+        
         // 绘制下划线
         if (node.textDecoration === 'underline') {
           const textMetrics = ctx.measureText(node.title);
-          const textWidth = textMetrics.width;
+          const textWidth = Math.min(textMetrics.width, maxTextWidth);
           ctx.beginPath();
           ctx.moveTo(x - textWidth / 2, y + fontSize / 2);
           ctx.lineTo(x + textWidth / 2, y + fontSize / 2);
@@ -420,6 +1085,65 @@ export const CanvasRenderer: React.FC<CanvasRendererProps> = ({
     }
     
     ctx.restore();
+
+    // 暴露内容卡片位置给 HTML 使用
+    if (onFocusContentCardPosition) {
+      if (focusState?.isFocusMode && focusState.focusedNode) {
+        const contentCardPos = getContentCardPosition(relatedNodes, focusState);
+        onFocusContentCardPosition(contentCardPos);
+      } else {
+        onFocusContentCardPosition(null);
+      }
+    }
+  };
+
+  // 绘制换行文本的辅助函数
+  const drawWrappedText = (
+    ctx: CanvasRenderingContext2D,
+    text: string,
+    x: number,
+    y: number,
+    maxWidth: number,
+    lineHeight: number
+  ) => {
+    // 如果文本很短，直接绘制
+    const metrics = ctx.measureText(text);
+    if (metrics.width <= maxWidth) {
+      ctx.fillText(text, x, y);
+      return;
+    }
+
+    // 按字符分割文本并换行
+    const chars = text.split('');
+    let line = '';
+    const lines: string[] = [];
+
+    for (let i = 0; i < chars.length; i++) {
+      const testLine = line + chars[i];
+      const testMetrics = ctx.measureText(testLine);
+      if (testMetrics.width > maxWidth && i > 0) {
+        lines.push(line);
+        line = chars[i];
+      } else {
+        line = testLine;
+      }
+    }
+    lines.push(line);
+
+    // 限制最大行数为2行
+    const displayLines = lines.slice(0, 2);
+    if (lines.length > 2) {
+      displayLines[1] = displayLines[1].slice(0, -1) + '...';
+    }
+
+    // 计算起始Y坐标（垂直居中）
+    const totalHeight = displayLines.length * lineHeight;
+    let startY = y - totalHeight / 2 + lineHeight / 2;
+
+    // 逐行绘制
+    displayLines.forEach((lineText, index) => {
+      ctx.fillText(lineText, x, startY + index * lineHeight);
+    });
   };
 
   // 绘制圆角矩形的辅助函数
@@ -509,14 +1233,38 @@ export const CanvasRenderer: React.FC<CanvasRendererProps> = ({
     return () => clearTimeout(timer);
   }, []);
 
+  // 动画循环
+  useEffect(() => {
+    if (showAnimation) {
+      const animate = () => {
+        animationTimeRef.current += 0.05;
+        drawWithCanvas2D();
+        animationRafRef.current = requestAnimationFrame(animate);
+      };
+      animationRafRef.current = requestAnimationFrame(animate);
+    } else {
+      if (animationRafRef.current) {
+        cancelAnimationFrame(animationRafRef.current);
+        animationRafRef.current = null;
+      }
+    }
+    
+    return () => {
+      if (animationRafRef.current) {
+        cancelAnimationFrame(animationRafRef.current);
+      }
+    };
+  }, [showAnimation]);
+
   // 当节点、缩放、平移、选中节点、展开节点或隐藏层级变化时重绘
   useEffect(() => {
-    drawWithCanvas2D();
-  }, [nodes, zoom, pan, selectedNode, expandedNodes, hiddenLevels, bubbleInfo]);
+    if (!showAnimation) {
+      drawWithCanvas2D();
+    }
+  }, [nodes, zoom, pan, selectedNode, expandedNodes, hiddenLevels, bubbleInfo, showAnimation, showGrid]);
 
   // 处理鼠标按下（开始拖拽或长按节点移动）
   const handleMouseDown = (e: React.MouseEvent<HTMLCanvasElement>) => {
-    // 只处理鼠标左键（0）
     if (e.button !== 0) return;
     
     const canvas = canvasRef.current;
@@ -526,79 +1274,82 @@ export const CanvasRenderer: React.FC<CanvasRendererProps> = ({
     const mouseX = (e.clientX - rect.left - pan.x) / zoom;
     const mouseY = (e.clientY - rect.top - pan.y) / zoom;
 
-
-
-    // 检查是否点击了节点
+    const relatedNodes = focusState?.isFocusMode && focusState.focusedNode 
+      ? getRelatedNodesSet(focusState.focusedNode)
+      : new Set<string>();
+    
+    const nodesToCheck = getNodesToCheck();
     let clickedOnNode = false;
     
-    for (const node of nodes) {
+    for (const node of nodesToCheck) {
       let isClicked = false;
       
-      // 计算宽度缩放因子，范围75-275%
+      const nodePos = getFocusNodePosition(node.id, relatedNodes, focusState);
       const sizeFactor = (node.size || 100) / 100;
       const halfWidth = 60 * sizeFactor;
 
       switch (node.shape) {
         case 'rectangle':
-          isClicked = mouseX >= node.x - halfWidth && mouseX <= node.x + halfWidth &&
-                     mouseY >= node.y - 25 && mouseY <= node.y + 25;
-          break;
         case 'rounded':
-          isClicked = mouseX >= node.x - halfWidth && mouseX <= node.x + halfWidth &&
-                     mouseY >= node.y - 25 && mouseY <= node.y + 25;
+          isClicked = mouseX >= nodePos.x - halfWidth && mouseX <= nodePos.x + halfWidth &&
+                     mouseY >= nodePos.y - 25 && mouseY <= nodePos.y + 25;
           break;
         case 'circle':
-          // 椭圆的点击检测
           const radiusX = halfWidth;
           const radiusY = 40;
-          const normalizedX = (mouseX - node.x) / radiusX;
-          const normalizedY = (mouseY - node.y) / radiusY;
+          const normalizedX = (mouseX - nodePos.x) / radiusX;
+          const normalizedY = (mouseY - nodePos.y) / radiusY;
           isClicked = normalizedX * normalizedX + normalizedY * normalizedY <= 1;
           break;
         case 'diamond':
-          // 菱形的点击检测，使用菱形的边界
-          isClicked = mouseX >= node.x - halfWidth && mouseX <= node.x + halfWidth &&
-                     mouseY >= node.y - 40 && mouseY <= node.y + 40;
+          isClicked = mouseX >= nodePos.x - halfWidth && mouseX <= nodePos.x + halfWidth &&
+                     mouseY >= nodePos.y - 40 && mouseY <= nodePos.y + 40;
           break;
       }
 
       if (isClicked) {
         clickedOnNode = true;
         
-        // 只有当节点有子节点时才切换展开/折叠状态
-        if (node.children && node.children.length > 0) {
-          // 计算三角形指示器的位置和区域
+        if (focusState?.isFocusMode && onNodeFocus) {
+          const focusedNodeId = focusState.focusedNode;
+          if (focusedNodeId && node.id !== focusedNodeId) {
+            const isParent = parentMap?.get(focusedNodeId) === node.id;
+            const focusedNode = nodes.find(n => n.id === focusedNodeId);
+            const isChild = focusedNode?.children.includes(node.id);
+            
+            if (isParent || isChild) {
+              onNodeFocus(node.id);
+              return;
+            }
+          }
+        }
+        
+        if (!readOnly && node.children && node.children.length > 0) {
           const sizeFactor = (node.size || 100) / 100;
           const halfWidth = 60 * sizeFactor;
-          const indicatorX = node.x + halfWidth - 10; // 距离右侧边缘10px
-          const indicatorY = node.y;
-          const indicatorSize = 12; // 字体大小
+          const indicatorX = nodePos.x + halfWidth - 10;
+          const indicatorY = nodePos.y;
+          const indicatorSize = 12;
           
-          // 检查点击是否在三角形指示器区域内
           const isClickOnIndicator = mouseX >= indicatorX - indicatorSize/2 && 
                                     mouseX <= indicatorX + indicatorSize/2 && 
                                     mouseY >= indicatorY - indicatorSize/2 && 
                                     mouseY <= indicatorY + indicatorSize/2;
           
-          // 只有点击在三角形指示器上时才切换展开/折叠状态
           if (isClickOnIndicator) {
-            // 单击切换展开/折叠状态
             const isExpanded = expandedNodes.has(node.id);
             onNodeExpand(node.id, !isExpanded);
           }
         }
         
-        // 防止根节点被拖拽
-        if (node.id !== 'root') {
-          // 设置长按计时器用于节点移动
+        if (!readOnly && node.id !== 'root') {
           const timer = setTimeout(() => {
             setIsNodeDragging(true);
             setDraggedNode(node.id);
             setDragStart({ x: e.clientX, y: e.clientY });
-            // 更新实时跟踪的引用
             isNodeDraggingRef.current = true;
             draggedNodeRef.current = node.id;
-          }, 500); // 500ms 长按
+          }, 500);
           
           setLongPressTimer(timer);
         }
@@ -751,49 +1502,53 @@ export const CanvasRenderer: React.FC<CanvasRendererProps> = ({
     const mouseX = (e.clientX - rect.left - pan.x) / zoom;
     const mouseY = (e.clientY - rect.top - pan.y) / zoom;
 
-    // 检查是否点击了节点
-    for (const node of nodes) {
+    const relatedNodes = focusState?.isFocusMode && focusState.focusedNode 
+      ? getRelatedNodesSet(focusState.focusedNode)
+      : new Set<string>();
+    
+    const nodesToCheck = getNodesToCheck();
+
+    for (const node of nodesToCheck) {
       let isClicked = false;
       
-      // 计算宽度缩放因子，范围75-275%
+      const nodePos = getFocusNodePosition(node.id, relatedNodes, focusState);
       const sizeFactor = (node.size || 100) / 100;
       const halfWidth = 60 * sizeFactor;
 
       switch (node.shape) {
         case 'rectangle':
-          isClicked = mouseX >= node.x - halfWidth && mouseX <= node.x + halfWidth &&
-                     mouseY >= node.y - 25 && mouseY <= node.y + 25;
-          break;
         case 'rounded':
-          isClicked = mouseX >= node.x - halfWidth && mouseX <= node.x + halfWidth &&
-                     mouseY >= node.y - 25 && mouseY <= node.y + 25;
+          isClicked = mouseX >= nodePos.x - halfWidth && mouseX <= nodePos.x + halfWidth &&
+                     mouseY >= nodePos.y - 25 && mouseY <= nodePos.y + 25;
           break;
         case 'circle':
-          // 椭圆的点击检测
           const radiusX = halfWidth;
           const radiusY = 40;
-          const normalizedX = (mouseX - node.x) / radiusX;
-          const normalizedY = (mouseY - node.y) / radiusY;
+          const normalizedX = (mouseX - nodePos.x) / radiusX;
+          const normalizedY = (mouseY - nodePos.y) / radiusY;
           isClicked = normalizedX * normalizedX + normalizedY * normalizedY <= 1;
           break;
         case 'diamond':
-          // 菱形的点击检测，使用菱形的边界
-          isClicked = mouseX >= node.x - halfWidth && mouseX <= node.x + halfWidth &&
-                     mouseY >= node.y - 40 && mouseY <= node.y + 40;
+          isClicked = mouseX >= nodePos.x - halfWidth && mouseX <= nodePos.x + halfWidth &&
+                     mouseY >= nodePos.y - 40 && mouseY <= nodePos.y + 40;
           break;
       }
 
       if (isClicked) {
-        // 双击节点时设置选中状态，显示右键点击的边框效果
-        onNodeSelect(node.id);
-        // 计算气泡的最优位置
-        const bubbleDirection = calculateBubbleDirection(node);
-        onBubbleInfoChange({
-          nodeId: node.id,
-          position: { x: node.x, y: node.y },
-          direction: bubbleDirection,
-          showContent: false // 默认显示摘要
-        });
+        console.log('Double clicked on node:', node.id);
+        if (onNodeFocus) {
+          console.log('Calling onNodeFocus with nodeId:', node.id);
+          onNodeFocus(node.id);
+        } else {
+          onNodeSelect(node.id);
+          const bubbleDirection = calculateBubbleDirection(node);
+          onBubbleInfoChange({
+            nodeId: node.id,
+            position: { x: node.x, y: node.y },
+            direction: bubbleDirection,
+            showContent: false
+          });
+        }
         break;
       }
     }
@@ -916,7 +1671,6 @@ export const CanvasRenderer: React.FC<CanvasRendererProps> = ({
 
   // 处理鼠标移动（拖拽期间和悬停检测）
   const handleMouseMove = (e: React.MouseEvent<HTMLCanvasElement>) => {
-    // 检测鼠标是否悬停在三角形指示器上
     const canvas = canvasRef.current;
     if (canvas) {
       const rect = canvas.getBoundingClientRect();
@@ -924,30 +1678,78 @@ export const CanvasRenderer: React.FC<CanvasRendererProps> = ({
       const mouseY = (e.clientY - rect.top - pan.y) / zoom;
       
       let isOverIndicator = false;
+      let isOverNode = false;
       
-      // 检查是否悬停在任何节点的三角形指示器上
-      for (const node of nodes) {
-        if (node.children && node.children.length > 0) {
-          // 计算三角形指示器的位置和区域
-          const sizeFactor = (node.size || 100) / 100;
-          const halfWidth = 60 * sizeFactor;
-          const indicatorX = node.x + halfWidth - 10; // 距离右侧边缘10px
-          const indicatorY = node.y;
-          const indicatorSize = 12; // 字体大小
-          
-          // 检查鼠标是否在三角形指示器区域内
-          if (mouseX >= indicatorX - indicatorSize/2 && 
-              mouseX <= indicatorX + indicatorSize/2 && 
-              mouseY >= indicatorY - indicatorSize/2 && 
-              mouseY <= indicatorY + indicatorSize/2) {
-            isOverIndicator = true;
-            break;
+      const relatedNodes = focusState?.isFocusMode && focusState.focusedNode 
+        ? getRelatedNodesSet(focusState.focusedNode)
+        : new Set<string>();
+      
+      const nodesToCheck = getNodesToCheck();
+      
+      if (!readOnly) {
+        for (const node of nodesToCheck) {
+          if (node.children && node.children.length > 0) {
+            const nodePos = getFocusNodePosition(node.id, relatedNodes, focusState);
+            const sizeFactor = (node.size || 100) / 100;
+            const halfWidth = 60 * sizeFactor;
+            const indicatorX = nodePos.x + halfWidth - 10;
+            const indicatorY = nodePos.y;
+            const indicatorSize = 12;
+            
+            if (mouseX >= indicatorX - indicatorSize/2 && 
+                mouseX <= indicatorX + indicatorSize/2 && 
+                mouseY >= indicatorY - indicatorSize/2 && 
+                mouseY <= indicatorY + indicatorSize/2) {
+              isOverIndicator = true;
+              break;
+            }
           }
         }
       }
       
+      for (const node of nodesToCheck) {
+        const nodePos = getFocusNodePosition(node.id, relatedNodes, focusState);
+        const sizeFactor = (node.size || 100) / 100;
+        const halfWidth = 60 * sizeFactor;
+        
+        let isHovering = false;
+        switch (node.shape) {
+          case 'rectangle':
+          case 'rounded':
+            isHovering = mouseX >= nodePos.x - halfWidth && 
+                        mouseX <= nodePos.x + halfWidth && 
+                        mouseY >= nodePos.y - 25 && 
+                        mouseY <= nodePos.y + 25;
+            break;
+          case 'circle':
+            const radiusX = halfWidth;
+            const radiusY = 40;
+            const normalizedX = (mouseX - nodePos.x) / radiusX;
+            const normalizedY = (mouseY - nodePos.y) / radiusY;
+            isHovering = (normalizedX * normalizedX + normalizedY * normalizedY) <= 1;
+            break;
+          case 'diamond':
+            isHovering = mouseX >= nodePos.x - halfWidth && 
+                        mouseX <= nodePos.x + halfWidth && 
+                        mouseY >= nodePos.y - 40 && 
+                        mouseY <= nodePos.y + 40;
+            break;
+        }
+        
+        if (isHovering) {
+          isOverNode = true;
+          break;
+        }
+      }
+      
       // 根据悬停状态改变鼠标样式
-      canvas.style.cursor = isOverIndicator ? 'pointer' : 'grab';
+      if (isOverIndicator) {
+        canvas.style.cursor = 'pointer';
+      } else if (isOverNode) {
+        canvas.style.cursor = 'pointer'; // 节点上显示手型指针
+      } else {
+        canvas.style.cursor = 'grab';
+      }
     }
     
     if (isDragging) {

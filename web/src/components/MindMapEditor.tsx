@@ -49,9 +49,10 @@ import { KeyManager } from '../services/storage/encryption/KeyManager';
 interface MindMapEditorProps {
   workId: string;
   onBack: () => void;
+  onPreview?: () => void;
 }
 
-export function MindMapEditor({ workId, onBack }: MindMapEditorProps) {
+export function MindMapEditor({ workId, onBack, onPreview }: MindMapEditorProps) {
   // 服务
   const storage = useStorage();
   const preferencesService = UserPreferencesService.getInstance();
@@ -134,6 +135,7 @@ export function MindMapEditor({ workId, onBack }: MindMapEditorProps) {
   const [expandedNodes, setExpandedNodes] = useState<Set<string>>(new Set(['root', 'node1', 'node2', 'node3']));
   const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false);
   const [showSaveDialog, setShowSaveDialog] = useState(false);
+  const [saveDialogAction, setSaveDialogAction] = useState<'back' | 'preview'>('back');
   const [isContextMenuOpen, setIsContextMenuOpen] = useState(false);
   const [contextMenuPosition, setContextMenuPosition] = useState({ x: 0, y: 0 });
   const [contextMenuNodeId, setContextMenuNodeId] = useState<string | null>(null);
@@ -475,19 +477,42 @@ export function MindMapEditor({ workId, onBack }: MindMapEditorProps) {
 
   // 初始化历史记录
   useEffect(() => {
-    const initialState: HistoryState = {
-      nodes,
-      connections,
-      timestamp: Date.now(),
-      description: '初始状态',
-    };
-    historyManagerRef.current.addState(initialState);
     historyManagerRef.current.startAutoSave(30000, workId);
 
     return () => {
       historyManagerRef.current.stopAutoSave();
     };
-  }, []);
+  }, [workId]);
+
+  // 当节点数据加载完成后，更新历史记录
+  useEffect(() => {
+    // 只在初始加载时运行，避免在节点变化时清空历史记录
+    const loadWorkData = async () => {
+      try {
+        const workDetails = await storage.getWork(workId);
+        if (workDetails && workDetails.encryptedData) {
+          // 等待数据加载完成后初始化历史记录
+          setTimeout(() => {
+            if (nodes.length > 0 && nodes[0].id === 'root') {
+              // 清空历史记录并添加当前状态作为初始状态
+              historyManagerRef.current.clear();
+              const initialState: HistoryState = {
+                nodes,
+                connections,
+                timestamp: Date.now(),
+                description: '初始状态',
+              };
+              historyManagerRef.current.addState(initialState);
+            }
+          }, 1000);
+        }
+      } catch (error) {
+        console.error('加载作品数据时出错:', error);
+      }
+    };
+    
+    loadWorkData();
+  }, [workId, storage]);
 
   // 处理画布容器大小变化
   useEffect(() => {
@@ -544,6 +569,7 @@ export function MindMapEditor({ workId, onBack }: MindMapEditorProps) {
   // 处理带保存确认的返回按钮
   const handleBackClick = () => {
     if (hasUnsavedChanges) {
+      setSaveDialogAction('back');
       setShowSaveDialog(true);
     } else {
       onBack();
@@ -553,38 +579,32 @@ export function MindMapEditor({ workId, onBack }: MindMapEditorProps) {
   // 处理带保存确认的预览按钮
   const handlePreviewClick = () => {
     if (hasUnsavedChanges) {
+      setSaveDialogAction('preview');
       setShowSaveDialog(true);
     } else {
-      // 这里可以添加预览逻辑
+      onPreview?.();
     }
   };
 
-  // 处理保存并退出
-  const handleSaveAndExit = async () => {
+  // 处理保存并继续
+  const handleSaveAndContinue = async () => {
     try {
-      // 保存带布局信息的作品数据
       if (work) {
-        // 检查是否有未保存的更改
         if (hasUnsavedChanges) {
-          // 准备保存的作品数据
           const workData = {
             nodes,
             layout: currentLayout,
             customColors
           };
           
-          // 获取加密密钥
           let key = keyManager.getKey();
           
           if (!key) {
-            // 如果密钥不存在，生成一个
             key = await keyManager.generateKey();
           }
           
-          // 加密作品数据
           const encryptedData = await encryptionService.encrypt(workData, key);
           
-          // 保存作品数据
           await storage.updateWork(work.id, {
             encryptedData,
             layout: currentLayout
@@ -596,23 +616,36 @@ export function MindMapEditor({ workId, onBack }: MindMapEditorProps) {
         }
       }
       
-      // 重置未保存更改标志
       setHasUnsavedChanges(false);
       setShowSaveDialog(false);
-      onBack();
+      
+      if (saveDialogAction === 'preview') {
+        onPreview?.();
+      } else {
+        onBack();
+      }
     } catch (error) {
       console.error('保存作品时出错:', error);
-      // 即使保存失败，仍然退出以保持用户流程
       setHasUnsavedChanges(false);
       setShowSaveDialog(false);
-      onBack();
+      
+      if (saveDialogAction === 'preview') {
+        onPreview?.();
+      } else {
+        onBack();
+      }
     }
   };
 
-  // 处理不保存就退出
-  const handleExitWithoutSaving = () => {
+  // 处理不保存就继续
+  const handleContinueWithoutSaving = () => {
     setShowSaveDialog(false);
-    onBack();
+    
+    if (saveDialogAction === 'preview') {
+      onPreview?.();
+    } else {
+      onBack();
+    }
   };
 
   // 处理取消退出
@@ -836,6 +869,7 @@ export function MindMapEditor({ workId, onBack }: MindMapEditorProps) {
     if (previousState) {
       setNodes(previousState.nodes);
       setConnections(previousState.connections);
+      setHasUnsavedChanges(true);
     }
   };
 
@@ -845,6 +879,7 @@ export function MindMapEditor({ workId, onBack }: MindMapEditorProps) {
     if (nextState) {
       setNodes(nextState.nodes);
       setConnections(nextState.connections);
+      setHasUnsavedChanges(true);
     }
   };
 
@@ -1042,10 +1077,10 @@ export function MindMapEditor({ workId, onBack }: MindMapEditorProps) {
 
         <div className="flex flex-wrap items-center gap-2">
           {/* 历史记录 */}
-          <Button variant="outline" size="sm" onClick={handleUndo} className="rounded-lg">
+          <Button variant="outline" size="sm" onClick={handleUndo} className="rounded-lg" disabled={!historyManagerRef.current.canUndo()}>
             <Undo className="w-4 h-4" />
           </Button>
-          <Button variant="outline" size="sm" onClick={handleRedo} className="rounded-lg">
+          <Button variant="outline" size="sm" onClick={handleRedo} className="rounded-lg" disabled={!historyManagerRef.current.canRedo()}>
             <Redo className="w-4 h-4" />
           </Button>
 
@@ -1298,19 +1333,21 @@ export function MindMapEditor({ workId, onBack }: MindMapEditorProps) {
           <DialogHeader>
             <DialogTitle>保存更改</DialogTitle>
             <DialogDescription>
-              您有未保存的更改，是否要保存后再返回？
+              {saveDialogAction === 'preview' 
+                ? '您有未保存的更改，是否要保存后再进入预览？' 
+                : '您有未保存的更改，是否要保存后再返回？'}
             </DialogDescription>
           </DialogHeader>
           <DialogFooter className="flex justify-between">
-            <Button variant="outline" onClick={handleExitWithoutSaving}>
+            <Button variant="outline" onClick={handleContinueWithoutSaving}>
               不保存
             </Button>
             <div className="flex gap-2">
               <Button variant="outline" onClick={handleCancelExit}>
                 取消
               </Button>
-              <Button onClick={handleSaveAndExit}>
-                保存并返回
+              <Button onClick={handleSaveAndContinue}>
+                {saveDialogAction === 'preview' ? '保存并预览' : '保存并返回'}
               </Button>
             </div>
           </DialogFooter>

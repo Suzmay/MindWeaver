@@ -61,6 +61,7 @@ interface NodeCardProps {
   onGenerateSummary: (nodeId: string, options?: { maxLength?: number; style?: string }) => Promise<void>;
   isGenerating: boolean;
   onClose: () => void;
+  readOnly?: boolean;
 }
 
 export const NodeCard: React.FC<NodeCardProps> = ({
@@ -73,6 +74,7 @@ export const NodeCard: React.FC<NodeCardProps> = ({
   onGenerateSummary,
   isGenerating,
   onClose,
+  readOnly = false,
 }) => {
   const cardRef = useRef<HTMLDivElement>(null);
   const [aiOptions, setAiOptions] = useState({
@@ -188,46 +190,48 @@ export const NodeCard: React.FC<NodeCardProps> = ({
           <div className="space-y-2">
             <div className="flex justify-between items-center">
               <Label className="text-sm font-medium">摘要</Label>
-              <div className="flex gap-1">
-                <Popover>
-                  <PopoverTrigger asChild>
-                    <Button
-                      variant="default"
-                      size="sm"
-                      className="h-6 px-2 text-xs bg-blue-600 hover:bg-blue-700"
-                      disabled={isGenerating || !node.content}
-                    >
-                      <Sparkles className="w-3 h-3 mr-1" />
-                      AI生成
-                    </Button>
-                  </PopoverTrigger>
-                  <PopoverContent className="w-72">
-                    <div className="space-y-4">
-                      <div className="space-y-2">
-                        <Label className="text-xs">字数限制: {aiOptions.maxLength}字</Label>
-                        <Slider
-                          value={[aiOptions.maxLength]}
-                          min={20}
-                          max={500}
-                          step={10}
-                          onValueChange={(value) => setAiOptions({ ...aiOptions, maxLength: value[0] })}
-                        />
-                      </div>
+              {!readOnly && (
+                <div className="flex gap-1">
+                  <Popover>
+                    <PopoverTrigger asChild>
                       <Button
                         variant="default"
                         size="sm"
-                        onClick={() => {
-                          onGenerateSummary(node.id, aiOptions);
-                        }}
-                        disabled={isGenerating}
-                        className="w-full bg-blue-600 hover:bg-blue-700"
+                        className="h-6 px-2 text-xs bg-blue-600 hover:bg-blue-700"
+                        disabled={isGenerating || !node.content}
                       >
-                        {isGenerating ? '生成中...' : '开始生成'}
+                        <Sparkles className="w-3 h-3 mr-1" />
+                        AI生成
                       </Button>
-                    </div>
-                  </PopoverContent>
-                </Popover>
-              </div>
+                    </PopoverTrigger>
+                    <PopoverContent className="w-72">
+                      <div className="space-y-4">
+                        <div className="space-y-2">
+                          <Label className="text-xs">字数限制: {aiOptions.maxLength}字</Label>
+                          <Slider
+                            value={[aiOptions.maxLength]}
+                            min={20}
+                            max={500}
+                            step={10}
+                            onValueChange={(value) => setAiOptions({ ...aiOptions, maxLength: value[0] })}
+                          />
+                        </div>
+                        <Button
+                          variant="default"
+                          size="sm"
+                          onClick={() => {
+                            onGenerateSummary(node.id, aiOptions);
+                          }}
+                          disabled={isGenerating}
+                          className="w-full bg-blue-600 hover:bg-blue-700"
+                        >
+                          {isGenerating ? '生成中...' : '开始生成'}
+                        </Button>
+                      </div>
+                    </PopoverContent>
+                  </Popover>
+                </div>
+              )}
             </div>
             <p className="text-sm text-muted-foreground bg-muted/30 p-2 rounded-lg min-h-[40px]">
               {node.summary || '无'}
