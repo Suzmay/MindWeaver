@@ -1,5 +1,5 @@
 import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react';
-import { Work, WorkCreateDTO, WorkUpdateDTO, QueryOptions } from '../models/Work';
+import { Work, WorkCreateDTO, WorkUpdateDTO, QueryOptions, WorkListResult } from '../models/Work';
 import { Template, TemplateCreateDTO, TemplateUpdateDTO } from '../models/Template';
 import { HistoryVersion, HistoryVersionCreateDTO } from '../models/HistoryVersion';
 import { StorageService } from '../services/storage/StorageService';
@@ -19,7 +19,7 @@ interface StorageContextType {
   deleteWork: (workId: string, hardDelete?: boolean) => Promise<boolean>;
   restoreWork: (workId: string) => Promise<Work>;
   getWork: (workId: string) => Promise<Work | null>;
-  listWorks: (options: QueryOptions) => Promise<Work[]>;
+  listWorks: (options: QueryOptions) => Promise<WorkListResult>;
   copyWork: (workId: string, newTitle?: string) => Promise<Work>;
   
   // 模板操作
@@ -344,7 +344,7 @@ export const StorageProvider: React.FC<{ children: ReactNode }> = ({ children })
     }
   };
   
-  const listWorks = async (options: QueryOptions): Promise<Work[]> => {
+  const listWorks = async (options: QueryOptions): Promise<WorkListResult> => {
     if (!storageService) {
       // 等待存储服务初始化
       await new Promise(resolve => setTimeout(resolve, 100));
@@ -352,7 +352,7 @@ export const StorageProvider: React.FC<{ children: ReactNode }> = ({ children })
         throw new Error('存储服务未初始化');
       }
     }
-    
+
     // 确保 options 不是空对象，添加默认值
     const safeOptions = {
       page: options.page || 1,
@@ -365,12 +365,12 @@ export const StorageProvider: React.FC<{ children: ReactNode }> = ({ children })
       deletedOnly: options.deletedOnly || false,
       sortOrder: options.sortOrder || 'desc'
     };
-    
+
     try {
       const result = await storageService.listWorks(safeOptions);
       // 更新本地 works 状态，确保其他组件也能获取到最新数据
       setWorks(result.works);
-      return result.works;
+      return result;
     } catch (error) {
       throw error;
     }

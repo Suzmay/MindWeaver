@@ -159,16 +159,8 @@ export const CanvasRenderer: React.FC<CanvasRendererProps> = ({
     if (nodeIndex === -1) return { x: 0, y: 0 };
 
     const nodeCount = relatedNodeIds.length;
-    const isParent = parentMap?.get(focusState.focusedNode) === nodeId;
-    const isChild = focusedNode.children.includes(nodeId);
     
     let x, y, radius;
-
-    // 卡片在右侧占据的空间
-    const cardRightX = cardPosition ? cardPosition.x + cardPosition.width / 2 : canvasWidth / 4;
-    const cardLeftX = cardPosition ? cardPosition.x - cardPosition.width / 2 : canvasWidth / 4;
-    const cardTopY = cardPosition ? cardPosition.y - cardPosition.height / 2 : 0;
-    const cardBottomY = cardPosition ? cardPosition.y + cardPosition.height / 2 : 0;
     
     if (nodeCount === 1) {
       // 只有一个节点，放在左侧与卡片对称
@@ -195,13 +187,6 @@ export const CanvasRenderer: React.FC<CanvasRendererProps> = ({
       const startAngle = Math.PI / 6; // 30°
       const endAngle = Math.PI * 1.166; // 210°
       const angleRange = endAngle - startAngle;
-      
-      // 根据节点类型调整角度分布
-      let angleOffset = startAngle;
-      if (isParent && nodeCount > 3) {
-        // 父节点优先放在上方
-        angleOffset = Math.PI / 2;
-      }
       
       const angle = startAngle + (nodeIndex / (nodeCount - 1)) * angleRange;
       radius = Math.min(canvasWidth, canvasHeight) / 3;
@@ -243,7 +228,7 @@ export const CanvasRenderer: React.FC<CanvasRendererProps> = ({
   };
 
   // 计算内容卡片在聚焦模式下的位置（固定右侧，根据内容动态调整高度）
-  const getContentCardPosition = (relatedNodes: Set<string>, focusState: any) => {
+  const getContentCardPosition = (_relatedNodes: Set<string>, focusState: any) => {
     if (!focusState?.isFocusMode || !focusState.focusedNode) {
       return null;
     }
@@ -284,7 +269,6 @@ export const CanvasRenderer: React.FC<CanvasRendererProps> = ({
     
     // 总高度 = 标题区域 + 内容区域 + 内边距
     // 标题：每行20px，内容：每行18px，内边距：上下各16px，标题和内容间距：8px
-    const totalLines = titleLines + contentLines + emptyLines;
     const cardHeight = Math.max(100, Math.min(
       titleLines * 22 + contentLines * 20 + emptyLines * 10 + 60,
       canvasHeight * 0.7
@@ -397,15 +381,9 @@ export const CanvasRenderer: React.FC<CanvasRendererProps> = ({
 
       const { canvasWidth, canvasHeight, padding, contentCardPos } = focusLayout;
       const nodeCount = focusLayout.relatedNodes.length;
-      const focusedNode = focusLayout.focusedNode;
-      
+
       let x, y;
 
-      // 检查是否是父节点
-      const isParent = parentMap?.get(focusedNode.id) === nodeId;
-      // 检查是否是子节点
-      const isChild = focusedNode.children.includes(nodeId);
-      
       // 卡片占据的右侧区域
       const cardX = contentCardPos ? contentCardPos.x : canvasWidth / 3;
       const cardWidth = contentCardPos ? contentCardPos.width : 250;

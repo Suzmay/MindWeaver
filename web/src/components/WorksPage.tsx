@@ -60,7 +60,7 @@ export function WorksPage({ onEditWork }: WorksPageProps) {
 
   // 分页状态
   const [currentPage, setCurrentPage] = useState(1);
-  const [pageSize, setPageSize] = useState(20);
+  const [pageSize, setPageSize] = useState(12); // 默认12，是3的倍数，适合一行显示3个作品
   const [totalWorks, setTotalWorks] = useState(0);
   
   // 废纸篓状态
@@ -110,17 +110,17 @@ export function WorksPage({ onEditWork }: WorksPageProps) {
       };
       
       // 获取作品列表
-      const loadedWorks = await storage.listWorks(queryOptions);
-      
-      // 更新总数
+      const result = await storage.listWorks(queryOptions);
+
+      // 更新总数（使用返回的总数，而不是当前页的数量）
       if (mountedRef.current) {
-        setTotalWorks(loadedWorks.length);
+        setTotalWorks(result.total);
       }
-      
+
       // 直接使用存储服务返回的作品列表
       // 这样可以确保显示最新的作品数据
       if (mountedRef.current) {
-        setWorks(loadedWorks);
+        setWorks(result.works);
       }
     } catch (error) {
       // 设置错误状态
@@ -171,15 +171,15 @@ export function WorksPage({ onEditWork }: WorksPageProps) {
       setSaveResult(null);
       setSaveMessage('');
       
-      // 生成唯一的标题
+      // 生成唯一的标题，从(1)开始
       let baseTitle = '未命名思维导图';
-      let title = baseTitle;
       let counter = 1;
+      let title = `${baseTitle}(${counter})`;
       
       // 检查是否已存在同名作品
       while (works.some(work => work.title === title)) {
-        title = `${baseTitle}(${counter})`;
         counter++;
+        title = `${baseTitle}(${counter})`;
       }
       
       // 构建 WorkCreateDTO 对象
@@ -225,9 +225,9 @@ export function WorksPage({ onEditWork }: WorksPageProps) {
     try {
       await storage.deleteWork(id);
       // 重新加载作品列表
-      const loadedWorks = await storage.listWorks({
+      const result = await storage.listWorks({
         page: 1,
-        pageSize: 20,
+        pageSize: pageSize,
         searchText: '',
         category: undefined,
         starredOnly: false,
@@ -236,8 +236,8 @@ export function WorksPage({ onEditWork }: WorksPageProps) {
         deletedOnly: showTrash,
         sortOrder: 'desc' as const
       });
-      setWorks(loadedWorks);
-      setTotalWorks(loadedWorks.length);
+      setWorks(result.works);
+      setTotalWorks(result.total);
     } catch (error) {
       // 静默处理错误
     }
@@ -250,9 +250,9 @@ export function WorksPage({ onEditWork }: WorksPageProps) {
       if (work && !work.isReadonly) {
         await storage.updateWork(id, { starred: !work.starred });
         // 重新加载作品列表
-        const loadedWorks = await storage.listWorks({
+        const result = await storage.listWorks({
           page: 1,
-          pageSize: 20,
+          pageSize: pageSize,
           searchText: '',
           category: undefined,
           starredOnly: false,
@@ -261,8 +261,8 @@ export function WorksPage({ onEditWork }: WorksPageProps) {
           deletedOnly: showTrash,
           sortOrder: 'desc' as const
         });
-        setWorks(loadedWorks);
-        setTotalWorks(loadedWorks.length);
+        setWorks(result.works);
+        setTotalWorks(result.total);
       }
     } catch (error) {
       // 静默处理错误
@@ -291,9 +291,9 @@ export function WorksPage({ onEditWork }: WorksPageProps) {
       try {
         await storage.updateWork(selectedWork.id, { title: newTitle.trim() });
         // 重新加载作品列表
-        const loadedWorks = await storage.listWorks({
+        const result = await storage.listWorks({
           page: 1,
-          pageSize: 20,
+          pageSize: pageSize,
           searchText: '',
           category: undefined,
           starredOnly: false,
@@ -302,8 +302,8 @@ export function WorksPage({ onEditWork }: WorksPageProps) {
           deletedOnly: showTrash,
           sortOrder: 'desc' as const
         });
-        setWorks(loadedWorks);
-        setTotalWorks(loadedWorks.length);
+        setWorks(result.works);
+        setTotalWorks(result.total);
         setRenameDialogOpen(false);
         setSelectedWork(null);
         setNewTitle('');
@@ -318,7 +318,7 @@ export function WorksPage({ onEditWork }: WorksPageProps) {
       // 只读作品不允许管理标签
       return;
     }
-    
+
     e.stopPropagation();
     setSelectedWork(work);
     setNewTag('');
@@ -330,15 +330,15 @@ export function WorksPage({ onEditWork }: WorksPageProps) {
       // 只读作品不允许添加标签
       return;
     }
-    
+
     if (newTag.trim()) {
       try {
         const updatedTags = [...(selectedWork.tags || []), newTag.trim().toLowerCase()];
         await storage.updateWork(selectedWork.id, { tags: updatedTags });
         // 重新加载作品列表
-        const loadedWorks = await storage.listWorks({
+        const result = await storage.listWorks({
           page: 1,
-          pageSize: 20,
+          pageSize: pageSize,
           searchText: '',
           category: undefined,
           starredOnly: false,
@@ -347,10 +347,10 @@ export function WorksPage({ onEditWork }: WorksPageProps) {
           deletedOnly: showTrash,
           sortOrder: 'desc' as const
         });
-        setWorks(loadedWorks);
-        setTotalWorks(loadedWorks.length);
+        setWorks(result.works);
+        setTotalWorks(result.total);
         // Update selectedWork to reflect the change in the dialog
-        const updatedWork = loadedWorks.find((w: Work) => w.id === selectedWork.id);
+        const updatedWork = result.works.find((w: Work) => w.id === selectedWork.id);
         if (updatedWork) {
           setSelectedWork(updatedWork);
         }
@@ -366,14 +366,14 @@ export function WorksPage({ onEditWork }: WorksPageProps) {
       // 只读作品不允许删除标签
       return;
     }
-    
+
     try {
       const updatedTags = (selectedWork.tags || []).filter(t => t !== tagToRemove);
       await storage.updateWork(selectedWork.id, { tags: updatedTags });
       // 重新加载作品列表
-      const loadedWorks = await storage.listWorks({
+      const result = await storage.listWorks({
         page: 1,
-        pageSize: 20,
+        pageSize: pageSize,
         searchText: '',
         category: undefined,
         starredOnly: false,
@@ -382,10 +382,10 @@ export function WorksPage({ onEditWork }: WorksPageProps) {
         deletedOnly: showTrash,
         sortOrder: 'desc' as const
       });
-      setWorks(loadedWorks);
-      setTotalWorks(loadedWorks.length);
+      setWorks(result.works);
+      setTotalWorks(result.total);
       // Update selectedWork to reflect the change in the dialog
-      const updatedWork = loadedWorks.find((w: Work) => w.id === selectedWork.id);
+      const updatedWork = result.works.find((w: Work) => w.id === selectedWork.id);
       if (updatedWork) {
         setSelectedWork(updatedWork);
       }
@@ -465,8 +465,8 @@ export function WorksPage({ onEditWork }: WorksPageProps) {
       };
       
       const loadedWorks = await storage.listWorks(queryOptions);
-      setWorks(loadedWorks);
-      setTotalWorks(loadedWorks.length);
+      setWorks(loadedWorks.works);
+      setTotalWorks(loadedWorks.total);
       setCurrentPage(1);
       clearSelection();
     } catch (error) {
@@ -503,8 +503,8 @@ export function WorksPage({ onEditWork }: WorksPageProps) {
       };
       
       const loadedWorks = await storage.listWorks(queryOptions);
-      setWorks(loadedWorks);
-      setTotalWorks(loadedWorks.length);
+      setWorks(loadedWorks.works);
+      setTotalWorks(loadedWorks.total);
       setCurrentPage(1);
       clearSelection();
       setDeleteConfirmDialogOpen(false);
@@ -520,9 +520,9 @@ export function WorksPage({ onEditWork }: WorksPageProps) {
     try {
       await storage.restoreWork(workId);
       // 重新加载作品列表
-      const loadedWorks = await storage.listWorks({
+      const result = await storage.listWorks({
         page: 1,
-        pageSize: 20,
+        pageSize: pageSize,
         searchText: '',
         category: undefined,
         starredOnly: false,
@@ -531,8 +531,8 @@ export function WorksPage({ onEditWork }: WorksPageProps) {
         deletedOnly: showTrash,
         sortOrder: 'desc' as const
       });
-      setWorks(loadedWorks);
-      setTotalWorks(loadedWorks.length);
+      setWorks(result.works);
+      setTotalWorks(result.total);
     } catch (error) {
       // 静默处理错误
     }
@@ -544,9 +544,9 @@ export function WorksPage({ onEditWork }: WorksPageProps) {
     try {
       await storage.deleteWork(workId, true); // true 表示硬删除
       // 重新加载作品列表
-      const loadedWorks = await storage.listWorks({
+      const result = await storage.listWorks({
         page: 1,
-        pageSize: 20,
+        pageSize: pageSize,
         searchText: '',
         category: undefined,
         starredOnly: false,
@@ -555,8 +555,8 @@ export function WorksPage({ onEditWork }: WorksPageProps) {
         deletedOnly: showTrash,
         sortOrder: 'desc' as const
       });
-      setWorks(loadedWorks);
-      setTotalWorks(loadedWorks.length);
+      setWorks(result.works);
+      setTotalWorks(result.total);
     } catch (error) {
       // 静默处理错误
     }
@@ -573,9 +573,9 @@ export function WorksPage({ onEditWork }: WorksPageProps) {
       // 调用存储服务的copyWork方法
       await storage.copyWork(workId);
       // 重新加载作品列表
-      const loadedWorks = await storage.listWorks({
+      const result = await storage.listWorks({
         page: 1,
-        pageSize: 20,
+        pageSize: pageSize,
         searchText: '',
         category: undefined,
         starredOnly: false,
@@ -584,8 +584,8 @@ export function WorksPage({ onEditWork }: WorksPageProps) {
         deletedOnly: showTrash,
         sortOrder: 'desc' as const
       });
-      setWorks(loadedWorks);
-      setTotalWorks(loadedWorks.length);
+      setWorks(result.works);
+      setTotalWorks(result.total);
     } catch (error) {
       // 静默处理错误
     }
@@ -661,7 +661,7 @@ export function WorksPage({ onEditWork }: WorksPageProps) {
         <div>
           <h1>{showTrash ? '废纸篓' : '我的作品'}</h1>
           <p className="text-muted-foreground mt-1">
-            {showTrash ? `已删除 ${works.length} 个思维导图` : `已创建 ${works.length} 个思维导图`}
+            {showTrash ? `已删除 ${totalWorks} 个思维导图` : `已创建 ${totalWorks} 个思维导图`}
           </p>
         </div>
         <div className="flex items-center gap-2">
@@ -886,7 +886,7 @@ export function WorksPage({ onEditWork }: WorksPageProps) {
                 <FileText className="w-6 h-6 text-primary" />
               </div>
               <div>
-                <p className="text-2xl">{works.length}</p>
+                <p className="text-2xl">{totalWorks}</p>
                 <p className="text-sm text-muted-foreground">导图总数</p>
               </div>
             </CardContent>
@@ -1462,10 +1462,13 @@ export function WorksPage({ onEditWork }: WorksPageProps) {
                   <SelectValue placeholder="每页显示" />
                 </SelectTrigger>
                 <SelectContent className="rounded-xl">
-                  <SelectItem value="10">10</SelectItem>
-                  <SelectItem value="20">20</SelectItem>
-                  <SelectItem value="50">50</SelectItem>
-                  <SelectItem value="100">100</SelectItem>
+                  <SelectItem value="9">9</SelectItem>
+                  <SelectItem value="12">12</SelectItem>
+                  <SelectItem value="15">15</SelectItem>
+                  <SelectItem value="18">18</SelectItem>
+                  <SelectItem value="21">21</SelectItem>
+                  <SelectItem value="24">24</SelectItem>
+                  <SelectItem value="30">30</SelectItem>
                 </SelectContent>
               </Select>
             </div>

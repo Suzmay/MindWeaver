@@ -249,9 +249,30 @@ export class StorageService {
         throw new Error('作品未找到');
       }
       
+      // 获取所有作品用于检查标题
+      const allWorks = await this.workStore.list({
+        page: 1,
+        pageSize: 10000,
+        deletedOnly: false
+      });
+      
+      // 生成唯一的标题
+      let baseTitle = newTitle || existingWork.title;
+      // 如果标题已经包含 (数字) 后缀，先去掉
+      baseTitle = baseTitle.replace(/\(\d+\)$/, '').trim();
+      
+      let finalTitle = `${baseTitle}(1)`;
+      let counter = 1;
+      
+      // 检查是否已存在同名作品
+      while (allWorks.works.some(work => work.title === finalTitle)) {
+        counter++;
+        finalTitle = `${baseTitle}(${counter})`;
+      }
+      
       // 准备复制数据
       const dto: WorkCreateDTO = {
-        title: newTitle || `${existingWork.title}(1)`,
+        title: finalTitle,
         category: existingWork.category,
         tags: existingWork.tags,
         nodes: existingWork.nodes
