@@ -263,9 +263,9 @@ const generateBackgroundSvg = (type: string, options: any): string => {
 const generateAnimationSvg = (type: string, options: any): string => {
   const { duration = '1s' } = options;
   
-  // 通用圆形元素模板（统一大小）
-  const createCircle = (cx: number, cy: number, animations: string) => {
-    return `<circle cx="${cx}" cy="${cy}" r="8" fill="${THEME_COLOR}">${animations}</circle>`;
+  // 通用圆形元素模板
+  const createCircle = (animations: string) => {
+    return `<circle cx="32" cy="32" r="8" fill="${THEME_COLOR}">${animations}</circle>`;
   };
   
   // 通用连接线元素模板
@@ -278,43 +278,58 @@ const generateAnimationSvg = (type: string, options: any): string => {
     return `<animate attributeName="${attribute}" values="${values}" dur="${dur}" begin="${begin}" repeatCount="indefinite"/>`;
   };
   
+
+  
+  // 带位置的圆形元素模板
+  const createCircleAt = (cx: number, cy: number, animations: string) => {
+    return `<circle cx="${cx}" cy="${cy}" r="8" fill="${THEME_COLOR}">${animations}</circle>`;
+  };
+  
+  // 固定点和线位置的思维导图模板
+  const createMindMapTemplate = (animations: string[]) => {
+    return `
+  ${createCircleAt(32, 40, animations[0])}
+  ${createLine(32, 40, 16, 24, animations[1])}
+  ${createLine(32, 40, 48, 24, animations[2])}
+  ${createCircleAt(16, 24, animations[3])}
+  ${createCircleAt(48, 24, animations[4])}
+`;
+  };
+  
   if (type === 'fadeIn') {
     const animations = [
       createAnimation('opacity', '0;1', duration),
-      createAnimation('r', '6;10;6', duration)
+      createAnimation('r', '7.6;8;8', duration)
     ].join('');
     return `<svg xmlns="http://www.w3.org/2000/svg" width="64" height="64" viewBox="0 0 64 64" fill="none">
-  ${createCircle(32, 32, animations)}
+  ${createCircle(animations)}
 </svg>`;
   } else if (type === 'bounce') {
     const animations = [
-      createAnimation('cy', '24;16;24', duration)
+      createAnimation('cy', '32;22;32', duration)
     ].join('');
     return `<svg xmlns="http://www.w3.org/2000/svg" width="64" height="64" viewBox="0 0 64 64" fill="none">
-  ${createCircle(32, 24, animations)}
+  ${createCircle(animations)}
 </svg>`;
   } else if (type === 'scaleIn') {
     const animations = [
-      createAnimation('r', '0;10', duration),
-      createAnimation('opacity', '0;1', duration)
+      createAnimation('opacity', '0;1', duration),
+      createAnimation('r', '6.4;8;8', duration)
     ].join('');
     return `<svg xmlns="http://www.w3.org/2000/svg" width="64" height="64" viewBox="0 0 64 64" fill="none">
-  ${createCircle(32, 32, animations)}
+  ${createCircle(animations)}
 </svg>`;
-  } else if (type === 'slideIn') {
-    const animations = [
-      createAnimation('cx', '-12;44', duration)
-    ].join('');
-    return `<svg xmlns="http://www.w3.org/2000/svg" width="64" height="64" viewBox="0 0 64 64" fill="none">
-  ${createCircle(8, 32, animations)}
-</svg>`;
+
   } else if (type === 'nodeReveal') {
+    const animations = [
+      createAnimation('opacity', '0;1', duration, '0.4s'),
+      createAnimation('opacity', '0;1', duration, '0.2s'),
+      createAnimation('opacity', '0;1', duration, '0.6s'),
+      createAnimation('opacity', '0;1', duration, '0s'),
+      createAnimation('opacity', '0;1', duration, '0.8s')
+    ];
     return `<svg xmlns="http://www.w3.org/2000/svg" width="64" height="64" viewBox="0 0 64 64" fill="none">
-  ${createCircle(16, 16, createAnimation('opacity', '0;1', duration, '0s'))}
-  ${createLine(16, 16, 32, 32, createAnimation('opacity', '0;1', duration, '0.2s'))}
-  ${createCircle(32, 32, createAnimation('opacity', '0;1', duration, '0.4s'))}
-  ${createLine(32, 32, 48, 16, createAnimation('opacity', '0;1', duration, '0.6s'))}
-  ${createCircle(48, 16, createAnimation('opacity', '0;1', duration, '0.8s'))}
+  ${createMindMapTemplate(animations)}
 </svg>`;
   }
   return `<svg xmlns="http://www.w3.org/2000/svg" width="64" height="64" viewBox="0 0 64 64" fill="none"><rect width="64" height="64" x="0" y="0" fill="#f8f9fa"/></svg>`;
@@ -563,27 +578,9 @@ const animationAssets: Asset[] = [
       applyTo: 'all'
     }
   },
+
   {
     id: 'animation-4',
-    name: '滑入效果',
-    type: 'animation',
-    category: '动画',
-    tags: ['滑入', '流畅'],
-    thumbnail: svgToDataUrl(generateAnimationSvg('slideIn', { duration: '1000ms' })),
-    uploader: '官方',
-    data: {
-      type: 'slideIn',
-      duration: '1000ms', 
-      easing: 'ease-out',
-      keyframes: [
-        { opacity: 0, transform: 'translateX(-20px)' },
-        { opacity: 1, transform: 'translateX(0)' }
-      ],
-      applyTo: 'all'
-    }
-  },
-  {
-    id: 'animation-5',
     name: '节点揭示',
     type: 'animation',
     category: '动画',

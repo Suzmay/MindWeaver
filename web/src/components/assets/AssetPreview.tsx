@@ -20,21 +20,6 @@ export default function AssetPreview({ asset, isFavorite = false, onToggleFavori
     }
   };
 
-  const handleDragStart = (e: React.DragEvent<HTMLDivElement>) => {
-    // 设置拖拽数据
-    e.dataTransfer.setData('application/json', JSON.stringify(asset));
-    e.dataTransfer.effectAllowed = 'copy';
-    // 添加拖拽视觉效果
-    const element = e.currentTarget;
-    element.style.opacity = '0.5';
-  };
-
-  const handleDragEnd = (e: React.DragEvent<HTMLDivElement>) => {
-    // 恢复元素状态
-    const element = e.currentTarget;
-    element.style.opacity = '1';
-  };
-
   const getTypeLabel = (type: string) => {
     switch (type) {
       case 'icon': return '图标';
@@ -51,10 +36,7 @@ export default function AssetPreview({ asset, isFavorite = false, onToggleFavori
 
   return (
     <Card 
-      className="rounded-2xl shadow-sm hover:shadow-lg transition-all duration-200 cursor-grab active:cursor-grabbing group border-2 border-primary/10 hover:border-primary/30 bg-card hover:scale-[1.03] gap-0"
-      draggable
-      onDragStart={handleDragStart}
-      onDragEnd={handleDragEnd}
+      className="rounded-2xl shadow-sm hover:shadow-lg transition-all duration-200 group border-2 border-primary/10 hover:border-primary/30 bg-card hover:scale-[1.03] gap-0"
     >
       <div className="relative">
         <div className="w-full aspect-square overflow-hidden p-4">
@@ -62,6 +44,7 @@ export default function AssetPreview({ asset, isFavorite = false, onToggleFavori
             src={asset.thumbnail} 
             alt={asset.name} 
             className="w-full h-full object-contain transition-transform duration-300 group-hover:scale-105"
+            draggable="false"
           />
         </div>
         <div className="absolute top-3 right-3 flex gap-1">
@@ -70,7 +53,6 @@ export default function AssetPreview({ asset, isFavorite = false, onToggleFavori
             variant="ghost" 
             className={`w-8 h-8 p-0 rounded-full bg-slate-200 dark:bg-slate-700/90 hover:bg-slate-300 dark:hover:bg-slate-600 transition-all z-10 hover:scale-110 ${isFavorite ? 'text-red-500' : 'text-muted-foreground'}`}
             onClick={handleFavorite}
-            onMouseDown={(e) => e.stopPropagation()} // 防止拖拽时触发按钮点击
           >
             <Heart className={`w-4 h-4 ${isFavorite ? 'fill-red-500' : ''}`} />
           </Button>
