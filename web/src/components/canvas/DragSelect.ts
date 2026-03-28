@@ -162,6 +162,14 @@ export class DragSelect {
             height: 120,
           };
           break;
+        default:
+          nodeRect = {
+            x: node.x - 60,
+            y: node.y - 25,
+            width: 120,
+            height: 50,
+          };
+          break;
       }
 
       // 检查节点是否与选择矩形相交

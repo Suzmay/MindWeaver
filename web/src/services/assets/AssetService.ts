@@ -1,0 +1,699 @@
+// 素材类型定义
+export interface Asset {
+  id: string;
+  name: string;
+  type: 'icon' | 'shape' | 'connector' | 'iconSet' | 'fontStyle' | 'colorScheme' | 'background' | 'animation';
+  category: string;
+  tags: string[];
+  thumbnail: string;
+  uploader: string;
+  data?: any; // 素材的实际数据
+}
+
+// Lucide 图标 SVG 数据
+const lucideLightbulbSvg = `<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 14c.2-1 .7-1.7 1.5-2.5 1-.9 1.5-2.2 1.5-3.5A6 6 0 0 0 6 8c0 1 .2 2.2 1.5 3.5.7.7 1.3 1.5 1.5 2.5"/><path d="M9 18h6"/><path d="M10 22h4"/></svg>`;
+
+const lucideBriefcaseSvg = `<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect width="20" height="14" x="2" y="7" rx="2" ry="2"/><path d="M16 21V5a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v16"/></svg>`;
+
+const lucideCpuSvg = `<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect width="16" height="16" x="4" y="4" rx="2"/><rect width="6" height="6" x="9" y="9" rx="1"/><path d="M15 2v2"/><path d="M15 20v2"/><path d="M2 15h2"/><path d="M2 9h2"/><path d="M20 15h2"/><path d="M20 9h2"/><path d="M9 2v2"/><path d="M9 20v2"/></svg>`;
+
+const lucideGraduationCapSvg = `<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 10v6M2 10l10-5 10 5-10 5z"/><path d="M6 12v5c3 3 9 3 12 0v-5"/></svg>`;
+
+// 将 SVG 转换为 data URL
+const svgToDataUrl = (svg: string): string => {
+  const encoded = encodeURIComponent(svg);
+  return `data:image/svg+xml;charset=utf-8,${encoded}`;
+};
+
+// 内置图标库
+const iconAssets: Asset[] = [
+  {
+    id: 'icon-1',
+    name: '创意图标',
+    type: 'icon',
+    category: '设计',
+    tags: ['创意', '设计'],
+    thumbnail: svgToDataUrl(lucideLightbulbSvg),
+    uploader: '官方',
+    data: { svg: lucideLightbulbSvg, lucideName: 'Lightbulb' }
+  },
+  {
+    id: 'icon-2',
+    name: '商务图标',
+    type: 'icon',
+    category: '商务',
+    tags: ['商务', '专业'],
+    thumbnail: svgToDataUrl(lucideBriefcaseSvg),
+    uploader: '官方',
+    data: { svg: lucideBriefcaseSvg, lucideName: 'Briefcase' }
+  },
+  {
+    id: 'icon-3',
+    name: '科技图标',
+    type: 'icon',
+    category: '科技',
+    tags: ['科技', '未来'],
+    thumbnail: svgToDataUrl(lucideCpuSvg),
+    uploader: '官方',
+    data: { svg: lucideCpuSvg, lucideName: 'Cpu' }
+  },
+  {
+    id: 'icon-4',
+    name: '教育图标',
+    type: 'icon',
+    category: '教育',
+    tags: ['教育', '学习'],
+    thumbnail: svgToDataUrl(lucideGraduationCapSvg),
+    uploader: '官方',
+    data: { svg: lucideGraduationCapSvg, lucideName: 'GraduationCap' }
+  }
+];
+
+// 主题颜色
+const THEME_COLOR = '#3B82F6';
+
+// 形状颜色（节点颜色第三个选项：蓝色 #3B82F6）
+const SHAPE_COLOR = THEME_COLOR;
+
+// 六边形 SVG（带圆角）
+const hexagonSvg = `<svg xmlns="http://www.w3.org/2000/svg" width="64" height="64" viewBox="0 0 64 64"><path d="M32,4 Q34,4 36,5 L58,18 Q60,19 60,22 L60,42 Q60,45 58,46 L36,59 Q34,60 32,60 Q30,60 28,59 L6,46 Q4,45 4,42 L4,22 Q4,19 6,18 L28,5 Q30,4 32,4 Z" fill="${SHAPE_COLOR}" stroke="${SHAPE_COLOR}" stroke-width="2"/></svg>`;
+
+// 等边三角形 SVG（带圆角）
+const triangleSvg = `<svg xmlns="http://www.w3.org/2000/svg" width="64" height="64" viewBox="0 0 64 64"><path d="M32,6 Q34,6 36,8 L58,46 Q59,48 58,51 Q57,54 54,55 L10,55 Q7,54 6,51 Q5,48 6,46 L28,8 Q30,6 32,6 Z" fill="${SHAPE_COLOR}" stroke="${SHAPE_COLOR}" stroke-width="2"/></svg>`;
+
+// 平行四边形 SVG（带圆角，高度减半）
+const parallelogramSvg = `<svg xmlns="http://www.w3.org/2000/svg" width="64" height="40" viewBox="0 0 64 40"><path d="M19,5 L55,5 Q57,5 58,7 L58,12 L47,33 Q46,35 44,35 L8,35 Q6,35 5,33 L5,28 L16,7 Q17,5 19,5 Z" fill="${SHAPE_COLOR}" stroke="${SHAPE_COLOR}" stroke-width="2"/></svg>`;
+
+// 等腰梯形 SVG（带圆角，高度减半）
+const trapezoidSvg = `<svg xmlns="http://www.w3.org/2000/svg" width="64" height="40" viewBox="0 0 64 40"><path d="M23,5 L43,5 Q45,5 46,7 L58,31 Q59,34 57,36 Q55,37 54,37 L10,37 Q8,37 7,36 Q5,34 6,31 L18,7 Q19,5 23,5 Z" fill="${SHAPE_COLOR}" stroke="${SHAPE_COLOR}" stroke-width="2"/></svg>`;
+
+// 内置形状库
+const shapeAssets: Asset[] = [
+  {
+    id: 'shape-1',
+    name: '六边形',
+    type: 'shape',
+    category: '几何',
+    tags: ['几何', '流程'],
+    thumbnail: svgToDataUrl(hexagonSvg),
+    uploader: '官方',
+    data: { type: 'hexagon', svg: hexagonSvg }
+  },
+  {
+    id: 'shape-2',
+    name: '三角形',
+    type: 'shape',
+    category: '几何',
+    tags: ['几何', '目标'],
+    thumbnail: svgToDataUrl(triangleSvg),
+    uploader: '官方',
+    data: { type: 'triangle', svg: triangleSvg }
+  },
+  {
+    id: 'shape-3',
+    name: '平行四边形',
+    type: 'shape',
+    category: '几何',
+    tags: ['几何', '数据'],
+    thumbnail: svgToDataUrl(parallelogramSvg),
+    uploader: '官方',
+    data: { type: 'parallelogram', svg: parallelogramSvg }
+  },
+  {
+    id: 'shape-4',
+    name: '等腰梯形',
+    type: 'shape',
+    category: '几何',
+    tags: ['几何', '决策'],
+    thumbnail: svgToDataUrl(trapezoidSvg),
+    uploader: '官方',
+    data: { type: 'trapezoid', svg: trapezoidSvg }
+  }
+];
+
+// 箭头连线 SVG
+const arrowConnectorSvg = `<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4,12 L18,12 L15,9 M18,12 L15,15"/></svg>`;
+
+// 阶梯连线 SVG
+const stepConnectorSvg = `<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4,12 L9,12 L9,7 L15,7 L15,17 L20,17"/></svg>`;
+
+// 双连线 SVG
+const doubleConnectorSvg = `<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4,8 L20,8 M4,16 L20,16"/></svg>`;
+
+// 点线连线 SVG
+const dottedConnectorSvg = `<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-dasharray="1,3,3,3" stroke-linecap="round" stroke-linejoin="round"><path d="M4,12 L20,12"/></svg>`;
+
+// 内置连接线样式库
+const connectorAssets: Asset[] = [
+  {
+    id: 'connector-1',
+    name: '箭头连线',
+    type: 'connector',
+    category: '连接线',
+    tags: ['箭头', '方向'],
+    thumbnail: svgToDataUrl(arrowConnectorSvg),
+    uploader: '官方',
+    data: { type: 'arrow', stroke: 2, color: '#666', arrowSize: 8 }
+  },
+  {
+    id: 'connector-2',
+    name: '阶梯连线',
+    type: 'connector',
+    category: '连接线',
+    tags: ['阶梯', '流程图'],
+    thumbnail: svgToDataUrl(stepConnectorSvg),
+    uploader: '官方',
+    data: { type: 'step', stroke: 2, color: '#666' }
+  },
+  {
+    id: 'connector-3',
+    name: '双连线',
+    type: 'connector',
+    category: '连接线',
+    tags: ['双线', '强调'],
+    thumbnail: svgToDataUrl(doubleConnectorSvg),
+    uploader: '官方',
+    data: { type: 'double', stroke: 2, color: '#666' }
+  },
+  {
+    id: 'connector-4',
+    name: '点线连线',
+    type: 'connector',
+    category: '连接线',
+    tags: ['点线', '装饰'],
+    thumbnail: svgToDataUrl(dottedConnectorSvg),
+    uploader: '官方',
+    data: { type: 'dotted', stroke: 2, color: '#666' }
+  }
+];
+
+// 生成四宫格图标组合 SVG 的函数
+const generateIconSetSvg = (icons: { name: string; svg: string }[]): string => {
+  // 图标尺寸 24x24，在 64x64 画布中居中排列 2x2 图标
+  // 计算间距：(64 - 2*24) / 3 = 16/3 ≈ 5.33
+  const positions = [
+    { x: 8, y: 8 },     // 第一行第一个 (左上)
+    { x: 36, y: 8 },    // 第一行第二个 (右上)
+    { x: 8, y: 36 },    // 第二行第一个 (左下)
+    { x: 36, y: 36 }    // 第二行第二个 (右下)
+  ];
+  
+  const iconSvg = icons.slice(0, 4).map((icon, index) => {
+    const pos = positions[index];
+    // 提取 SVG 内容（去掉 svg 标签）
+    const content = icon.svg.replace(/^<svg[^>]*>/, '').replace(/<\/svg>$/, '');
+    return `<g transform="translate(${pos.x}, ${pos.y})"><g transform="scale(1)">${content}</g></g>`;
+  }).join('');
+  
+  return `<svg xmlns="http://www.w3.org/2000/svg" width="64" height="64" viewBox="0 0 64 64" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">${iconSvg}</svg>`;
+};
+
+// 生成字体样式 SVG 的函数
+const generateFontStyleSvg = (fontFamily: string, fontSize: string, fontWeight: string): string => {
+  return `<svg xmlns="http://www.w3.org/2000/svg" width="64" height="64" viewBox="0 0 64 64" fill="none" stroke="none">
+  <text x="32" y="28" font-family="${fontFamily}" font-size="${fontSize}" font-weight="${fontWeight}" fill="#000" text-anchor="middle" dominant-baseline="middle">Mind</text>
+  <text x="32" y="44" font-family="${fontFamily}" font-size="${fontSize}" font-weight="${fontWeight}" fill="#000" text-anchor="middle" dominant-baseline="middle">Weaver</text>
+</svg>`;
+};
+
+// 生成配色方案 4x4 网格 SVG 的函数
+const generateColorSchemeSvg = (colors: string[]): string => {
+  // 4x4 网格，每个颜色块 16x16
+  const squares = colors.slice(0, 16).map((color, index) => {
+    const row = Math.floor(index / 4);
+    const col = index % 4;
+    const x = col * 16;
+    const y = row * 16;
+    return `<rect width="16" height="16" x="${x}" y="${y}" fill="${color}" stroke="#e0e0e0" stroke-width="0.5"/>`;
+  }).join('');
+  
+  return `<svg xmlns="http://www.w3.org/2000/svg" width="64" height="64" viewBox="0 0 64 64" fill="none" stroke="none">${squares}</svg>`;
+};
+
+// 生成背景 SVG 的函数
+const generateBackgroundSvg = (type: string, options: any): string => {
+  if (type === 'gradient') {
+    const { colors } = options;
+    return `<svg xmlns="http://www.w3.org/2000/svg" width="64" height="64" viewBox="0 0 64 64" fill="none">
+  <defs>
+    <linearGradient id="gradient" x1="0%" y1="0%" x2="100%" y2="100%">
+      ${colors.map((color: string, index: number) => `<stop offset="${index * (100 / (colors.length - 1))}%" stop-color="${color}"/>`).join('')}
+    </linearGradient>
+  </defs>
+  <rect width="64" height="64" x="0" y="0" fill="url(#gradient)"/>
+</svg>`;
+  } else if (type === 'grid') {
+    const { size, color, backgroundColor } = options;
+    const gridSize = parseInt(size);
+    return `<svg xmlns="http://www.w3.org/2000/svg" width="64" height="64" viewBox="0 0 64 64" fill="none">
+  <rect width="64" height="64" x="0" y="0" fill="${backgroundColor}"/>
+  ${Array.from({ length: Math.ceil(64 / gridSize) }).map((_, i) => {
+    const pos = i * gridSize;
+    return `
+  <line x1="0" y1="${pos}" x2="64" y2="${pos}" stroke="${color}" stroke-width="2"/>
+  <line x1="${pos}" y1="0" x2="${pos}" y2="64" stroke="${color}" stroke-width="2"/>
+`;
+  }).join('')}
+</svg>`;
+  }
+  return `<svg xmlns="http://www.w3.org/2000/svg" width="64" height="64" viewBox="0 0 64 64" fill="none"><rect width="64" height="64" x="0" y="0" fill="#f8f9fa"/></svg>`;
+};
+
+// 生成动画效果 SVG 的函数
+const generateAnimationSvg = (type: string, options: any): string => {
+  const { duration = '1s' } = options;
+  
+  // 通用圆形元素模板（统一大小）
+  const createCircle = (cx: number, cy: number, animations: string) => {
+    return `<circle cx="${cx}" cy="${cy}" r="8" fill="${THEME_COLOR}">${animations}</circle>`;
+  };
+  
+  // 通用连接线元素模板
+  const createLine = (x1: number, y1: number, x2: number, y2: number, animations: string) => {
+    return `<line x1="${x1}" y1="${y1}" x2="${x2}" y2="${y2}" stroke="${THEME_COLOR}" stroke-width="2">${animations}</line>`;
+  };
+  
+  // 通用动画模板
+  const createAnimation = (attribute: string, values: string, dur: string, begin: string = '0s') => {
+    return `<animate attributeName="${attribute}" values="${values}" dur="${dur}" begin="${begin}" repeatCount="indefinite"/>`;
+  };
+  
+  if (type === 'fadeIn') {
+    const animations = [
+      createAnimation('opacity', '0;1', duration),
+      createAnimation('r', '6;10;6', duration)
+    ].join('');
+    return `<svg xmlns="http://www.w3.org/2000/svg" width="64" height="64" viewBox="0 0 64 64" fill="none">
+  ${createCircle(32, 32, animations)}
+</svg>`;
+  } else if (type === 'bounce') {
+    const animations = [
+      createAnimation('cy', '24;16;24', duration)
+    ].join('');
+    return `<svg xmlns="http://www.w3.org/2000/svg" width="64" height="64" viewBox="0 0 64 64" fill="none">
+  ${createCircle(32, 24, animations)}
+</svg>`;
+  } else if (type === 'scaleIn') {
+    const animations = [
+      createAnimation('r', '0;10', duration),
+      createAnimation('opacity', '0;1', duration)
+    ].join('');
+    return `<svg xmlns="http://www.w3.org/2000/svg" width="64" height="64" viewBox="0 0 64 64" fill="none">
+  ${createCircle(32, 32, animations)}
+</svg>`;
+  } else if (type === 'slideIn') {
+    const animations = [
+      createAnimation('cx', '-12;44', duration)
+    ].join('');
+    return `<svg xmlns="http://www.w3.org/2000/svg" width="64" height="64" viewBox="0 0 64 64" fill="none">
+  ${createCircle(8, 32, animations)}
+</svg>`;
+  } else if (type === 'nodeReveal') {
+    return `<svg xmlns="http://www.w3.org/2000/svg" width="64" height="64" viewBox="0 0 64 64" fill="none">
+  ${createCircle(16, 16, createAnimation('opacity', '0;1', duration, '0s'))}
+  ${createLine(16, 16, 32, 32, createAnimation('opacity', '0;1', duration, '0.2s'))}
+  ${createCircle(32, 32, createAnimation('opacity', '0;1', duration, '0.4s'))}
+  ${createLine(32, 32, 48, 16, createAnimation('opacity', '0;1', duration, '0.6s'))}
+  ${createCircle(48, 16, createAnimation('opacity', '0;1', duration, '0.8s'))}
+</svg>`;
+  }
+  return `<svg xmlns="http://www.w3.org/2000/svg" width="64" height="64" viewBox="0 0 64 64" fill="none"><rect width="64" height="64" x="0" y="0" fill="#f8f9fa"/></svg>`;
+};
+
+// 商务图标组合数据
+const businessIconSetData = {
+  count: 12,
+  style: 'flat',
+  icons: [
+    { name: 'Briefcase', svg: lucideBriefcaseSvg },
+    { name: 'TrendingUp', svg: `<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="22 7 13.5 15.5 8 10 2 16 22 22"></polyline></svg>` },
+    { name: 'BarChart3', svg: `<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 3v18h18"></path><path d="M18 17V9"></path><path d="M12 17V5"></path><path d="M6 17v-3"></path></svg>` },
+    { name: 'Users', svg: `<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"></path><path d="M16 3v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"></path><path d="M4 9h16"></path></svg>` },
+    { name: 'DollarSign', svg: `<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="2" x2="12" y2="22"></line><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"></path></svg>` },
+    { name: 'Calendar', svg: `<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect width="18" height="18" x="3" y="4" rx="2" ry="2"></rect><line x1="16" y1="2" x2="16" y2="6"></line><line x1="8" y1="2" x2="8" y2="6"></line><line x1="3" y1="10" x2="21" y2="10"></line></svg>` },
+    { name: 'FileText', svg: `<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path><polyline points="14 2 14 8 20 8"></polyline><line x1="16" y1="13" x2="8" y2="13"></line><line x1="16" y1="17" x2="8" y2="17"></line><polyline points="10 9 9 9 8 9"></polyline></svg>` },
+    { name: 'Phone', svg: `<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7A2 2 0 0 1 22 16.92z"></path></svg>` },
+    { name: 'Mail', svg: `<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"></path><polyline points="22,6 12,13 2,6"></polyline></svg>` },
+    { name: 'Shield', svg: `<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"></path></svg>` },
+    { name: 'Clock', svg: `<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"></circle><polyline points="12,6 12,12 16,14"></polyline></svg>` },
+    { name: 'MapPin', svg: `<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"></path><circle cx="12" cy="10" r="3"></circle></svg>` }
+  ]
+};
+
+// 科技图标组合数据
+const techIconSetData = {
+  count: 15,
+  style: 'outline',
+  icons: [
+    { name: 'Cpu', svg: lucideCpuSvg },
+    { name: 'Monitor', svg: `<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect width="20" height="14" x="2" y="3" rx="2" ry="2"></rect><line x1="8" y1="21" x2="16" y2="21"></line><line x1="12" y1="17" x2="12" y2="21"></line></svg>` },
+    { name: 'Code', svg: `<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="16 18 22 12 16 6"></polyline><polyline points="8 6 2 12 8 18"></polyline></svg>` },
+    { name: 'Zap', svg: `<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"></polygon></svg>` },
+    { name: 'Wifi', svg: `<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"></path></svg>` },
+    { name: 'Cloud', svg: `<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 10h-1.26A8 8 0 1 0 9 20h9a5 5 0 0 0 0-10z"></path></svg>` },
+    { name: 'Database', svg: `<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><ellipse cx="12" cy="5" rx="9" ry="3"></ellipse><path d="M21 12c0 1.66-4 3-9 3s-9-1.34-9-3"></path><path d="M3 5v14c0 1.66 4 3 9 3s9-1.34 9-3V5"></path></svg>` },
+    { name: 'Server', svg: `<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect width="20" height="8" x="2" y="2" rx="2" ry="2"></rect><rect width="20" height="8" x="2" y="14" rx="2" ry="2"></rect><line x1="6" y1="6" x2="6.01" y2="6"></line><line x1="6" y1="18" x2="6.01" y2="18"></line></svg>` },
+    { name: 'Network', svg: `<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect width="10" height="10" x="2" y="2" rx="2" ry="2"></rect><rect width="10" height="10" x="12" y="12" rx="2" ry="2"></rect><path d="M8 12h4M12 8v4"></path></svg>` },
+    { name: 'Globe', svg: `<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"></circle><line x1="2" y1="12" x2="22" y2="12"></line><path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"></path></svg>` },
+    { name: 'Satellite', svg: `<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M2 12h20"></path><path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"></path><path d="M12 6v6l4 2"></path></svg>` },
+    { name: 'Radio', svg: `<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 22c5.523 0 10-4.477 10-10S17.523 2 12 2 2 6.477 2 12s4.477 10 10 10z"></path><path d="M12 6v6l4 2"></path></svg>` },
+    { name: 'Camera', svg: `<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"></path><circle cx="12" cy="13" r="4"></circle></svg>` },
+    { name: 'Headphones', svg: `<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 18v-6a9 9 0 0 1 18 0v6"></path><path d="M21 19a2 2 0 0 1-2 2h-1a2 2 0 0 1-2-2v-3a2 2 0 0 1 2-2h3z"></path><path d="M3 19a2 2 0 0 0 2 2h1a2 2 0 0 0 2-2v-3a2 2 0 0 0-2-2H3z"></path></svg>` },
+    { name: 'Microchip', svg: `<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20v-4"></path><path d="M12 8v4"></path><path d="M17 12h-4"></path><path d="M11 12H7"></path><path d="M20 12a8 8 0 1 1-16 0 8 8 0 0 1 16 0z"></path></svg>` }
+  ]
+};
+
+// 内置图标组合库
+const iconSetAssets: Asset[] = [
+  {
+    id: 'iconSet-1',
+    name: '商务图标组合',
+    type: 'iconSet',
+    category: '商务',
+    tags: ['商务', '专业'],
+    thumbnail: svgToDataUrl(generateIconSetSvg(businessIconSetData.icons)),
+    uploader: '官方',
+    data: businessIconSetData
+  },
+  {
+    id: 'iconSet-2',
+    name: '科技图标组合',
+    type: 'iconSet',
+    category: '科技',
+    tags: ['科技', '未来'],
+    thumbnail: svgToDataUrl(generateIconSetSvg(techIconSetData.icons)),
+    uploader: '官方',
+    data: techIconSetData
+  }
+];
+
+// 内置字体样式库
+const fontStyleAssets: Asset[] = [
+  {
+    id: 'fontStyle-1',
+    name: '现代简约',
+    type: 'fontStyle',
+    category: '字体',
+    tags: ['现代', '简约'],
+    thumbnail: svgToDataUrl(generateFontStyleSvg('Poppins', '16px', '400')),
+    uploader: '官方',
+    data: { fontFamily: 'Poppins', fontSize: '16px', fontWeight: '400' }
+  },
+  {
+    id: 'fontStyle-2',
+    name: '创意手写',
+    type: 'fontStyle',
+    category: '字体',
+    tags: ['创意', '手写'],
+    thumbnail: svgToDataUrl(generateFontStyleSvg('Pacifico', '18px', '400')),
+    uploader: '官方',
+    data: { fontFamily: 'Pacifico', fontSize: '18px', fontWeight: '400' }
+  }
+];
+
+// 内置配色方案库
+const colorSchemeAssets: Asset[] = [
+  {
+    id: 'colorScheme-1',
+    name: '海洋蓝调',
+    type: 'colorScheme',
+    category: '配色',
+    tags: ['蓝色', '海洋'],
+    thumbnail: svgToDataUrl(generateColorSchemeSvg([
+      '#0077B6', '#00B4D8', '#90E0EF', '#CAF0F8',
+      '#0096C7', '#00D4FF', '#BDE8F5', '#E6F9FF',
+      '#006491', '#00A0C6', '#80D8EF', '#B8EEFC',
+      '#004B70', '#0087AD', '#60D0ED', '#A4E6FC'
+    ])),
+    uploader: '官方',
+    data: {
+      colors: [
+        '#0077B6', '#00B4D8', '#90E0EF', '#CAF0F8',
+        '#0096C7', '#00D4FF', '#BDE8F5', '#E6F9FF',
+        '#006491', '#00A0C6', '#80D8EF', '#B8EEFC',
+        '#004B70', '#0087AD', '#60D0ED', '#A4E6FC'
+      ]
+    }
+  },
+  {
+    id: 'colorScheme-2',
+    name: '森林绿调',
+    type: 'colorScheme',
+    category: '配色',
+    tags: ['绿色', '自然'],
+    thumbnail: svgToDataUrl(generateColorSchemeSvg([
+      '#2D6A4F', '#40916C', '#52B788', '#74C69D',
+      '#387E5D', '#4A9F7A', '#5EC395', '#84D3A9',
+      '#23573F', '#36835F', '#4BB37D', '#6BC791',
+      '#1A4430', '#296749', '#3DA36E', '#58B782'
+    ])),
+    uploader: '官方',
+    data: {
+      colors: [
+        '#2D6A4F', '#40916C', '#52B788', '#74C69D',
+        '#387E5D', '#4A9F7A', '#5EC395', '#84D3A9',
+        '#23573F', '#36835F', '#4BB37D', '#6BC791',
+        '#1A4430', '#296749', '#3DA36E', '#58B782'
+      ]
+    }
+  }
+];
+
+// 内置导图背景库
+const backgroundAssets: Asset[] = [
+  {
+    id: 'background-1',
+    name: '暮色渐变',
+    type: 'background',
+    category: '背景',
+    tags: ['渐变', '现代'],
+    thumbnail: svgToDataUrl(generateBackgroundSvg('gradient', { colors: ['#667eea', '#764ba2'] })),
+    uploader: '官方',
+    data: { type: 'gradient', colors: ['#667eea', '#764ba2'] }
+  },
+  {
+    id: 'background-2',
+    name: '格子图案',
+    type: 'background',
+    category: '背景',
+    tags: ['格子', '图案'],
+    thumbnail: svgToDataUrl(generateBackgroundSvg('grid', { size: '20px', color: '#cccccc', backgroundColor: '#ffffff' })),
+    uploader: '官方',
+    data: { type: 'grid', size: '20px', color: '#cccccc', backgroundColor: '#ffffff' }
+  },
+  {
+    id: 'background-3',
+    name: '天空渐变',
+    type: 'background',
+    category: '背景',
+    tags: ['渐变', '自然'],
+    thumbnail: svgToDataUrl(generateBackgroundSvg('gradient', { colors: ['#87CEEB', '#E0F7FA'] })),
+    uploader: '官方',
+    data: { type: 'gradient', colors: ['#87CEEB', '#E0F7FA'] }
+  },
+  {
+    id: 'background-4',
+    name: '夕阳渐变',
+    type: 'background',
+    category: '背景',
+    tags: ['渐变', '温暖'],
+    thumbnail: svgToDataUrl(generateBackgroundSvg('gradient', { colors: ['#FFB6C1', '#FFD700'] })),
+    uploader: '官方',
+    data: { type: 'gradient', colors: ['#FFB6C1', '#FFD700'] }
+  }
+];
+
+// 内置动画效果库
+const animationAssets: Asset[] = [
+  {
+    id: 'animation-1',
+    name: '淡入效果',
+    type: 'animation',
+    category: '动画',
+    tags: ['淡入', '平滑'],
+    thumbnail: svgToDataUrl(generateAnimationSvg('fadeIn', { duration: '800ms' })),
+    uploader: '官方',
+    data: {
+      type: 'fadeIn',
+      duration: '800ms',
+      easing: 'ease-out',
+      keyframes: [
+        { opacity: 0, transform: 'scale(0.95)' },
+        { opacity: 1, transform: 'scale(1)' }
+      ],
+      applyTo: 'all' // 应用到所有元素
+    }
+  },
+  {
+    id: 'animation-2',
+    name: '弹跳效果',
+    type: 'animation',
+    category: '动画',
+    tags: ['弹跳', '活泼'],
+    thumbnail: svgToDataUrl(generateAnimationSvg('bounce', { duration: '800ms' })),
+    uploader: '官方',
+    data: {
+      type: 'bounce',
+      duration: '800ms',
+      easing: 'cubic-bezier(0.68, -0.55, 0.265, 1.55)',
+      keyframes: [
+        { transform: 'translateY(0)' },
+        { transform: 'translateY(-10px)' },
+        { transform: 'translateY(0)' }
+      ],
+      applyTo: 'all'
+    }
+  },
+  {
+    id: 'animation-3',
+    name: '缩放效果',
+    type: 'animation',
+    category: '动画',
+    tags: ['缩放', '聚焦'],
+    thumbnail: svgToDataUrl(generateAnimationSvg('scaleIn', { duration: '800ms' })),
+    uploader: '官方',
+    data: {
+      type: 'scaleIn',
+      duration: '800ms',
+      easing: 'ease-out',
+      keyframes: [
+        { opacity: 0, transform: 'scale(0.8)' },
+        { opacity: 1, transform: 'scale(1)' }
+      ],
+      applyTo: 'all'
+    }
+  },
+  {
+    id: 'animation-4',
+    name: '滑入效果',
+    type: 'animation',
+    category: '动画',
+    tags: ['滑入', '流畅'],
+    thumbnail: svgToDataUrl(generateAnimationSvg('slideIn', { duration: '1000ms' })),
+    uploader: '官方',
+    data: {
+      type: 'slideIn',
+      duration: '1000ms', 
+      easing: 'ease-out',
+      keyframes: [
+        { opacity: 0, transform: 'translateX(-20px)' },
+        { opacity: 1, transform: 'translateX(0)' }
+      ],
+      applyTo: 'all'
+    }
+  },
+  {
+    id: 'animation-5',
+    name: '节点揭示',
+    type: 'animation',
+    category: '动画',
+    tags: ['节点', '连接线'],
+    thumbnail: svgToDataUrl(generateAnimationSvg('nodeReveal', { duration: '1000ms' })),
+    uploader: '官方',
+    data: {
+      type: 'nodeReveal',
+      duration: '1000ms',
+      easing: 'ease-out',
+      sequence: [
+        { selector: '.mindmap-node:nth-child(1)', delay: '0ms' },
+        { selector: '.mindmap-connector:nth-child(1)', delay: '250ms' },
+        { selector: '.mindmap-node:nth-child(2)', delay: '500ms' },
+        { selector: '.mindmap-connector:nth-child(2)', delay: '750ms' },
+        { selector: '.mindmap-node:nth-child(3)', delay: '1000ms' }
+      ],
+      keyframes: [
+        { opacity: 0, transform: 'scale(0.8)' },
+        { opacity: 1, transform: 'scale(1)' }
+      ],
+      applyTo: 'sequence' // 按顺序应用
+    }
+  }
+];
+
+// 所有内置素材
+const allAssets: Asset[] = [...iconAssets, ...shapeAssets, ...connectorAssets, ...iconSetAssets, ...fontStyleAssets, ...colorSchemeAssets, ...backgroundAssets, ...animationAssets];
+
+// 素材服务类
+class AssetService {
+  private STORAGE_KEY = 'mindweaver_favorite_assets';
+  
+  // 获取所有素材
+  getAllAssets(): Asset[] {
+    return allAssets;
+  }
+
+  // 根据类型获取素材
+  getAssetsByType(type: Asset['type']): Asset[] {
+    return allAssets.filter(asset => asset.type === type);
+  }
+
+  // 根据分类获取素材
+  getAssetsByCategory(category: string): Asset[] {
+    return allAssets.filter(asset => asset.category === category);
+  }
+
+  // 根据标签搜索素材
+  searchAssetsByTag(tag: string): Asset[] {
+    return allAssets.filter(asset => asset.tags.includes(tag));
+  }
+
+  // 根据关键词搜索素材
+  searchAssets(keyword: string): Asset[] {
+    const lowerKeyword = keyword.toLowerCase();
+    return allAssets.filter(asset => 
+      asset.name.toLowerCase().includes(lowerKeyword) ||
+      asset.tags.some(tag => tag.toLowerCase().includes(lowerKeyword)) ||
+      asset.category.toLowerCase().includes(lowerKeyword)
+    );
+  }
+
+  // 根据ID获取素材
+  getAssetById(id: string): Asset | undefined {
+    return allAssets.find(asset => asset.id === id);
+  }
+
+  // 获取素材类型列表
+  getAssetTypes(): string[] {
+    return Array.from(new Set(allAssets.map(asset => asset.type)));
+  }
+
+  // 获取素材分类列表
+  getAssetCategories(): string[] {
+    return Array.from(new Set(allAssets.map(asset => asset.category)));
+  }
+
+  // 获取所有标签（按首字母自动排序）
+  getAllTags(): string[] {
+    const tags = new Set<string>();
+    allAssets.forEach(asset => {
+      asset.tags.forEach(tag => tags.add(tag));
+    });
+    return Array.from(tags).sort((a, b) => a.localeCompare(b));
+  }
+
+  // 保存收藏的素材
+  saveFavoriteAssets(assets: Asset[]): void {
+    try {
+      localStorage.setItem(this.STORAGE_KEY, JSON.stringify(assets));
+    } catch (e) {
+      console.error('Failed to save favorite assets:', e);
+    }
+  }
+
+  // 加载收藏的素材
+  loadFavoriteAssets(): Asset[] {
+    try {
+      const stored = localStorage.getItem(this.STORAGE_KEY);
+      if (stored) {
+        return JSON.parse(stored);
+      }
+    } catch (e) {
+      console.error('Failed to load favorite assets:', e);
+    }
+    // 默认返回一些内置素材
+    return allAssets.filter(asset => ['icon-1', 'icon-2'].includes(asset.id));
+  }
+}
+
+// 导出单例实例
+export const assetService = new AssetService();

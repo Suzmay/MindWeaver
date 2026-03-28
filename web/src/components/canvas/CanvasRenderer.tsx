@@ -1394,6 +1394,42 @@ export const CanvasRenderer: React.FC<CanvasRendererProps> = ({
     draggedNodePositionRef.current = null;
   };
 
+  // 处理拖拽进入
+  const handleDragEnter = (e: React.DragEvent<HTMLCanvasElement>) => {
+    e.preventDefault();
+  };
+
+  // 处理拖拽悬停
+  const handleDragOver = (e: React.DragEvent<HTMLCanvasElement>) => {
+    e.preventDefault();
+  };
+
+  // 处理拖拽放置
+  const handleDrop = (e: React.DragEvent<HTMLCanvasElement>) => {
+    e.preventDefault();
+    
+    try {
+      const data = e.dataTransfer.getData('application/json');
+      if (data) {
+        const asset = JSON.parse(data);
+        console.log('Dropped asset:', asset);
+        
+        // 获取放置位置
+        const canvas = canvasRef.current;
+        if (canvas) {
+          const rect = canvas.getBoundingClientRect();
+          const mouseX = (e.clientX - rect.left - pan.x) / zoom;
+          const mouseY = (e.clientY - rect.top - pan.y) / zoom;
+          
+          // 这里可以添加创建新节点的逻辑
+          console.log('Drop position:', mouseX, mouseY);
+        }
+      }
+    } catch (error) {
+      console.error('Error processing dropped asset:', error);
+    }
+  };
+
   // 处理鼠标离开（结束拖拽）
   const handleMouseLeave = () => {
     // 如果存在长按计时器，则清除它
@@ -1786,6 +1822,9 @@ export const CanvasRenderer: React.FC<CanvasRendererProps> = ({
         onMouseLeave={handleMouseLeave}
         onContextMenu={handleContextMenu}
         onDoubleClick={handleDoubleClick}
+        onDragEnter={handleDragEnter}
+        onDragOver={handleDragOver}
+        onDrop={handleDrop}
       />
     </div>
   );

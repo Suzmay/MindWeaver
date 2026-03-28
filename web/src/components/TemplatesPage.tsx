@@ -35,16 +35,19 @@ export function TemplatesPage() {
     <div className="p-8 space-y-6">
       {/* 头部 */}
       <div className="flex items-center justify-between">
-        <h1>模板中心</h1>
-        <Button className="rounded-2xl gap-2 bg-gradient-to-br from-primary to-secondary hover:opacity-90 shadow-ocean font-semibold">
-          <Layout className="w-5 h-5" />
-          新建模板
-        </Button>
+        <div>
+          <h1>模板中心</h1>
+          <p className="text-muted-foreground mt-1">
+            选择预设模板，快速开始你的思维导图创作
+          </p>
+        </div>
+        <div className="flex items-center gap-2">
+          <Button className="rounded-2xl gap-2 bg-gradient-to-br from-primary to-secondary hover:opacity-90 shadow-ocean font-semibold">
+            <Layout className="w-5 h-5" />
+            新建模板
+          </Button>
+        </div>
       </div>
-
-      <p className="text-muted-foreground">
-        选择预设模板，快速开始你的思维导图创作
-      </p>
 
       {/* 模板网格 */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
