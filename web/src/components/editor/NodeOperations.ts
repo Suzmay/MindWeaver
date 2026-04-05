@@ -91,7 +91,7 @@ export class NodeOperations {
       summary?: string;
       content?: string;
       type?: 'person' | 'event' | 'concept' | 'task' | 'other';
-      shape?: 'rectangle' | 'rounded' | 'circle' | 'diamond';
+      shape?: string;
       color?: string;
       fontSize?: number;
       icon?: string;
@@ -252,7 +252,7 @@ export class NodeOperations {
     nodes: MindMapNode[],
     nodeId: string,
     style: {
-      shape?: 'rectangle' | 'rounded' | 'circle' | 'diamond';
+      shape?: string;
       color?: string;
     }
   ): MindMapNode[] {

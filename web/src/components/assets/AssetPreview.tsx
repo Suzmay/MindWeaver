@@ -1,3 +1,5 @@
+import { useState } from 'react';
+import { createPortal } from 'react-dom';
 import { Card, CardContent } from '../ui/card';
 import { Badge } from '../ui/badge';
 import { Heart } from 'lucide-react';
@@ -10,7 +12,17 @@ interface AssetPreviewProps {
   onToggleFavorite?: () => void;
 }
 
+// 截断标题，超过10个字显示省略号
+const truncateTitle = (title: string, maxLength: number = 10): string => {
+  if (title.length <= maxLength) {
+    return title;
+  }
+  return title.substring(0, maxLength) + '...';
+};
+
 export default function AssetPreview({ asset, isFavorite = false, onToggleFavorite }: AssetPreviewProps) {
+  const [tooltip, setTooltip] = useState<{ visible: boolean; x: number; y: number }>({ visible: false, x: 0, y: 0 });
+  
   const handleFavorite = () => {
     // 实现收藏功能
     if (onToggleFavorite) {
@@ -18,6 +30,22 @@ export default function AssetPreview({ asset, isFavorite = false, onToggleFavori
     } else {
       console.log('Toggle favorite for asset:', asset.id);
     }
+  };
+
+  const handleMouseEnter = (e: React.MouseEvent) => {
+    if (asset.name.length > 10) {
+      setTooltip({ visible: true, x: e.clientX, y: e.clientY - 30 });
+    }
+  };
+
+  const handleMouseMove = (e: React.MouseEvent) => {
+    if (tooltip.visible) {
+      setTooltip({ visible: true, x: e.clientX, y: e.clientY - 30 });
+    }
+  };
+
+  const handleMouseLeave = () => {
+    setTooltip({ visible: false, x: 0, y: 0 });
   };
 
   const getTypeLabel = (type: string) => {
@@ -39,13 +67,26 @@ export default function AssetPreview({ asset, isFavorite = false, onToggleFavori
       className="rounded-2xl shadow-sm hover:shadow-lg transition-all duration-200 group border-2 border-primary/10 hover:border-primary/30 bg-card hover:scale-[1.03] gap-0"
     >
       <div className="relative">
-        <div className="w-full aspect-square overflow-hidden p-4">
-          <img 
-            src={asset.thumbnail} 
-            alt={asset.name} 
-            className="w-full h-full object-contain transition-transform duration-300 group-hover:scale-105"
-            draggable="false"
-          />
+        <div className="w-full aspect-square overflow-hidden p-4 flex items-center justify-center">
+          {asset.type === 'fontStyle' ? (
+            <div 
+              className="text-center text-foreground transition-transform duration-300 group-hover:scale-105 pointer-events-none"
+              style={{
+                fontFamily: asset.data?.fontFamily || 'sans-serif',
+                fontSize: '32px',
+                fontWeight: asset.data?.fontWeight || '400'
+              }}
+            >
+              字体预览<br/>Mind<br/>Weaver
+            </div>
+          ) : (
+            <img 
+              src={asset.thumbnail} 
+              alt={asset.name} 
+              className="w-full h-full object-contain transition-transform duration-300 group-hover:scale-105"
+              draggable="false"
+            />
+          )}
         </div>
         <div className="absolute top-3 right-3 flex gap-1">
           <Button 
@@ -60,7 +101,14 @@ export default function AssetPreview({ asset, isFavorite = false, onToggleFavori
       </div>
       <CardContent className="p-5">
         <div className="flex justify-between items-start mb-3">
-          <h3 className="text-sm font-medium line-clamp-1">{asset.name}</h3>
+          <h3 
+            className="text-sm font-medium cursor-default"
+            onMouseEnter={handleMouseEnter}
+            onMouseMove={handleMouseMove}
+            onMouseLeave={handleMouseLeave}
+          >
+            {truncateTitle(asset.name)}
+          </h3>
           <Badge variant="outline" className="rounded-lg text-xs border-primary/30 bg-primary/5 text-primary dark:bg-primary/10 dark:border-primary/40">
             {getTypeLabel(asset.type)}
           </Badge>
@@ -77,6 +125,20 @@ export default function AssetPreview({ asset, isFavorite = false, onToggleFavori
           <span className="font-medium">{asset.uploader}</span>
         </div>
       </CardContent>
+      
+      {/* Tooltip - 使用 Portal 渲染到 body，避免影响布局 */}
+      {tooltip.visible && createPortal(
+        <div
+          className="fixed z-[9999] px-3 py-2 text-sm bg-gray-900 text-white rounded-lg shadow-lg pointer-events-none max-w-xs break-words whitespace-nowrap"
+          style={{
+            left: tooltip.x,
+            top: tooltip.y,
+          }}
+        >
+          {asset.name}
+        </div>,
+        document.body
+      )}
     </Card>
   );
 }

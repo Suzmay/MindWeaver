@@ -1,6 +1,8 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { MindMapNode } from '../../models/Work';
-import { Square, Circle, Diamond, Palette, X, SlidersHorizontal, Spline, AudioWaveform, BookOpen, Text, Bold, Italic, Underline, Undo, RefreshCw, Plus, List, ListOrdered, Heading1, Heading2, Image as ImageIcon } from 'lucide-react';
+import { Square, Circle, Diamond, Palette, X, SlidersHorizontal, Spline, AudioWaveform, BookOpen, Text, Bold, Italic, Underline, Undo, RefreshCw, Plus, List, ListOrdered, Heading1, Heading2, Image as ImageIcon, Heart, Type } from 'lucide-react';
+import { Asset, assetService } from '../../services/assets/AssetService';
+import { AssetSelectorDialog } from '../assets/AssetSelectorDialog';
 
 import {
   Slider,
@@ -47,14 +49,18 @@ interface StylePanelProps {
   customColors: string[];
   onCustomColorsChange: (colors: string[]) => void;
   onStyleChange: (nodeIds: string[], style: {
-    shape?: 'rectangle' | 'rounded' | 'circle' | 'diamond';
+    shape?: string;
+    shapeAssetId?: string;
     color?: string;
     fontSize?: number;
     fontWeight?: 'normal' | 'bold';
     fontStyle?: 'normal' | 'italic';
     textDecoration?: 'none' | 'underline';
+    fontFamily?: string;
     icon?: string;
-    connectionType?: 'straight' | 'curved' | 'dashed' | 'wavy';
+    connectionType?: string;
+    connectorAssetId?: string;
+    fontStyleAssetId?: string;
     size?: number;
   }) => void;
   onTextChange: (nodeId: string, text: string) => void;
@@ -77,7 +83,6 @@ const COLORS = [
   '#EAB308', // 黄色
   '#22C55E', // 绿色
   '#64748B', // 灰色
-  '#1E293B', // 深色
 ];
 
 const SHAPES = [
@@ -114,6 +119,10 @@ export const StylePanel: React.FC<StylePanelProps> = ({
   pan = { x: 0, y: 0 },
   canvasContainerRef,
 }) => {
+  // 收藏素材状态
+  const [filteredAssets, setFilteredAssets] = useState<Asset[]>([]);
+  // 素材选择弹窗状态
+  const [isIconSelectorOpen, setIsIconSelectorOpen] = useState(false);
   const panelRef = useRef<HTMLDivElement>(null);
   const [isDragging, setIsDragging] = useState(false);
   const [panelPositionState, setPanelPositionState] = useState<Record<string, string>>({});
@@ -124,6 +133,7 @@ export const StylePanel: React.FC<StylePanelProps> = ({
   const dragOffset = useRef({ x: 0, y: 0 });
   const rafRef = useRef<number | null>(null);
   const draggingRef = useRef(false);
+  const contentTextareaRef = useRef<HTMLTextAreaElement>(null);
   
   // 撤销和恢复功能相关状态
   const [initialContent, setInitialContent] = useState<string>('');
@@ -140,7 +150,7 @@ export const StylePanel: React.FC<StylePanelProps> = ({
     if (isOpen) {
       const handleClickOutside = (event: MouseEvent) => {
         // 如果对话框打开，不检查点击外部
-        if (isColorReplaceDialogOpen) {
+        if (isColorReplaceDialogOpen || isIconSelectorOpen) {
           return;
         }
         if (panelRef.current && !panelRef.current.contains(event.target as Node)) {
@@ -153,7 +163,7 @@ export const StylePanel: React.FC<StylePanelProps> = ({
         document.removeEventListener('mousedown', handleClickOutside);
       };
     }
-  }, [isOpen, onClose, isColorReplaceDialogOpen]);
+  }, [isOpen, onClose, isColorReplaceDialogOpen, isIconSelectorOpen]);
 
   // 当面板打开时初始化面板位置状态
   useEffect(() => {
@@ -181,6 +191,19 @@ export const StylePanel: React.FC<StylePanelProps> = ({
       }
     }
   }, [isOpen, selectedNodes[0]]);
+
+
+
+  // 加载收藏的素材
+  useEffect(() => {
+    if (isOpen) {
+      const favorites = assetService.loadFavoriteAssets();
+      const assets = favorites.filter((asset: Asset) => 
+        ['shape', 'connector', 'fontStyle'].includes(asset.type)
+      );
+      setFilteredAssets(assets);
+    }
+  }, [isOpen]);
 
   // 处理鼠标按下事件（长按开始拖动）
   const handleMouseDown = (e: React.MouseEvent<HTMLDivElement>) => {
@@ -304,7 +327,7 @@ export const StylePanel: React.FC<StylePanelProps> = ({
   if (!referenceNode) return null;
 
   // 计算样式面板的宽度和高度以避免滚动
-  const panelWidth = 480; // 增加宽度
+  const panelWidth = 560; // 增加宽度以容纳素材标签页
   const panelHeight = Math.min(800, window.innerHeight - 100); // 增加高度
 
   // 计算节点在屏幕上的位置
@@ -434,7 +457,7 @@ export const StylePanel: React.FC<StylePanelProps> = ({
   // const panelPosition = calculatePanelPosition(); // 不直接使用，但函数在useEffect中被调用
 
   const handleShapeChange = (shape: 'rectangle' | 'rounded' | 'circle' | 'diamond') => {
-    onStyleChange(selectedNodes, { shape });
+    onStyleChange(selectedNodes, { shape, shapeAssetId: undefined });
   };
 
   const handleColorChange = (color: string) => {
@@ -446,7 +469,7 @@ export const StylePanel: React.FC<StylePanelProps> = ({
   };
 
   const handleConnectionChange = (connectionType: 'straight' | 'curved' | 'dashed' | 'wavy') => {
-    onStyleChange(selectedNodes, { connectionType });
+    onStyleChange(selectedNodes, { connectionType, connectorAssetId: undefined });
   };
 
   const handleFontWeightChange = (fontWeight: 'normal' | 'bold') => {
@@ -461,6 +484,16 @@ export const StylePanel: React.FC<StylePanelProps> = ({
     onStyleChange(selectedNodes, { textDecoration });
   };
 
+  const handleResetFontStyle = () => {
+    onStyleChange(selectedNodes, {
+      fontSize: undefined,
+      fontWeight: undefined,
+      fontStyle: undefined,
+      textDecoration: undefined,
+      fontStyleAssetId: undefined
+    });
+  };
+
   // 文本格式处理函数
   const applyFormat = (formatType: string) => {
     if (!referenceNode) return;
@@ -469,7 +502,7 @@ export const StylePanel: React.FC<StylePanelProps> = ({
     let newContent = content;
     
     // 尝试获取Textarea元素以获取光标位置
-    const textarea = document.querySelector('textarea[placeholder="输入节点内容..."]') as HTMLTextAreaElement;
+    const textarea = contentTextareaRef.current;
     
     if (textarea) {
       const start = textarea.selectionStart;
@@ -658,8 +691,8 @@ export const StylePanel: React.FC<StylePanelProps> = ({
     if (!COLORS.includes(currentColor)) {
       // 检查颜色是否已经在自定义颜色中
       if (!customColors.includes(currentColor)) {
-        // 限制自定义颜色数量为10个
-        if (customColors.length >= 10) {
+        // 限制自定义颜色数量为8个
+        if (customColors.length >= 8) {
           // 打开对话框让用户选择
           setPendingColor(currentColor);
           setSelectedColorToReplace(0);
@@ -695,6 +728,122 @@ export const StylePanel: React.FC<StylePanelProps> = ({
     }
   };
 
+  // 处理素材选择
+  const handleAssetSelect = (asset: Asset) => {
+    switch (asset.type) {
+      case 'icon':
+        onStyleChange(selectedNodes, { icon: asset.data?.lucideName || asset.id });
+        break;
+      case 'shape':
+        // 保存素材ID和类型，支持动态渲染
+        const shapeType = asset.data?.type || 'rounded';
+        onStyleChange(selectedNodes, { 
+          shape: shapeType,
+          shapeAssetId: asset.id // 保存素材ID用于动态渲染
+        });
+        break;
+      case 'connector':
+        // 保存素材ID和类型，支持动态渲染
+        const connectorType = asset.data?.type || 'curved';
+        onStyleChange(selectedNodes, { 
+          connectionType: connectorType,
+          connectorAssetId: asset.id // 保存素材ID用于动态渲染
+        });
+        break;
+      case 'fontStyle':
+        onStyleChange(selectedNodes, {
+          fontWeight: asset.data?.fontWeight as 'normal' | 'bold' | undefined,
+          fontStyle: asset.data?.fontStyle as 'normal' | 'italic' | undefined,
+          textDecoration: asset.data?.textDecoration as 'none' | 'underline' | undefined,
+          fontFamily: asset.data?.fontFamily,
+          fontStyleAssetId: asset.id // 保存素材ID用于标识选中状态
+        });
+        break;
+    }
+  };
+
+  // 处理图标选择并插入
+  const handleIconSelect = (asset: Asset | null, size: 'small' | 'large') => {
+    if (asset && asset.type === 'icon' && referenceNode) {
+      let content = referenceNode.content || '';
+      
+      // 根据大小生成不同格式的图标
+      // 小图标：:icon-{name}:
+      // 大图标：:icon-{name}-large:
+      // 从 asset.id (如 'icon-lightbulb') 提取名称部分 (如 'lightbulb')
+      let iconName;
+      if (asset.data?.lucideName) {
+        // 如果有 lucideName，使用它（来自图标组合的图标）
+        iconName = asset.data.lucideName;
+      } else {
+        // 否则从 asset.id 提取（普通图标）
+        iconName = asset.id.replace(/^icon-/, '');
+      }
+      
+      // 转换为小写并替换驼峰命名为连字符
+      const normalizedIconName = iconName
+        .replace(/([a-z0-9]|(?=[A-Z]))([A-Z])/g, '$1-$2')
+        .toLowerCase();
+      
+      const iconFormat = size === 'small' ? `:icon-${normalizedIconName}:` : `:icon-${normalizedIconName}-large:`;
+      
+      let newContent;
+      let cursorPosition: number;
+      
+      // 尝试获取Textarea元素以获取光标位置
+      const textarea = contentTextareaRef.current;
+      
+      if (size === 'large') {
+        // 大图标：先移除已有的大图标，然后插入在最后一行的下一行
+        let contentWithoutLargeIcon = content.replace(/:icon-[\w-]+?-large:/g, '');
+        
+        // 确保内容末尾有一个换行
+        if (contentWithoutLargeIcon && !contentWithoutLargeIcon.endsWith('\n')) {
+          contentWithoutLargeIcon += '\n';
+        }
+        
+        newContent = contentWithoutLargeIcon + iconFormat;
+        cursorPosition = newContent.length;
+      } else {
+        // 小图标：在光标位置插入
+        if (textarea) {
+          const start = textarea.selectionStart;
+          const end = textarea.selectionEnd;
+          
+          // 在光标位置插入图标
+          newContent = content.substring(0, start) + iconFormat + content.substring(end);
+          cursorPosition = start + iconFormat.length;
+        } else {
+          // 如果没有获取到textarea，则追加到末尾
+          newContent = content + iconFormat;
+          cursorPosition = newContent.length;
+        }
+      }
+      
+      // 更新内容
+      onContentChange(referenceNode.id, newContent);
+      
+      // 更新历史记录
+      setHistory(prev => {
+        const newHistory = prev.slice(0, historyIndex + 1);
+        newHistory.push(newContent);
+        return newHistory;
+      });
+      setHistoryIndex(prev => prev + 1);
+      
+      // 关闭弹窗
+      setIsIconSelectorOpen(false);
+      
+      // 聚焦到文本框并设置光标位置
+      if (textarea) {
+        setTimeout(() => {
+          textarea.focus();
+          textarea.selectionStart = textarea.selectionEnd = cursorPosition;
+        }, 0);
+      }
+    }
+  };
+
   return (
     <div 
       ref={panelRef}
@@ -726,32 +875,38 @@ export const StylePanel: React.FC<StylePanelProps> = ({
         {/* 标签页 */}
         <div className="flex-1 flex overflow-x-auto">
           <Tabs defaultValue="shape" className="w-full flex flex-col">
-            <TabsList className="flex mb-4 gap-1 bg-muted/50 rounded-xl p-1 overflow-x-auto h-12 justify-center">
-              <TabsTrigger value="shape" className="rounded-lg flex items-center gap-2 h-10 transition-all whitespace-nowrap hover:bg-primary/10 px-3">
-                <Square className="w-4 h-4" />
-                <span>形状</span>
-              </TabsTrigger>
-              <TabsTrigger value="connection" className="rounded-lg flex items-center gap-2 h-10 transition-all whitespace-nowrap hover:bg-primary/10 px-3">
-                <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                  <path d="M12 2L2 7l10 5 10-5-10-5z" />
-                  <path d="M2 17l10 5 10-5" />
-                  <path d="M2 12l10 5 10-5" />
-                </svg>
-                <span>连接线</span>
-              </TabsTrigger>
-              <TabsTrigger value="color" className="rounded-lg flex items-center gap-2 h-10 transition-all whitespace-nowrap hover:bg-primary/10 px-3">
-                <Palette className="w-4 h-4" />
-                <span>颜色</span>
-              </TabsTrigger>
-              <TabsTrigger value="title" className="rounded-lg flex items-center gap-2 h-10 transition-all whitespace-nowrap hover:bg-primary/10 px-3">
-                <Text className="w-4 h-4" />
-                <span>标题</span>
-              </TabsTrigger>
-              <TabsTrigger value="content" className="rounded-lg flex items-center gap-2 h-10 transition-all whitespace-nowrap hover:bg-primary/10 px-3">
-                <BookOpen className="w-4 h-4" />
-                <span>内容</span>
-              </TabsTrigger>
-            </TabsList>
+            <div className="flex items-center gap-2 mb-4">
+              <TabsList className="flex-1 flex gap-1 bg-muted/50 rounded-xl p-1 overflow-x-auto h-12 justify-center">
+                <TabsTrigger value="shape" className="rounded-lg flex items-center gap-2 h-10 transition-all whitespace-nowrap hover:bg-primary/10 px-3">
+                  <Square className="w-4 h-4" />
+                  <span>形状</span>
+                </TabsTrigger>
+                <TabsTrigger value="connection" className="rounded-lg flex items-center gap-2 h-10 transition-all whitespace-nowrap hover:bg-primary/10 px-3">
+                  <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                    <path d="M12 2L2 7l10 5 10-5-10-5z" />
+                    <path d="M2 17l10 5 10-5" />
+                    <path d="M2 12l10 5 10-5" />
+                  </svg>
+                  <span>连接线</span>
+                </TabsTrigger>
+                <TabsTrigger value="color" className="rounded-lg flex items-center gap-2 h-10 transition-all whitespace-nowrap hover:bg-primary/10 px-3">
+                  <Palette className="w-4 h-4" />
+                  <span>颜色</span>
+                </TabsTrigger>
+                <TabsTrigger value="title" className="rounded-lg flex items-center gap-2 h-10 transition-all whitespace-nowrap hover:bg-primary/10 px-3">
+                  <Text className="w-4 h-4" />
+                  <span>标题</span>
+                </TabsTrigger>
+                <TabsTrigger value="content" className="rounded-lg flex items-center gap-2 h-10 transition-all whitespace-nowrap hover:bg-primary/10 px-3">
+                  <BookOpen className="w-4 h-4" />
+                  <span>内容</span>
+                </TabsTrigger>
+                <TabsTrigger value="assets" className="rounded-lg flex items-center gap-2 h-10 transition-all whitespace-nowrap hover:bg-primary/10 px-3">
+                  <Heart className="w-4 h-4" />
+                  <span>素材</span>
+                </TabsTrigger>
+              </TabsList>
+            </div>
 
             <TabsContent value="shape" className="flex-1 overflow-y-auto">
               <div className="grid grid-cols-1 gap-4 w-full">
@@ -994,7 +1149,7 @@ export const StylePanel: React.FC<StylePanelProps> = ({
                       />
                     </div>
 
-                    <div className="grid grid-cols-3 gap-3">
+                    <div className="grid grid-cols-4 gap-3">
                       <Button 
                         variant={referenceNode.fontWeight === 'bold' ? 'default' : 'outline'}
                         className="h-9 rounded-lg transition-all hover:bg-primary/10"
@@ -1018,6 +1173,14 @@ export const StylePanel: React.FC<StylePanelProps> = ({
                       >
                         <Underline className="w-4 h-4 mr-2" />
                         下划线
+                      </Button>
+                      <Button 
+                        variant={!referenceNode.fontStyleAssetId ? 'default' : 'outline'}
+                        className="h-9 rounded-lg transition-all hover:bg-primary/10"
+                        onClick={handleResetFontStyle}
+                      >
+                        <Type className="w-4 h-4 mr-2" />
+                        默认字体
                       </Button>
                     </div>
                   </CardContent>
@@ -1076,7 +1239,8 @@ export const StylePanel: React.FC<StylePanelProps> = ({
                           variant="ghost"
                           size="sm"
                           className="h-8 w-8 p-0 rounded"
-                          title="插入图片"
+                          title="插入图标"
+                          onClick={() => setIsIconSelectorOpen(true)}
                         >
                           <ImageIcon className="w-4 h-4" />
                         </Button>
@@ -1130,6 +1294,7 @@ export const StylePanel: React.FC<StylePanelProps> = ({
                       {/* 内容输入框 */}
                       <div className="flex-grow">
                         <Textarea
+                          ref={contentTextareaRef}
                           value={referenceNode.content || ''}
                           onChange={(e) => {
                             const newValue = e.target.value;
@@ -1204,6 +1369,97 @@ export const StylePanel: React.FC<StylePanelProps> = ({
               </div>
             </TabsContent>
 
+            <TabsContent value="assets" className="flex-1 overflow-y-auto">
+              <div className="grid grid-cols-1 gap-4 w-full">
+                <Card className="border border-primary/10 shadow-sm w-full">
+                  <CardHeader className="pb-3">
+                    <CardTitle className="text-sm font-medium">收藏素材</CardTitle>
+                    <CardDescription className="text-xs">选择已收藏的素材应用到节点</CardDescription>
+                  </CardHeader>
+                  <CardContent>
+                    <div className="space-y-4">
+                      {/* 形状 */}
+                      <div>
+                        <h4 className="text-sm font-medium mb-2">形状</h4>
+                        <div className="grid grid-cols-4 gap-2">
+                          {filteredAssets
+                            .filter(asset => asset.type === 'shape')
+                            .map((asset) => {
+                              const isSelected = referenceNode.shapeAssetId === asset.id;
+                              return (
+                                <button
+                                  key={asset.id}
+                                  onClick={() => handleAssetSelect(asset)}
+                                  className={`p-2 border rounded-lg hover:border-primary transition-all flex flex-col items-center bg-card ${isSelected ? 'border-primary bg-primary/5' : ''}`}
+                                >
+                                  <img
+                                    src={asset.thumbnail}
+                                    alt={asset.name}
+                                    className="w-8 h-8 mb-1"
+                                  />
+                                  <span className="text-xs text-center">{asset.name}</span>
+                                </button>
+                              );
+                            })}
+                        </div>
+                      </div>
+
+                      {/* 连接线 */}
+                      <div>
+                        <h4 className="text-sm font-medium mb-2">连接线</h4>
+                        <div className="grid grid-cols-4 gap-2">
+                          {filteredAssets
+                            .filter(asset => asset.type === 'connector')
+                            .map((asset) => {
+                              const isSelected = referenceNode.connectorAssetId === asset.id;
+                              return (
+                                <button
+                                  key={asset.id}
+                                  onClick={() => handleAssetSelect(asset)}
+                                  className={`p-2 border rounded-lg hover:border-primary transition-all flex flex-col items-center bg-card ${isSelected ? 'border-primary bg-primary/5' : ''}`}
+                                >
+                                  <img
+                                    src={asset.thumbnail}
+                                    alt={asset.name}
+                                    className="w-8 h-8 mb-1"
+                                  />
+                                  <span className="text-xs text-center">{asset.name}</span>
+                                </button>
+                              );
+                            })}
+                        </div>
+                      </div>
+
+                      {/* 字体样式 */}
+                      <div>
+                        <h4 className="text-sm font-medium mb-2">字体样式</h4>
+                        <div className="grid grid-cols-4 gap-2">
+                          {filteredAssets
+                            .filter(asset => asset.type === 'fontStyle')
+                            .map((asset) => {
+                              const isSelected = referenceNode.fontStyleAssetId === asset.id;
+                              return (
+                                <button
+                                  key={asset.id}
+                                  onClick={() => handleAssetSelect(asset)}
+                                  className={`p-2 border rounded-lg hover:border-primary transition-all flex flex-col items-center bg-card ${isSelected ? 'border-primary bg-primary/5' : ''}`}
+                                >
+                                  <img
+                                    src={asset.thumbnail}
+                                    alt={asset.name}
+                                    className="w-8 h-8 mb-1"
+                                  />
+                                  <span className="text-xs text-center">{asset.name}</span>
+                                </button>
+                              );
+                            })}
+                        </div>
+                      </div>
+                    </div>
+                  </CardContent>
+                </Card>
+              </div>
+            </TabsContent>
 
           </Tabs>
         </div>
@@ -1223,11 +1479,11 @@ export const StylePanel: React.FC<StylePanelProps> = ({
 
       {/* 颜色替换对话框 */}
       <Dialog open={isColorReplaceDialogOpen} onOpenChange={setIsColorReplaceDialogOpen}>
-        <DialogContent className="w-[300px]">
+        <DialogContent className="w-[260px]">
           <DialogHeader>
             <DialogTitle>自定义颜色已达上限</DialogTitle>
             <DialogDescription>
-              最多支持10个自定义颜色的保存，请选择覆盖的颜色：
+              最多支持8个自定义颜色的保存，请选择覆盖的颜色：
             </DialogDescription>
           </DialogHeader>
           <div className="py-4">
@@ -1258,6 +1514,16 @@ export const StylePanel: React.FC<StylePanelProps> = ({
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      {/* 图标选择弹窗 */}
+      <AssetSelectorDialog
+        isOpen={isIconSelectorOpen}
+        onClose={() => setIsIconSelectorOpen(false)}
+        title="选择图标"
+        assetTypes={['icon', 'iconSet']}
+        onSelectAsset={handleIconSelect}
+      />
+
     </div>
   );
 };

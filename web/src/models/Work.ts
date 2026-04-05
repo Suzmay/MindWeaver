@@ -11,6 +11,7 @@ export interface Work {
     mode: string;
     direction: string;
   };
+  colorSchemeAssetId?: string; // 配色方案素材ID
   // 新增字段 - 持久化存储
   createdAt: string; // ISO 8601 格式时间戳
   isDeleted: boolean; // 软删除标记
@@ -81,14 +82,19 @@ export interface MindMapNode {
   summary?: string;
   content?: string;
   type: 'person' | 'event' | 'concept' | 'task' | 'other';
-  shape: 'rectangle' | 'rounded' | 'circle' | 'diamond';
+  // 形状和连接线改为字符串类型，支持动态素材
+  shape: string;
+  shapeAssetId?: string; // 关联的形状素材ID
   color: string;
   fontSize?: number;
   fontWeight?: 'normal' | 'bold';
   fontStyle?: 'normal' | 'italic';
   textDecoration?: 'none' | 'underline';
   icon?: string;
-  connectionType?: 'straight' | 'curved' | 'dashed' | 'wavy';
+  connectionType?: string;
+  connectorAssetId?: string; // 关联的连接线素材ID
+  fontStyleAssetId?: string; // 关联的字体样式素材ID
+  fontFamily?: string; // 字体家族
   size?: number;
   children: string[];
   metadata?: Record<string, any>;

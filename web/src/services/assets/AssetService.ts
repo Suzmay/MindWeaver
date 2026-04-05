@@ -25,10 +25,12 @@ const svgToDataUrl = (svg: string): string => {
   return `data:image/svg+xml;charset=utf-8,${encoded}`;
 };
 
+
+
 // 内置图标库
 const iconAssets: Asset[] = [
   {
-    id: 'icon-1',
+    id: 'icon-lightbulb',
     name: '创意图标',
     type: 'icon',
     category: '设计',
@@ -38,7 +40,7 @@ const iconAssets: Asset[] = [
     data: { svg: lucideLightbulbSvg, lucideName: 'Lightbulb' }
   },
   {
-    id: 'icon-2',
+    id: 'icon-briefcase',
     name: '商务图标',
     type: 'icon',
     category: '商务',
@@ -48,7 +50,7 @@ const iconAssets: Asset[] = [
     data: { svg: lucideBriefcaseSvg, lucideName: 'Briefcase' }
   },
   {
-    id: 'icon-3',
+    id: 'icon-cpu',
     name: '科技图标',
     type: 'icon',
     category: '科技',
@@ -58,7 +60,7 @@ const iconAssets: Asset[] = [
     data: { svg: lucideCpuSvg, lucideName: 'Cpu' }
   },
   {
-    id: 'icon-4',
+    id: 'icon-graduation-cap',
     name: '教育图标',
     type: 'icon',
     category: '教育',
@@ -79,7 +81,7 @@ const SHAPE_COLOR = THEME_COLOR;
 const hexagonSvg = `<svg xmlns="http://www.w3.org/2000/svg" width="64" height="64" viewBox="0 0 64 64"><path d="M32,4 Q34,4 36,5 L58,18 Q60,19 60,22 L60,42 Q60,45 58,46 L36,59 Q34,60 32,60 Q30,60 28,59 L6,46 Q4,45 4,42 L4,22 Q4,19 6,18 L28,5 Q30,4 32,4 Z" fill="${SHAPE_COLOR}" stroke="${SHAPE_COLOR}" stroke-width="2"/></svg>`;
 
 // 等边三角形 SVG（带圆角）
-const triangleSvg = `<svg xmlns="http://www.w3.org/2000/svg" width="64" height="64" viewBox="0 0 64 64"><path d="M32,6 Q34,6 36,8 L58,46 Q59,48 58,51 Q57,54 54,55 L10,55 Q7,54 6,51 Q5,48 6,46 L28,8 Q30,6 32,6 Z" fill="${SHAPE_COLOR}" stroke="${SHAPE_COLOR}" stroke-width="2"/></svg>`;
+const triangleSvg = `<svg xmlns="http://www.w3.org/2000/svg" width="64" height="64" viewBox="0 0 64 64"><path d="M32,14 L48,42 L16,42 Z" fill="${SHAPE_COLOR}" stroke="${SHAPE_COLOR}" stroke-width="2"/></svg>`;
 
 // 平行四边形 SVG（带圆角，高度减半）
 const parallelogramSvg = `<svg xmlns="http://www.w3.org/2000/svg" width="64" height="40" viewBox="0 0 64 40"><path d="M19,5 L55,5 Q57,5 58,7 L58,12 L47,33 Q46,35 44,35 L8,35 Q6,35 5,33 L5,28 L16,7 Q17,5 19,5 Z" fill="${SHAPE_COLOR}" stroke="${SHAPE_COLOR}" stroke-width="2"/></svg>`;
@@ -90,44 +92,107 @@ const trapezoidSvg = `<svg xmlns="http://www.w3.org/2000/svg" width="64" height=
 // 内置形状库
 const shapeAssets: Asset[] = [
   {
-    id: 'shape-1',
+    id: 'shape-hexagon',
     name: '六边形',
     type: 'shape',
     category: '几何',
     tags: ['几何', '流程'],
     thumbnail: svgToDataUrl(hexagonSvg),
     uploader: '官方',
-    data: { type: 'hexagon', svg: hexagonSvg }
+    data: {
+      type: 'hexagon',
+      svg: hexagonSvg,
+      // Canvas 绘制配置
+      render: {
+        type: 'path',
+        // 相对于中心点的路径点 (x, y)，范围 -1 到 1
+        points: [
+          { x: 0, y: -1 },      // 顶部
+          { x: 0.866, y: -0.5 }, // 右上
+          { x: 0.866, y: 0.5 },  // 右下
+          { x: 0, y: 1 },       // 底部
+          { x: -0.866, y: 0.5 }, // 左下
+          { x: -0.866, y: -0.5 } // 左上
+        ],
+        closePath: true,
+        widthRatio: 1.3,  // 宽度比例
+        heightRatio: 1.2    // 高度比例
+      }
+    }
   },
   {
-    id: 'shape-2',
+    id: 'shape-triangle',
     name: '三角形',
     type: 'shape',
     category: '几何',
     tags: ['几何', '目标'],
     thumbnail: svgToDataUrl(triangleSvg),
     uploader: '官方',
-    data: { type: 'triangle', svg: triangleSvg }
+    data: {
+      type: 'triangle',
+      svg: triangleSvg,
+      render: {
+        type: 'path',
+        points: [
+          { x: 0, y: -1.116 },    // 顶部
+          { x: 1, y: 0.616 }, // 右下
+          { x: -1, y: 0.616 } // 左下
+        ],
+        closePath: true,
+        widthRatio: 2,
+        heightRatio: 1.732
+      }
+    }
   },
   {
-    id: 'shape-3',
+    id: 'shape-parallelogram',
     name: '平行四边形',
     type: 'shape',
     category: '几何',
     tags: ['几何', '数据'],
     thumbnail: svgToDataUrl(parallelogramSvg),
     uploader: '官方',
-    data: { type: 'parallelogram', svg: parallelogramSvg }
+    data: {
+      type: 'parallelogram',
+      svg: parallelogramSvg,
+      render: {
+        type: 'path',
+        points: [
+          { x: -0.5, y: -0.5 }, // 左上
+          { x: 0.7, y: -0.5 },  // 右上
+          { x: 0.5, y: 0.5 },   // 右下
+          { x: -0.7, y: 0.5 }   // 左下
+        ],
+        closePath: true,
+        widthRatio: 2.5,
+        heightRatio: 1.2
+      }
+    }
   },
   {
-    id: 'shape-4',
+    id: 'shape-trapezoid',
     name: '等腰梯形',
     type: 'shape',
     category: '几何',
     tags: ['几何', '决策'],
     thumbnail: svgToDataUrl(trapezoidSvg),
     uploader: '官方',
-    data: { type: 'trapezoid', svg: trapezoidSvg }
+    data: {
+      type: 'trapezoid',
+      svg: trapezoidSvg,
+      render: {
+        type: 'path',
+        points: [
+          { x: -0.4, y: -0.5 }, // 左上
+          { x: 0.4, y: -0.5 },  // 右上
+          { x: 0.6, y: 0.5 },   // 右下
+          { x: -0.6, y: 0.5 }   // 左下
+        ],
+        closePath: true,
+        widthRatio: 2.5,
+        heightRatio: 1.2
+      }
+    }
   }
 ];
 
@@ -146,44 +211,91 @@ const dottedConnectorSvg = `<svg xmlns="http://www.w3.org/2000/svg" width="24" h
 // 内置连接线样式库
 const connectorAssets: Asset[] = [
   {
-    id: 'connector-1',
+    id: 'connector-arrow',
     name: '箭头连线',
     type: 'connector',
     category: '连接线',
     tags: ['箭头', '方向'],
     thumbnail: svgToDataUrl(arrowConnectorSvg),
     uploader: '官方',
-    data: { type: 'arrow', stroke: 2, color: '#666', arrowSize: 8 }
+    data: {
+      type: 'arrow',
+      svg: arrowConnectorSvg,
+      render: {
+        type: 'arrow',
+        lineDash: [],
+        lineWidth: 3,
+        hasArrowHead: true,
+        arrowSize: 10,
+        // 绘制函数配置
+        drawType: 'straight' // straight, curved, step
+      }
+    }
   },
   {
-    id: 'connector-2',
+    id: 'connector-step',
     name: '阶梯连线',
     type: 'connector',
     category: '连接线',
     tags: ['阶梯', '流程图'],
     thumbnail: svgToDataUrl(stepConnectorSvg),
     uploader: '官方',
-    data: { type: 'step', stroke: 2, color: '#666' }
+    data: {
+      type: 'step',
+      svg: stepConnectorSvg,
+      render: {
+        type: 'step',
+        lineDash: [],
+        lineWidth: 3,
+        hasArrowHead: false,
+        arrowSize: 0,
+        drawType: 'step'
+      }
+    }
   },
   {
-    id: 'connector-3',
+    id: 'connector-double',
     name: '双连线',
     type: 'connector',
     category: '连接线',
     tags: ['双线', '强调'],
     thumbnail: svgToDataUrl(doubleConnectorSvg),
     uploader: '官方',
-    data: { type: 'double', stroke: 2, color: '#666' }
+    data: {
+      type: 'double',
+      svg: doubleConnectorSvg,
+      render: {
+        type: 'double',
+        lineDash: [],
+        lineWidth: 3,
+        hasArrowHead: false,
+        arrowSize: 0,
+        drawType: 'double',
+        doubleLine: true,
+        lineGap: 6
+      }
+    }
   },
   {
-    id: 'connector-4',
+    id: 'connector-dotted',
     name: '点线连线',
     type: 'connector',
     category: '连接线',
     tags: ['点线', '装饰'],
     thumbnail: svgToDataUrl(dottedConnectorSvg),
     uploader: '官方',
-    data: { type: 'dotted', stroke: 2, color: '#666' }
+    data: {
+      type: 'dotted',
+      svg: dottedConnectorSvg,
+      render: {
+        type: 'dotted',
+        lineDash: [2, 5, 10, 5],
+        lineWidth: 3,
+        hasArrowHead: false,
+        arrowSize: 0,
+        drawType: 'straight'
+      }
+    }
   }
 ];
 
@@ -381,7 +493,7 @@ const techIconSetData = {
 // 内置图标组合库
 const iconSetAssets: Asset[] = [
   {
-    id: 'iconSet-1',
+    id: 'iconSet-business',
     name: '商务图标组合',
     type: 'iconSet',
     category: '商务',
@@ -391,7 +503,7 @@ const iconSetAssets: Asset[] = [
     data: businessIconSetData
   },
   {
-    id: 'iconSet-2',
+    id: 'iconSet-tech',
     name: '科技图标组合',
     type: 'iconSet',
     category: '科技',
@@ -402,73 +514,67 @@ const iconSetAssets: Asset[] = [
   }
 ];
 
-// 内置字体样式库
-const fontStyleAssets: Asset[] = [
-  {
-    id: 'fontStyle-1',
-    name: '现代简约',
-    type: 'fontStyle',
-    category: '字体',
-    tags: ['现代', '简约'],
-    thumbnail: svgToDataUrl(generateFontStyleSvg('Poppins', '16px', '400')),
-    uploader: '官方',
-    data: { fontFamily: 'Poppins', fontSize: '16px', fontWeight: '400' }
-  },
-  {
-    id: 'fontStyle-2',
-    name: '创意手写',
-    type: 'fontStyle',
-    category: '字体',
-    tags: ['创意', '手写'],
-    thumbnail: svgToDataUrl(generateFontStyleSvg('Pacifico', '18px', '400')),
-    uploader: '官方',
-    data: { fontFamily: 'Pacifico', fontSize: '18px', fontWeight: '400' }
-  }
-];
+
 
 // 内置配色方案库
 const colorSchemeAssets: Asset[] = [
   {
-    id: 'colorScheme-1',
+    id: 'colorScheme-ocean',
     name: '海洋蓝调',
     type: 'colorScheme',
     category: '配色',
     tags: ['蓝色', '海洋'],
     thumbnail: svgToDataUrl(generateColorSchemeSvg([
-      '#0077B6', '#00B4D8', '#90E0EF', '#CAF0F8',
-      '#0096C7', '#00D4FF', '#BDE8F5', '#E6F9FF',
-      '#006491', '#00A0C6', '#80D8EF', '#B8EEFC',
-      '#004B70', '#0087AD', '#60D0ED', '#A4E6FC'
+      // 第1行：最深
+      '#004B70', '#006491', '#0077B6', '#0096C7',
+      // 第2行
+      '#0087AD', '#00A0C6', '#00B4D8', '#00D4FF',
+      // 第3行
+      '#60D0ED', '#80D8EF', '#90E0EF', '#BDE8F5',
+      // 第4行：最浅
+      '#A4E6FC', '#B8EEFC', '#CAF0F8', '#E6F9FF'
     ])),
     uploader: '官方',
     data: {
       colors: [
-        '#0077B6', '#00B4D8', '#90E0EF', '#CAF0F8',
-        '#0096C7', '#00D4FF', '#BDE8F5', '#E6F9FF',
-        '#006491', '#00A0C6', '#80D8EF', '#B8EEFC',
-        '#004B70', '#0087AD', '#60D0ED', '#A4E6FC'
+        // 第1行：最深
+        '#004B70', '#006491', '#0077B6', '#0096C7',
+        // 第2行
+        '#0087AD', '#00A0C6', '#00B4D8', '#00D4FF',
+        // 第3行
+        '#60D0ED', '#80D8EF', '#90E0EF', '#BDE8F5',
+        // 第4行：最浅
+        '#A4E6FC', '#B8EEFC', '#CAF0F8', '#E6F9FF'
       ]
     }
   },
   {
-    id: 'colorScheme-2',
+    id: 'colorScheme-forest',
     name: '森林绿调',
     type: 'colorScheme',
     category: '配色',
     tags: ['绿色', '自然'],
     thumbnail: svgToDataUrl(generateColorSchemeSvg([
-      '#2D6A4F', '#40916C', '#52B788', '#74C69D',
-      '#387E5D', '#4A9F7A', '#5EC395', '#84D3A9',
-      '#23573F', '#36835F', '#4BB37D', '#6BC791',
-      '#1A4430', '#296749', '#3DA36E', '#58B782'
+      // 第1行：最深
+      '#1A4430', '#23573F', '#2D6A4F', '#387E5D',
+      // 第2行
+      '#296749', '#36835F', '#40916C', '#4A9F7A',
+      // 第3行
+      '#3DA36E', '#4BB37D', '#52B788', '#5EC395',
+      // 第4行：最浅
+      '#58B782', '#6BC791', '#74C69D', '#84D3A9'
     ])),
     uploader: '官方',
     data: {
       colors: [
-        '#2D6A4F', '#40916C', '#52B788', '#74C69D',
-        '#387E5D', '#4A9F7A', '#5EC395', '#84D3A9',
-        '#23573F', '#36835F', '#4BB37D', '#6BC791',
-        '#1A4430', '#296749', '#3DA36E', '#58B782'
+        // 第1行：最深
+        '#1A4430', '#23573F', '#2D6A4F', '#387E5D',
+        // 第2行
+        '#296749', '#36835F', '#40916C', '#4A9F7A',
+        // 第3行
+        '#3DA36E', '#4BB37D', '#52B788', '#5EC395',
+        // 第4行：最浅
+        '#58B782', '#6BC791', '#74C69D', '#84D3A9'
       ]
     }
   }
@@ -477,7 +583,7 @@ const colorSchemeAssets: Asset[] = [
 // 内置导图背景库
 const backgroundAssets: Asset[] = [
   {
-    id: 'background-1',
+    id: 'background-dusk',
     name: '暮色渐变',
     type: 'background',
     category: '背景',
@@ -487,7 +593,7 @@ const backgroundAssets: Asset[] = [
     data: { type: 'gradient', colors: ['#667eea', '#764ba2'] }
   },
   {
-    id: 'background-2',
+    id: 'background-grid',
     name: '格子图案',
     type: 'background',
     category: '背景',
@@ -497,7 +603,7 @@ const backgroundAssets: Asset[] = [
     data: { type: 'grid', size: '20px', color: '#cccccc', backgroundColor: '#ffffff' }
   },
   {
-    id: 'background-3',
+    id: 'background-sky',
     name: '天空渐变',
     type: 'background',
     category: '背景',
@@ -507,7 +613,7 @@ const backgroundAssets: Asset[] = [
     data: { type: 'gradient', colors: ['#87CEEB', '#E0F7FA'] }
   },
   {
-    id: 'background-4',
+    id: 'background-sunset',
     name: '夕阳渐变',
     type: 'background',
     category: '背景',
@@ -521,16 +627,16 @@ const backgroundAssets: Asset[] = [
 // 内置动画效果库
 const animationAssets: Asset[] = [
   {
-    id: 'animation-1',
+    id: 'animation-fade-in',
     name: '淡入效果',
     type: 'animation',
     category: '动画',
     tags: ['淡入', '平滑'],
-    thumbnail: svgToDataUrl(generateAnimationSvg('fadeIn', { duration: '800ms' })),
+    thumbnail: svgToDataUrl(generateAnimationSvg('fadeIn', { duration: '1000ms' })),
     uploader: '官方',
     data: {
       type: 'fadeIn',
-      duration: '800ms',
+      duration: '3000ms',
       easing: 'ease-out',
       keyframes: [
         { opacity: 0, transform: 'scale(0.95)' },
@@ -540,36 +646,37 @@ const animationAssets: Asset[] = [
     }
   },
   {
-    id: 'animation-2',
+    id: 'animation-bounce',
     name: '弹跳效果',
     type: 'animation',
     category: '动画',
     tags: ['弹跳', '活泼'],
-    thumbnail: svgToDataUrl(generateAnimationSvg('bounce', { duration: '800ms' })),
+    thumbnail: svgToDataUrl(generateAnimationSvg('bounce', { duration: '1000ms' })),
     uploader: '官方',
     data: {
       type: 'bounce',
-      duration: '800ms',
+      duration: '3000ms',
       easing: 'cubic-bezier(0.68, -0.55, 0.265, 1.55)',
       keyframes: [
         { transform: 'translateY(0)' },
         { transform: 'translateY(-10px)' },
         { transform: 'translateY(0)' }
       ],
-      applyTo: 'all'
+      applyTo: 'all',
+      frequency: 1 // 弹跳频率
     }
   },
   {
-    id: 'animation-3',
+    id: 'animation-scale-in',
     name: '缩放效果',
     type: 'animation',
     category: '动画',
     tags: ['缩放', '聚焦'],
-    thumbnail: svgToDataUrl(generateAnimationSvg('scaleIn', { duration: '800ms' })),
+    thumbnail: svgToDataUrl(generateAnimationSvg('scaleIn', { duration: '1000ms' })),
     uploader: '官方',
     data: {
       type: 'scaleIn',
-      duration: '800ms',
+      duration: '3000ms',
       easing: 'ease-out',
       keyframes: [
         { opacity: 0, transform: 'scale(0.8)' },
@@ -580,7 +687,7 @@ const animationAssets: Asset[] = [
   },
 
   {
-    id: 'animation-4',
+    id: 'animation-node-reveal',
     name: '节点揭示',
     type: 'animation',
     category: '动画',
@@ -589,7 +696,7 @@ const animationAssets: Asset[] = [
     uploader: '官方',
     data: {
       type: 'nodeReveal',
-      duration: '1000ms',
+      duration: '3000ms',
       easing: 'ease-out',
       sequence: [
         { selector: '.mindmap-node:nth-child(1)', delay: '0ms' },
@@ -607,37 +714,154 @@ const animationAssets: Asset[] = [
   }
 ];
 
-// 所有内置素材
-const allAssets: Asset[] = [...iconAssets, ...shapeAssets, ...connectorAssets, ...iconSetAssets, ...fontStyleAssets, ...colorSchemeAssets, ...backgroundAssets, ...animationAssets];
+// 内置字体样式素材
+const fontStyleAssets: Asset[] = [
+  {
+    id: 'fontStyle-aa-hou-di-hei',
+    name: 'Aa厚底黑',
+    type: 'fontStyle',
+    category: '字体',
+    tags: ['黑体', '厚重'],
+    thumbnail: svgToDataUrl(generateFontStyleSvg('AaHouDiHei', '12px', '400')),
+    uploader: '官方',
+    data: {
+      fontFamily: 'AaHouDiHei',
+      fontSize: '16px',
+      fontWeight: '400'
+    }
+  },
+  {
+    id: 'fontStyle-hui-wen-ming-chao',
+    name: '汇文明朝体',
+    type: 'fontStyle',
+    category: '字体',
+    tags: ['宋体', '古典'],
+    thumbnail: svgToDataUrl(generateFontStyleSvg('HuiWenMingChao', '12px', '400')),
+    uploader: '官方',
+    data: {
+      fontFamily: 'HuiWenMingChao',
+      fontSize: '16px',
+      fontWeight: '400'
+    }
+  },
+  {
+    id: 'fontStyle-source-han-serif-cn-bold',
+    name: '思源宋体 Bold',
+    type: 'fontStyle',
+    category: '字体',
+    tags: ['宋体', '粗体'],
+    thumbnail: svgToDataUrl(generateFontStyleSvg('SourceHanSerifCN', '12px', '700')),
+    uploader: '官方',
+    data: {
+      fontFamily: 'SourceHanSerifCN',
+      fontSize: '16px',
+      fontWeight: '700'
+    }
+  },
+  {
+    id: 'fontStyle-gen-juu-gothic-bold',
+    name: '思源柔黑 Bold',
+    type: 'fontStyle',
+    category: '字体',
+    tags: ['圆体', '粗体'],
+    thumbnail: svgToDataUrl(generateFontStyleSvg('GenJyuuGothic', '12px', '700')),
+    uploader: '官方',
+    data: {
+      fontFamily: 'GenJyuuGothic',
+      fontSize: '16px',
+      fontWeight: '700'
+    }
+  },
+  {
+    id: 'fontStyle-hui-wen-zheng-kai',
+    name: '汇文正楷',
+    type: 'fontStyle',
+    category: '字体',
+    tags: ['楷体', '书法'],
+    thumbnail: svgToDataUrl(generateFontStyleSvg('HuiWenZhengKai', '12px', '400')),
+    uploader: '官方',
+    data: {
+      fontFamily: 'HuiWenZhengKai',
+      fontSize: '16px',
+      fontWeight: '400'
+    }
+  },
+  {
+    id: 'fontStyle-tanugo-bold',
+    name: 'Tanugo手写体 Bold',
+    type: 'fontStyle',
+    category: '字体',
+    tags: ['手写', '创意'],
+    thumbnail: svgToDataUrl(generateFontStyleSvg('Tanugo', '12px', '700')),
+    uploader: '官方',
+    data: {
+      fontFamily: 'Tanugo',
+      fontSize: '16px',
+      fontWeight: '700'
+    }
+  }
+];
+
+const builtInAssets: Asset[] = [...iconAssets, ...shapeAssets, ...connectorAssets, ...iconSetAssets, ...fontStyleAssets, ...colorSchemeAssets, ...backgroundAssets, ...animationAssets];
 
 // 素材服务类
 class AssetService {
   private STORAGE_KEY = 'mindweaver_favorite_assets';
+  private favoriteAssets: Asset[] = [];
   
-  // 获取所有素材
+  constructor() {
+    // 初始化时加载收藏的素材
+    this.favoriteAssets = this.loadFavoriteAssets();
+  }
+  
+  // 获取所有素材（包含内置和收藏的）
   getAllAssets(): Asset[] {
-    return allAssets;
+    const allAssetIds = new Set<string>();
+    const result: Asset[] = [];
+    
+    // 先添加内置素材
+    builtInAssets.forEach(asset => {
+      if (!allAssetIds.has(asset.id)) {
+        allAssetIds.add(asset.id);
+        result.push(asset);
+      }
+    });
+    
+    // 再添加收藏的素材（避免重复）
+    this.favoriteAssets.forEach(asset => {
+      if (!allAssetIds.has(asset.id)) {
+        allAssetIds.add(asset.id);
+        result.push(asset);
+      }
+    });
+    
+    return result;
+  }
+
+  // 获取所有素材的合并列表
+  private getCombinedAssets(): Asset[] {
+    return this.getAllAssets();
   }
 
   // 根据类型获取素材
   getAssetsByType(type: Asset['type']): Asset[] {
-    return allAssets.filter(asset => asset.type === type);
+    return this.getCombinedAssets().filter(asset => asset.type === type);
   }
 
   // 根据分类获取素材
   getAssetsByCategory(category: string): Asset[] {
-    return allAssets.filter(asset => asset.category === category);
+    return this.getCombinedAssets().filter(asset => asset.category === category);
   }
 
   // 根据标签搜索素材
   searchAssetsByTag(tag: string): Asset[] {
-    return allAssets.filter(asset => asset.tags.includes(tag));
+    return this.getCombinedAssets().filter(asset => asset.tags.includes(tag));
   }
 
   // 根据关键词搜索素材
   searchAssets(keyword: string): Asset[] {
     const lowerKeyword = keyword.toLowerCase();
-    return allAssets.filter(asset => 
+    return this.getCombinedAssets().filter(asset => 
       asset.name.toLowerCase().includes(lowerKeyword) ||
       asset.tags.some(tag => tag.toLowerCase().includes(lowerKeyword)) ||
       asset.category.toLowerCase().includes(lowerKeyword)
@@ -646,23 +870,81 @@ class AssetService {
 
   // 根据ID获取素材
   getAssetById(id: string): Asset | undefined {
-    return allAssets.find(asset => asset.id === id);
+    const combinedAssets = this.getCombinedAssets();
+    return combinedAssets.find(asset => asset.id === id);
   }
 
   // 获取素材类型列表
   getAssetTypes(): string[] {
-    return Array.from(new Set(allAssets.map(asset => asset.type)));
+    return Array.from(new Set(this.getCombinedAssets().map(asset => asset.type)));
   }
 
   // 获取素材分类列表
   getAssetCategories(): string[] {
-    return Array.from(new Set(allAssets.map(asset => asset.category)));
+    return Array.from(new Set(this.getCombinedAssets().map(asset => asset.category)));
   }
 
   // 获取所有标签（按首字母自动排序）
   getAllTags(): string[] {
     const tags = new Set<string>();
-    allAssets.forEach(asset => {
+    this.getCombinedAssets().forEach(asset => {
+      asset.tags.forEach(tag => tags.add(tag));
+    });
+    return Array.from(tags).sort((a, b) => a.localeCompare(b));
+  }
+
+  // 异步版本：根据类型获取素材（包含系统字体）
+  async getAssetsByTypeWithSystemFonts(type: Asset['type']): Promise<Asset[]> {
+    const assets = await this.getAllAssetsWithSystemFonts();
+    return assets.filter(asset => asset.type === type);
+  }
+
+  // 异步版本：根据分类获取素材（包含系统字体）
+  async getAssetsByCategoryWithSystemFonts(category: string): Promise<Asset[]> {
+    const assets = await this.getAllAssetsWithSystemFonts();
+    return assets.filter(asset => asset.category === category);
+  }
+
+  // 异步版本：根据标签搜索素材（包含系统字体）
+  async searchAssetsByTagWithSystemFonts(tag: string): Promise<Asset[]> {
+    const assets = await this.getAllAssetsWithSystemFonts();
+    return assets.filter(asset => asset.tags.includes(tag));
+  }
+
+  // 异步版本：根据关键词搜索素材（包含系统字体）
+  async searchAssetsWithSystemFonts(keyword: string): Promise<Asset[]> {
+    const assets = await this.getAllAssetsWithSystemFonts();
+    const lowerKeyword = keyword.toLowerCase();
+    return assets.filter(asset => 
+      asset.name.toLowerCase().includes(lowerKeyword) ||
+      asset.tags.some(tag => tag.toLowerCase().includes(lowerKeyword)) ||
+      asset.category.toLowerCase().includes(lowerKeyword)
+    );
+  }
+
+  // 异步版本：根据ID获取素材（包含系统字体）
+  async getAssetByIdWithSystemFonts(id: string): Promise<Asset | undefined> {
+    const assets = await this.getAllAssetsWithSystemFonts();
+    return assets.find(asset => asset.id === id);
+  }
+
+  // 异步版本：获取素材类型列表（包含系统字体）
+  async getAssetTypesWithSystemFonts(): Promise<string[]> {
+    const assets = await this.getAllAssetsWithSystemFonts();
+    return Array.from(new Set(assets.map(asset => asset.type)));
+  }
+
+  // 异步版本：获取素材分类列表（包含系统字体）
+  async getAssetCategoriesWithSystemFonts(): Promise<string[]> {
+    const assets = await this.getAllAssetsWithSystemFonts();
+    return Array.from(new Set(assets.map(asset => asset.category)));
+  }
+
+  // 异步版本：获取所有标签（包含系统字体）
+  async getAllTagsWithSystemFonts(): Promise<string[]> {
+    const assets = await this.getAllAssetsWithSystemFonts();
+    const tags = new Set<string>();
+    assets.forEach(asset => {
       asset.tags.forEach(tag => tags.add(tag));
     });
     return Array.from(tags).sort((a, b) => a.localeCompare(b));
@@ -671,6 +953,7 @@ class AssetService {
   // 保存收藏的素材
   saveFavoriteAssets(assets: Asset[]): void {
     try {
+      this.favoriteAssets = assets;
       localStorage.setItem(this.STORAGE_KEY, JSON.stringify(assets));
     } catch (e) {
       console.error('Failed to save favorite assets:', e);
@@ -688,7 +971,83 @@ class AssetService {
       console.error('Failed to load favorite assets:', e);
     }
     // 默认返回一些内置素材
-    return allAssets.filter(asset => ['icon-1', 'icon-2'].includes(asset.id));
+    return builtInAssets.filter(asset => ['icon-lightbulb', 'icon-briefcase'].includes(asset.id));
+  }
+
+  // 根据图标名称从图标组合中查找 SVG
+  getIconSvgByName(iconName: string): string | null {
+    // 查找所有图标组合
+    const iconSets = this.getAssetsByType('iconSet');
+    
+    for (const iconSet of iconSets) {
+      if (iconSet.data?.icons) {
+        const icon = iconSet.data.icons.find((i: any) => i.name === iconName);
+        if (icon?.svg) {
+          return icon.svg;
+        }
+      }
+    }
+    
+    return null;
+  }
+
+  // 获取用户系统字体
+  async getUserSystemFonts(): Promise<Asset[]> {
+    try {
+      // 检查浏览器是否支持queryLocalFonts API
+      if (typeof window !== 'undefined' && 'queryLocalFonts' in window) {
+        // @ts-ignore - queryLocalFonts API 可能未在TypeScript定义中
+        const fonts = await window.queryLocalFonts();
+        
+        // 转换为Asset格式
+        return fonts.map((font: any, index: number) => ({
+          id: `system-font-${index}-${font.family.replace(/\s+/g, '-').toLowerCase()}`,
+          name: font.family,
+          type: 'fontStyle' as const,
+          category: '系统字体',
+          tags: ['系统', '字体'],
+          thumbnail: svgToDataUrl(generateFontStyleSvg(font.family, '16px', '400')),
+          uploader: '系统',
+          data: { fontFamily: font.family, fontSize: '16px', fontWeight: '400' }
+        }));
+      }
+    } catch (error) {
+      console.error('Failed to get system fonts:', error);
+    }
+    return [];
+  }
+
+  // 获取所有素材（包含内置、收藏和系统字体）
+  async getAllAssetsWithSystemFonts(): Promise<Asset[]> {
+    const allAssetIds = new Set<string>();
+    const result: Asset[] = [];
+    
+    // 先添加内置素材
+    builtInAssets.forEach(asset => {
+      if (!allAssetIds.has(asset.id)) {
+        allAssetIds.add(asset.id);
+        result.push(asset);
+      }
+    });
+    
+    // 再添加收藏的素材（避免重复）
+    this.favoriteAssets.forEach(asset => {
+      if (!allAssetIds.has(asset.id)) {
+        allAssetIds.add(asset.id);
+        result.push(asset);
+      }
+    });
+    
+    // 最后添加系统字体
+    const systemFonts = await this.getUserSystemFonts();
+    systemFonts.forEach(font => {
+      if (!allAssetIds.has(font.id)) {
+        allAssetIds.add(font.id);
+        result.push(font);
+      }
+    });
+    
+    return result;
   }
 }
 

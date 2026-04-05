@@ -69,21 +69,37 @@ class IconifyService {
   // 获取图标数据
   async getIcon(iconName: string): Promise<IconifyIconData | null> {
     try {
-      const response = await fetch(`${this.baseUrl}/${iconName}.json`);
+      // 解析图标名称，格式为 "prefix:name"
+      const [prefix, name] = iconName.split(':');
+      
+      // Iconify API 格式: https://api.iconify.design/{prefix}.json?icons={name}
+      const url = `${this.baseUrl}/${prefix}.json?icons=${name}`;
+      const response = await fetch(url);
       
       if (!response.ok) {
         throw new Error(`Iconify API error: ${response.status}`);
       }
       
       const data = await response.json();
-      const [prefix, name] = iconName.split(':');
+      
+      // 检查是否有别名映射
+      let actualName = name;
+      if (data.aliases && data.aliases[name]) {
+        actualName = data.aliases[name].parent;
+      }
+      
+      // 获取图标数据
+      const iconData = data.icons[actualName];
+      if (!iconData) {
+        throw new Error(`Icon not found: ${iconName}`);
+      }
       
       return {
         prefix,
         name,
-        body: data.body,
-        width: data.width,
-        height: data.height,
+        body: iconData.body,
+        width: data.width || iconData.width,
+        height: data.height || iconData.height,
       };
     } catch (error) {
       console.error('Iconify get icon error:', error);
@@ -93,7 +109,9 @@ class IconifyService {
 
   // 获取图标的 SVG URL
   getIconSvgUrl(iconName: string): string {
-    return `${this.baseUrl}/${iconName}.svg`;
+    // Iconify API 格式: https://api.iconify.design/{prefix}/{name}.svg
+    const [prefix, name] = iconName.split(':');
+    return `${this.baseUrl}/${prefix}/${name}.svg`;
   }
 
   // 生成 SVG 字符串

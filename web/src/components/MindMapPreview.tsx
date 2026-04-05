@@ -11,7 +11,10 @@ import {
   Sparkles,
   Grid3X3,
   Palette,
+  Heart,
 } from 'lucide-react';
+import { AssetSelectorDialog } from './assets/AssetSelectorDialog';
+import { Asset, assetService } from '../services/assets/AssetService';
 import { Button } from './ui/button';
 import { Separator } from './ui/separator';
 import { Input } from './ui/input';
@@ -54,10 +57,78 @@ interface FocusContentCardProps {
   contentCardPosition: { x: number; y: number; width: number; height: number } | null;
 }
 
+// 将 kebab-case 转换为 PascalCase
+const kebabToPascalCase = (str: string): string => {
+  return str
+    .split('-')
+    .map(word => word.charAt(0).toUpperCase() + word.slice(1))
+    .join('');
+};
+
 const renderMarkdown = (text: string) => {
   if (!text) return '无';
-
-  return text.split('\n').map((line, index) => {
+  
+  // 提取大图标
+  let largeIconSvg: string | null = null;
+  const largeIconMatch = text.match(/:icon-([\w-]+?)-large:/);
+  if (largeIconMatch) {
+    const iconId = largeIconMatch[1];
+    // 先尝试直接使用 iconId（适用于 iconify 图标）
+    let asset = assetService.getAssetById(iconId);
+    if (!asset) {
+      // 再尝试添加 icon- 前缀（适用于默认图标）
+      asset = assetService.getAssetById(`icon-${iconId}`);
+    }
+    if (asset && asset.data && asset.data.svg) {
+      largeIconSvg = asset.data.svg
+        .replace(/width="[^"]*"/, 'width="128"')
+        .replace(/height="[^"]*"/, 'height="128"')
+        .replace(/viewBox="[^"]*"/, 'viewBox="0 0 24 24"');
+    } else {
+      // 如果在资产中找不到，尝试从图标组合中查找
+      const pascalName = kebabToPascalCase(iconId);
+      const iconSvg = assetService.getIconSvgByName(pascalName);
+      if (iconSvg) {
+        largeIconSvg = iconSvg
+          .replace(/width="[^"]*"/, 'width="128"')
+          .replace(/height="[^"]*"/, 'height="128"')
+          .replace(/viewBox="[^"]*"/, 'viewBox="0 0 24 24"');
+      }
+    }
+  }
+  
+  // 去除大图标标记后的文本
+  const textWithoutLargeIcon = text.replace(/:icon-[\w-]+?-large:/g, '');
+  
+  // 通用的图标替换函数（只处理小图标）
+  const replaceSmallIcons = (str: string) => {
+    let result = str;
+    
+    // 替换小图标
+    result = result.replace(/:icon-([\w-]+?):/g, (match, iconId) => {
+      // 先尝试直接使用 iconId（适用于 iconify 图标）
+      let asset = assetService.getAssetById(iconId);
+      if (!asset) {
+        // 再尝试添加 icon- 前缀（适用于默认图标）
+        asset = assetService.getAssetById(`icon-${iconId}`);
+      }
+      if (asset && asset.data && asset.data.svg) {
+        return `<span class="inline-flex items-center justify-center w-4 h-4 align-middle" style="vertical-align: middle;">${asset.data.svg}</span>`;
+      } else {
+        // 如果在资产中找不到，尝试从图标组合中查找
+        const pascalName = kebabToPascalCase(iconId);
+        const iconSvg = assetService.getIconSvgByName(pascalName);
+        if (iconSvg) {
+          return `<span class="inline-flex items-center justify-center w-4 h-4 align-middle" style="vertical-align: middle;">${iconSvg}</span>`;
+        }
+      }
+      return match;
+    });
+    
+    return result;
+  };
+  
+  const lines = textWithoutLargeIcon.split('\n').map((line, index) => {
     if (line.startsWith('# ')) {
       return <h1 key={index} className="text-xl font-bold mt-1 mb-1">{line.substring(2)}</h1>;
     }
@@ -70,6 +141,7 @@ const renderMarkdown = (text: string) => {
         .replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>')
         .replace(/\*(.*?)\*/g, '<em>$1</em>')
         .replace(/__(.*?)__/g, '<u>$1</u>');
+      listContent = replaceSmallIcons(listContent);
       return <li key={index} className="ml-4 list-disc" dangerouslySetInnerHTML={{ __html: listContent }} />;
     }
     if (line.match(/^\d+\. /)) {
@@ -78,15 +150,33 @@ const renderMarkdown = (text: string) => {
         .replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>')
         .replace(/\*(.*?)\*/g, '<em>$1</em>')
         .replace(/__(.*?)__/g, '<u>$1</u>');
+      listContent = replaceSmallIcons(listContent);
       return <li key={index} className="ml-4 list-decimal" dangerouslySetInnerHTML={{ __html: listContent }} />;
     }
     let processedLine = line
       .replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>')
       .replace(/\*(.*?)\*/g, '<em>$1</em>')
       .replace(/__(.*?)__/g, '<u>$1</u>');
-
+    processedLine = replaceSmallIcons(processedLine);
+    
     return <p key={index} dangerouslySetInnerHTML={{ __html: processedLine }} />;
   });
+  
+  // 如果有大图标，使用特殊布局
+  if (largeIconSvg) {
+    return (
+      <div className="flex items-start gap-4">
+        <div className="flex-1">{lines}</div>
+        <div 
+          className="flex-shrink-0 flex items-center justify-center" 
+          style={{ width: '128px', height: '128px', alignSelf: 'center' }}
+          dangerouslySetInnerHTML={{ __html: largeIconSvg }} 
+        />
+      </div>
+    );
+  }
+  
+  return lines;
 };
 
 const FocusContentCard: React.FC<FocusContentCardProps> = ({
@@ -199,7 +289,25 @@ export function MindMapPreview({ workId, onBack, onEdit }: MindMapPreviewProps) 
   const [parentMap, setParentMap] = useState<Map<string, string>>(new Map()); // 子节点 ID 到父节点 ID 的映射表
   const [showSaveDialog, setShowSaveDialog] = useState(false); // 保存背景颜色提示对话框
   const [originalBackground, setOriginalBackground] = useState<string>(''); // 原始背景颜色，用于检测是否修改
-  
+  const [isUsingAssetBackground, setIsUsingAssetBackground] = useState(false); // 是否使用了素材背景
+  const [currentAssetBackground, setCurrentAssetBackground] = useState<Asset | null>(null); // 当前使用的素材背景
+  const [currentAssetBackgroundId, setCurrentAssetBackgroundId] = useState<string | null>(null); // 当前使用的素材背景
+  const [originalAssetBackgroundId, setOriginalAssetBackgroundId] = useState<string | null>(null); // 原始素材背景ID，用于检测是否修改
+  const [isUsingAssetAnimation, setIsUsingAssetAnimation] = useState(false); // 是否使用了素材动画
+  const [currentAssetAnimation, setCurrentAssetAnimation] = useState<Asset | null>(null); // 当前使用的素材动画
+  const [currentAssetAnimationId, setCurrentAssetAnimationId] = useState<string | null>(null); // 当前使用的素材动画ID
+  const [originalAssetAnimationId, setOriginalAssetAnimationId] = useState<string | null>(null); // 原始素材动画ID，用于检测是否修改
+  const [animationVersion, setAnimationVersion] = useState(0); // 动画版本号，用于触发 CanvasRenderer 重新渲染
+  const [isAnimationPaused, setIsAnimationPaused] = useState(false); // 动画是否暂停
+  const [savePurpose, setSavePurpose] = useState<'edit' | 'back' | null>(null); // 保存的目的：编辑或返回
+  const [previewBackground, setPreviewBackground] = useState<string | null>(null); // 预览时的背景颜色
+
+  // 素材选择弹窗状态
+  const [isAssetDialogOpen, setIsAssetDialogOpen] = useState(false);
+  const [previewAsset, setPreviewAsset] = useState<Asset | null>(null); // 当前预览的素材
+  const [originalShowAnimation, setOriginalShowAnimation] = useState<boolean>(false); // 预览前的原始动画状态
+  const justConfirmedRef = useRef(false); // 标记是否刚刚完成了确定操作
+
   // 聚焦模式状态
   interface FocusState {
     focusedNode: string | null;      // 当前聚焦的节点ID
@@ -320,13 +428,54 @@ export function MindMapPreview({ workId, onBack, onEdit }: MindMapPreviewProps) 
                 if (decryptedData.nodes) {
                   finalNodes = decryptedData.nodes;
                 }
-                // 加载背景颜色设置
+                // 加载背景设置
                 const savedBackground = decryptedData.canvasBackground || '';
                 setCanvasBackground(savedBackground);
                 setOriginalBackground(savedBackground);
+                
+                // 加载素材背景信息
+                if (decryptedData.assetBackground) {
+                  setCurrentAssetBackground(decryptedData.assetBackground);
+                  setCurrentAssetBackgroundId(decryptedData.assetBackground.id);
+                  setOriginalAssetBackgroundId(decryptedData.assetBackground.id);
+                  setIsUsingAssetBackground(true);
+                  // 重新应用素材背景的样式
+                  const asset = decryptedData.assetBackground;
+                  if (asset.data?.type === 'gradient' && asset.data?.colors) {
+                    const gradient = `linear-gradient(135deg, ${asset.data.colors.join(', ')})`;
+                    setCanvasBackground(gradient);
+                    setOriginalBackground(gradient);
+                  } else if (asset.data?.type === 'grid' && asset.data?.size && asset.data?.color && asset.data?.backgroundColor) {
+                    const bgColor = asset.data.backgroundColor;
+                    setCanvasBackground(bgColor);
+                    setOriginalBackground(bgColor);
+                  } else if (asset.data?.backgroundColor) {
+                    setCanvasBackground(asset.data.backgroundColor);
+                    setOriginalBackground(asset.data.backgroundColor);
+                  }
+                } else {
+                  setCurrentAssetBackground(null);
+                  setCurrentAssetBackgroundId(null);
+                  setOriginalAssetBackgroundId(null);
+                  setIsUsingAssetBackground(false);
+                }
+                
+                // 加载素材动画信息
+                if (decryptedData.assetAnimation) {
+                  setCurrentAssetAnimation(decryptedData.assetAnimation);
+                  setCurrentAssetAnimationId(decryptedData.assetAnimation.id);
+                  setOriginalAssetAnimationId(decryptedData.assetAnimation.id);
+                  setIsUsingAssetAnimation(true);
+                  setShowAnimation(true);
+                } else {
+                  setCurrentAssetAnimation(null);
+                  setCurrentAssetAnimationId(null);
+                  setOriginalAssetAnimationId(null);
+                  setIsUsingAssetAnimation(false);
+                }
               }
             } catch (decryptError) {
-              console.error('解密数据失败:', decryptError);
+              // 解密失败，使用默认数据
             }
           }
           
@@ -355,7 +504,7 @@ export function MindMapPreview({ workId, onBack, onEdit }: MindMapPreviewProps) 
           setExpandedNodes(new Set(allNodeIds));
         }
       } catch (error) {
-        console.error('加载作品数据时出错:', error);
+        // 加载失败，使用默认数据
       }
     };
 
@@ -491,18 +640,25 @@ export function MindMapPreview({ workId, onBack, onEdit }: MindMapPreviewProps) 
 
   // 保存背景颜色到作品数据
   const saveCanvasBackground = async () => {
-    if (!work) return;
+    if (!work) {
+      console.error('作品数据不存在，无法保存背景');
+      return;
+    }
     
     try {
       const key = keyManager.getKey();
       if (!key) {
-        console.error('无法获取加密密钥');
         return;
       }
       
       // 获取当前作品数据
       const workDetails = await storage.getWork(workId);
-      if (!workDetails || !workDetails.encryptedData) return;
+      if (!workDetails) {
+        return;
+      }
+      if (!workDetails.encryptedData) {
+        return;
+      }
       
       // 解密现有数据
       const decryptedData = await encryptionService.decrypt(workDetails.encryptedData, key);
@@ -510,22 +666,41 @@ export function MindMapPreview({ workId, onBack, onEdit }: MindMapPreviewProps) 
       // 更新背景颜色
       decryptedData.canvasBackground = canvasBackground;
       
+      // 保存素材背景信息
+      if (currentAssetBackground) {
+        decryptedData.assetBackground = currentAssetBackground;
+      } else {
+        delete decryptedData.assetBackground;
+      }
+      
+      // 保存素材动画信息
+      if (currentAssetAnimation) {
+        decryptedData.assetAnimation = currentAssetAnimation;
+      } else {
+        delete decryptedData.assetAnimation;
+      }
+      
       // 重新加密并保存
       const encryptedData = await encryptionService.encrypt(decryptedData, key);
       await storage.updateWork(workId, {
         encryptedData,
       });
       
-      console.log('背景颜色已保存:', canvasBackground);
+      // 更新原始背景状态，避免重复提示
+      setOriginalBackground(canvasBackground);
+      setOriginalAssetBackgroundId(currentAssetBackgroundId);
     } catch (error) {
-      console.error('保存背景颜色失败:', error);
+      // 保存失败，忽略错误
     }
   };
 
   // 处理编辑按钮点击
   const handleEdit = () => {
-    // 检测背景颜色是否被修改（包括从有颜色改为默认，或从默认改为有颜色）
-    if (canvasBackground !== originalBackground) {
+    // 检测背景或动画是否被修改
+    if (canvasBackground !== originalBackground || 
+        currentAssetBackgroundId !== originalAssetBackgroundId || 
+        currentAssetAnimationId !== originalAssetAnimationId) {
+      setSavePurpose('edit');
       setShowSaveDialog(true);
     } else {
       onEdit();
@@ -534,24 +709,30 @@ export function MindMapPreview({ workId, onBack, onEdit }: MindMapPreviewProps) 
 
   // 处理保存按钮点击
   const handleSave = async () => {
-    if (canvasBackground !== originalBackground) {
+    if (canvasBackground !== originalBackground || 
+        currentAssetBackgroundId !== originalAssetBackgroundId || 
+        currentAssetAnimationId !== originalAssetAnimationId) {
       await saveCanvasBackground();
-      // 更新原始背景颜色为当前值
+      // 更新原始状态
       setOriginalBackground(canvasBackground);
+      setOriginalAssetBackgroundId(currentAssetBackgroundId);
+      setOriginalAssetAnimationId(currentAssetAnimationId);
     }
   };
 
-  // 处理保存并切换
-  const handleSaveAndEdit = async () => {
-    await saveCanvasBackground();
-    setShowSaveDialog(false);
-    onEdit();
-  };
 
-  // 处理直接切换（不保存）
-  const handleDirectEdit = () => {
-    setShowSaveDialog(false);
-    onEdit();
+
+  // 处理返回按钮点击
+  const handleBack = () => {
+    // 检测背景或动画是否被修改
+    if (canvasBackground !== originalBackground || 
+        currentAssetBackgroundId !== originalAssetBackgroundId || 
+        currentAssetAnimationId !== originalAssetAnimationId) {
+      setSavePurpose('back');
+      setShowSaveDialog(true);
+    } else {
+      onBack();
+    }
   };
 
   // 计算聚焦位置
@@ -571,13 +752,10 @@ export function MindMapPreview({ workId, onBack, onEdit }: MindMapPreviewProps) 
 
   // 处理节点聚焦
   const handleNodeFocus = (nodeId: string) => {
-    console.log('handleNodeFocus called with nodeId:', nodeId);
     const node = nodes.find(n => n.id === nodeId);
     if (!node) {
-      console.log('Node not found:', nodeId);
       return;
     }
-    console.log('Found node:', node.title);
 
     // 记录聚焦前的动画状态，并暂时关闭动画以确保聚焦操作顺利完成
     setAnimationStateBeforeFocus(showAnimation);
@@ -585,7 +763,6 @@ export function MindMapPreview({ workId, onBack, onEdit }: MindMapPreviewProps) 
     setShowAnimation(false);
 
     const focusPosition = calculateFocusPosition();
-    console.log('Focus position:', focusPosition);
     setFocusState({
       focusedNode: nodeId,
       isFocusMode: true,
@@ -593,11 +770,13 @@ export function MindMapPreview({ workId, onBack, onEdit }: MindMapPreviewProps) 
       focusZoomLevel: 1.2, // 固定放大到120%
       focusPan: focusPosition
     });
-    console.log('Focus state set successfully');
   };
 
   // 退出聚焦模式
   const exitFocusMode = () => {
+    // 先暂停动画，确保退出聚焦模式的过程顺利
+    setIsAnimationPaused(true);
+    
     setFocusState(prev => ({
       ...prev,
       isFocusMode: false,
@@ -606,6 +785,171 @@ export function MindMapPreview({ workId, onBack, onEdit }: MindMapPreviewProps) 
     setBubbleInfo(null);
     // 重置聚焦相关状态
     setUserManuallyToggledAnimation(false);
+    
+    // 延迟一小段时间后重新打开动画，确保已经成功回到正常界面
+    setTimeout(() => {
+      // 如果之前动画是开启的，重新开启动画
+      if (animationStateBeforeFocus) {
+        setShowAnimation(true);
+      }
+      // 取消暂停，允许动画继续播放
+      setIsAnimationPaused(false);
+    }, 300);
+  };
+
+  // 处理素材预览
+  const handleAssetPreview = (asset: Asset | null) => {
+    if (asset === null) {
+      // 取消预览，恢复原始状态
+      setCanvasBackground(originalBackground);
+      setPreviewBackground(null);
+      setShowAnimation(originalShowAnimation);
+      setPreviewAsset(null);
+      // 只有在没有选定素材背景的情况下，才将 isUsingAssetBackground 设置为 false
+      if (!currentAssetBackground) {
+        setIsUsingAssetBackground(false);
+      }
+      // 只有在没有选定素材动画的情况下，才将 isUsingAssetAnimation 设置为 false
+      if (!currentAssetAnimation) {
+        setIsUsingAssetAnimation(false);
+      }
+    } else {
+      // 首次预览，保存原始状态
+      if (!previewAsset) {
+        setOriginalBackground(canvasBackground);
+        setOriginalShowAnimation(showAnimation);
+      }
+      
+      // 应用预览
+      setPreviewAsset(asset);
+      switch (asset.type) {
+        case 'background':
+          if (asset.data?.type === 'gradient' && asset.data?.colors) {
+            // 提取渐变的第一个颜色作为预览背景值
+            const previewColor = asset.data.colors[0] || '#ffffff';
+            setPreviewBackground(previewColor);
+            setIsUsingAssetBackground(true);
+          } else if (asset.data?.type === 'grid' && asset.data?.size && asset.data?.color && asset.data?.backgroundColor) {
+            // 创建格子背景
+            const previewColor = asset.data.backgroundColor;
+            setPreviewBackground(previewColor);
+            setIsUsingAssetBackground(true);
+          } else if (asset.data?.backgroundColor) {
+            const previewColor = asset.data.backgroundColor;
+            setPreviewBackground(previewColor);
+            setIsUsingAssetBackground(true);
+          }
+          break;
+        case 'animation':
+          if (asset.data?.type) {
+            // 预览动画时，先暂停，然后更新动画版本号，再继续播放
+            setIsAnimationPaused(true);
+            // 预览动画时，确保动画处于开启状态
+            setShowAnimation(true);
+            setIsUsingAssetAnimation(true);
+            // 更新动画版本号，确保 CanvasRenderer 重新渲染，只运行预览的动画
+            setAnimationVersion(prev => prev + 1);
+            // 延迟一小段时间后继续播放动画，确保动画切换完成
+            setTimeout(() => {
+              setIsAnimationPaused(false);
+            }, 50);
+          }
+          break;
+      }
+    }
+  };
+
+  // 处理素材选择（确定）
+  const handleAssetSelect = (asset: Asset | null, size: 'small' | 'large', activeTab?: string) => {
+    // 标记刚刚完成了确定操作
+    justConfirmedRef.current = true;
+    
+    if (asset === null) {
+      // 根据当前活动标签页只恢复相关状态
+      if (activeTab === 'backgrounds') {
+        // 恢复本来的背景（背景按钮选择的颜色）
+        setIsUsingAssetBackground(false);
+        setCurrentAssetBackground(null);
+        setCurrentAssetBackgroundId(null);
+        // 保持当前的 canvasBackground，因为它已经是背景按钮选择的颜色
+      } else if (activeTab === 'animations') {
+        // 恢复动画状态
+        setIsUsingAssetAnimation(false);
+        setCurrentAssetAnimation(null);
+        setCurrentAssetAnimationId(null);
+        setShowAnimation(false);
+      }
+    } else {
+      // 应用素材
+      switch (asset.type) {
+        case 'background':
+          if (asset.data?.type === 'gradient' && asset.data?.colors) {
+            // 只更新素材背景相关状态，不修改 canvasBackground
+            setIsUsingAssetBackground(true);
+            setCurrentAssetBackground(asset);
+            setCurrentAssetBackgroundId(asset.id);
+          } else if (asset.data?.type === 'grid' && asset.data?.size && asset.data?.color && asset.data?.backgroundColor) {
+              // 只更新素材背景相关状态，不修改 canvasBackground
+              setIsUsingAssetBackground(true);
+              setCurrentAssetBackground(asset);
+              setCurrentAssetBackgroundId(asset.id);
+          } else if (asset.data?.backgroundColor) {
+            // 只更新素材背景相关状态，不修改 canvasBackground
+            setIsUsingAssetBackground(true);
+            setCurrentAssetBackground(asset);
+            setCurrentAssetBackgroundId(asset.id);
+          }
+          break;
+        case 'animation':
+          if (asset.data?.type) {
+            setIsUsingAssetAnimation(true);
+            setCurrentAssetAnimation(asset);
+            setCurrentAssetAnimationId(asset.id);
+            setShowAnimation(true);
+            // 更新动画版本号，触发 CanvasRenderer 重新渲染
+            setAnimationVersion(prev => prev + 1);
+          }
+          break;
+      }
+    }
+    
+    // 清空预览状态（在应用完成后）
+    setPreviewAsset(null);
+  };
+
+  // 处理取消素材选择
+  const handleAssetDialogClose = () => {
+    // 如果刚刚完成了确定操作，不要恢复原始状态
+    if (justConfirmedRef.current) {
+      justConfirmedRef.current = false;
+      setIsAssetDialogOpen(false);
+      return;
+    }
+    // 如果有预览，恢复到当前保存的状态
+    if (previewAsset) {
+      // 先暂停动画，确保切换过程顺利
+      setIsAnimationPaused(true);
+      
+      // 恢复到当前保存的背景
+      if (currentAssetBackground) {
+        // 如果有保存的素材背景，恢复到素材背景状态
+        setIsUsingAssetBackground(true);
+      } else {
+        // 否则恢复到原始背景
+        setCanvasBackground(originalBackground);
+        setIsUsingAssetBackground(false);
+      }
+      
+      setShowAnimation(originalShowAnimation);
+      setPreviewAsset(null);
+      setPreviewBackground(null);
+      
+      // 延迟一小段时间后继续播放动画，确保动画切换完成
+      setTimeout(() => {
+        setIsAnimationPaused(false);
+      }, 50);
+    }
+    setIsAssetDialogOpen(false);
   };
 
   // 聚焦动画效果（处理聚焦动画进度，并在完成后恢复动画状态）
@@ -644,7 +988,7 @@ export function MindMapPreview({ workId, onBack, onEdit }: MindMapPreviewProps) 
     <div className="h-screen flex flex-col">
       <div className="border-b bg-toolbar-background flex flex-wrap items-center justify-between px-4 gap-4 py-2">
         <div className="flex items-center gap-3">
-          <Button variant="ghost" size="sm" onClick={onBack} className="rounded-lg">
+          <Button variant="ghost" size="sm" onClick={handleBack} className="rounded-lg">
             <ArrowLeft className="w-4 h-4 mr-2" />
             返回
           </Button>
@@ -667,7 +1011,19 @@ export function MindMapPreview({ workId, onBack, onEdit }: MindMapPreviewProps) 
               if (focusState.isFocusMode) {
                 setUserManuallyToggledAnimation(true);
               }
-              setShowAnimation(!showAnimation);
+              
+              if (showAnimation) {
+                // 关闭动画时：只设置 showAnimation = false，不要清除素材动画状态
+                setShowAnimation(false);
+              } else {
+                // 打开动画时：检查是否有 currentAssetAnimation
+                setShowAnimation(true);
+                if (currentAssetAnimation) {
+                  // 如果有选中的素材动画，使用它
+                  setIsUsingAssetAnimation(true);
+                }
+                // 否则使用默认动画（isUsingAssetAnimation 保持 false）
+              }
             }} 
             className="rounded-lg w-20"
           >
@@ -700,46 +1056,84 @@ export function MindMapPreview({ workId, onBack, onEdit }: MindMapPreviewProps) 
             <DropdownMenuContent className="rounded-lg p-4 min-w-[200px]">
               <div className="mb-4">
                 <Button
-                  variant={!canvasBackground ? "default" : "outline"}
+                  variant={canvasBackground ? "default" : "outline"}
                   size="sm"
-                  onClick={() => setCanvasBackground('')}
+                  onClick={() => {
+                    setCanvasBackground('');
+                    setIsUsingAssetBackground(false);
+                    setCurrentAssetBackground(null);
+                  }}
+                  disabled={!canvasBackground}
                   className="w-full mb-4"
                 >
                   恢复默认
                 </Button>
               </div>
               <div className="space-y-4">
-                <div className="flex gap-3">
-                  <div className="w-16 h-16 border-2 rounded-lg overflow-hidden flex items-center justify-center">
-                    <input
-                      type="color"
+                {/* 检查是否使用了素材背景 */}
+                {isUsingAssetBackground ? (
+                  <div className="flex items-center text-sm text-muted-foreground h-16">
+                    背景来自素材，无法直接修改
+                  </div>
+                ) : (
+                  <div className="flex gap-3">
+                    <div className="w-16 h-16 border-2 rounded-lg overflow-hidden flex items-center justify-center">
+                      <input
+                        type="color"
+                        value={canvasBackground || '#ffffff'}
+                        onChange={(e) => {
+                          setCanvasBackground(e.target.value);
+                          setIsUsingAssetBackground(false);
+                          setCurrentAssetBackground(null);
+                        }}
+                        className="w-full h-full p-0 m-0 border-0 cursor-pointer"
+                        style={{ 
+                          appearance: 'none', 
+                          background: 'none',
+                          width: '100%',
+                          height: '100%',
+                          padding: 0,
+                          margin: 0,
+                          border: 'none',
+                          outline: 'none'
+                        }}
+                        title="选择颜色"
+                      />
+                    </div>
+                    <Input
+                      type="text"
                       value={canvasBackground || '#ffffff'}
-                      onChange={(e) => setCanvasBackground(e.target.value)}
-                      className="w-full h-full p-0 m-0 border-0 cursor-pointer"
-                      style={{ 
-                        appearance: 'none', 
-                        background: 'none',
-                        width: '100%',
-                        height: '100%',
-                        padding: 0,
-                        margin: 0,
-                        border: 'none',
-                        outline: 'none'
+                      onChange={(e) => {
+                        setCanvasBackground(e.target.value);
+                        setIsUsingAssetBackground(false);
+                        setCurrentAssetBackground(null);
                       }}
-                      title="选择颜色"
+                      className="flex-1 rounded-lg border-2"
+                      placeholder="输入颜色值"
                     />
                   </div>
-                  <Input
-                    type="text"
-                    value={canvasBackground || '#ffffff'}
-                    onChange={(e) => setCanvasBackground(e.target.value)}
-                    className="flex-1 rounded-lg border-2"
-                    placeholder="输入颜色值"
-                  />
-                </div>
+                )}
               </div>
             </DropdownMenuContent>
           </DropdownMenu>
+
+          {/* 素材按钮 */}
+          <Button 
+            variant="outline" 
+            size="sm" 
+            onClick={() => {
+              // 打开对话框时，如果有当前使用的动画素材，默认选择那个
+              if (currentAssetAnimation) {
+                setPreviewAsset(currentAssetAnimation);
+              }
+              setIsAssetDialogOpen(true);
+            }} 
+            className="rounded-lg w-20"
+            title="收藏素材"
+          >
+            <Heart className="w-4 h-4 mr-2" />
+            素材
+          </Button>
 
           <Separator orientation="vertical" className="h-6" />
 
@@ -789,7 +1183,54 @@ export function MindMapPreview({ workId, onBack, onEdit }: MindMapPreviewProps) 
       <div 
         ref={canvasContainerRef}
         className="flex-1 relative overflow-hidden"
-        style={{ backgroundColor: canvasBackground || undefined }}
+        style={{ 
+          backgroundColor: (() => {
+            // 处理格子背景的背景色
+            if (previewAsset?.data?.type === 'grid' && previewAsset?.data?.backgroundColor) {
+              return previewAsset.data.backgroundColor;
+            }
+            if (isUsingAssetBackground && currentAssetBackground?.data?.type === 'grid' && currentAssetBackground?.data?.backgroundColor) {
+              return currentAssetBackground.data.backgroundColor;
+            }
+            return previewBackground || canvasBackground;
+          })(),
+          backgroundImage: (() => {
+            // 处理渐变背景
+            if (previewAsset) {
+              if (previewAsset.data?.type === 'gradient' && previewAsset.data?.colors) {
+                return `linear-gradient(135deg, ${previewAsset.data.colors.join(', ')})`;
+              } else if (previewAsset.data?.type === 'grid' && previewAsset.data?.size && previewAsset.data?.color) {
+                return `linear-gradient(to right, ${previewAsset.data.color} 1px, transparent 1px), linear-gradient(to bottom, ${previewAsset.data.color} 1px, transparent 1px)`;
+              }
+              return undefined;
+            }
+            if (isUsingAssetBackground && currentAssetBackground) {
+              if (currentAssetBackground.data?.type === 'gradient' && currentAssetBackground.data?.colors) {
+                return `linear-gradient(135deg, ${currentAssetBackground.data.colors.join(', ')})`;
+              } else if (currentAssetBackground.data?.type === 'grid' && currentAssetBackground.data?.size && currentAssetBackground.data?.color) {
+                return `linear-gradient(to right, ${currentAssetBackground.data.color} 1px, transparent 1px), linear-gradient(to bottom, ${currentAssetBackground.data.color} 1px, transparent 1px)`;
+              }
+              return undefined;
+            }
+            return undefined;
+          })(),
+          backgroundSize: (() => {
+            // 处理格子背景的大小
+            if (previewAsset) {
+              if (previewAsset.data?.type === 'grid' && previewAsset.data?.size) {
+                return `${previewAsset.data.size} ${previewAsset.data.size}`;
+              }
+              return undefined;
+            }
+            if (isUsingAssetBackground && currentAssetBackground) {
+              if (currentAssetBackground.data?.type === 'grid' && currentAssetBackground.data?.size) {
+                return `${currentAssetBackground.data.size} ${currentAssetBackground.data.size}`;
+              }
+              return undefined;
+            }
+            return undefined;
+          })()
+        }}
       >
         <CanvasRenderer
           nodes={nodes}
@@ -813,6 +1254,9 @@ export function MindMapPreview({ workId, onBack, onEdit }: MindMapPreviewProps) 
           focusState={focusState}
           parentMap={parentMap}
           onFocusContentCardPosition={setFocusContentCardPosition}
+          currentAssetAnimation={previewAsset?.type === 'animation' ? previewAsset : currentAssetAnimation}
+          animationVersion={animationVersion}
+          isAnimationPaused={isAnimationPaused}
         />
 
         {bubbleInfo && (
@@ -862,24 +1306,52 @@ export function MindMapPreview({ workId, onBack, onEdit }: MindMapPreviewProps) 
             <DialogHeader>
               <DialogTitle>保存更改</DialogTitle>
               <DialogDescription>
-                您有未保存的更改，是否要保存后再进入编辑？
+                您有未保存的更改，是否要保存？
               </DialogDescription>
             </DialogHeader>
             <DialogFooter className="flex justify-between">
-              <Button variant="outline" onClick={handleDirectEdit}>
+              <Button variant="outline" onClick={() => {
+                setShowSaveDialog(false);
+                if (savePurpose === 'edit') {
+                  onEdit();
+                } else {
+                  onBack();
+                }
+              }}>
                 不保存
               </Button>
               <div className="flex gap-2">
                 <Button variant="outline" onClick={() => setShowSaveDialog(false)}>
                   取消
                 </Button>
-                <Button onClick={handleSaveAndEdit}>
-                  保存并编辑
+                <Button onClick={async () => {
+                  await saveCanvasBackground();
+                  setShowSaveDialog(false);
+                  if (savePurpose === 'edit') {
+                    onEdit();
+                  } else {
+                    onBack();
+                  }
+                }}>
+                  {savePurpose === 'edit' ? '保存并编辑' : '保存并返回'}
                 </Button>
               </div>
             </DialogFooter>
           </DialogContent>
         </Dialog>
+
+        {/* 素材选择弹窗 */}
+        <AssetSelectorDialog
+          isOpen={isAssetDialogOpen}
+          onClose={handleAssetDialogClose}
+          title="选择在素材中心收藏的预览素材"
+          assetTypes={['background', 'animation']}
+          onSelectAsset={handleAssetSelect}
+          onPreviewAsset={handleAssetPreview}
+          showConfirmButton={true}
+          currentAssetBackground={currentAssetBackground}
+          currentAssetAnimation={currentAssetAnimation}
+        />
       </div>
     </div>
   );

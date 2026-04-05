@@ -52,12 +52,16 @@ export default function IconifySearch({ searchKeyword, onToggleFavorite, favorit
   }, [searchKeyword, handleSearch]);
 
   // 将 Iconify 图标转换为 Asset 格式
+  // 使用固定的ID格式：iconify-{prefix}-{name}，如 iconify-material-symbols-home
   const convertToAsset = (iconName: string): Asset => {
     const [prefix, name] = iconName.split(':');
     const collection = searchResult?.collections?.[prefix];
     
+    // 生成固定ID格式：iconify-{prefix}-{name}，包含集合前缀以确保唯一性
+    const assetId = `iconify-${prefix}-${name}`;
+    
     return {
-      id: `iconify-${iconName}`,
+      id: assetId,
       name: name.replace(/-/g, ' '),
       type: 'icon',
       category: collection?.name || prefix,

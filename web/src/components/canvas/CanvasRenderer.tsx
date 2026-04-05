@@ -1,6 +1,145 @@
 import React, { useRef, useEffect, useState } from 'react';
 import { MindMapNode } from '../../models/Work';
 import { useTheme } from '../../context/ThemeContext';
+import { assetService } from '../../services/assets/AssetService';
+
+// 缓动函数
+const EasingFunctions = {
+  'ease-out': (t: number) => 1 - Math.pow(1 - t, 3),
+  'ease-in': (t: number) => t * t * t,
+  'ease-in-out': (t: number) => t < 0.5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2,
+  'cubic-bezier(0.68, -0.55, 0.265, 1.55)': (t: number) => {
+    const c1 = 1.70158;
+    const c3 = c1 + 1;
+    return 1 + c3 * Math.pow(t - 1, 3) + c1 * Math.pow(t - 1, 2);
+  },
+  'linear': (t: number) => t
+};
+
+
+
+// 计算节点动画变换
+interface NodeTransform {
+  opacity: number;
+  scale: number;
+  translateX: number;
+  translateY: number;
+}
+
+const calculateNodeTransform = (
+  _node: MindMapNode,
+  animationData: any,
+  animationTime: number,
+  nodeIndex: number
+): NodeTransform => {
+  const defaultTransform: NodeTransform = {
+    opacity: 1,
+    scale: 1,
+    translateX: 0,
+    translateY: 0
+  };
+
+  if (!animationData) return defaultTransform;
+
+  const easingFn = EasingFunctions[animationData.easing as keyof typeof EasingFunctions] || EasingFunctions['ease-out'];
+
+  // 节点揭示动画处理 - 循环播放
+  if (animationData.type === 'nodeReveal' && animationData.sequence) {
+    // 使用素材中的 duration 作为循环周期
+    const durationMs = parseInt(animationData.duration) || 1000;
+    const loopTime = animationTime % (durationMs * 2); // 循环周期为两倍的 duration
+    const sequenceItem = animationData.sequence[nodeIndex % animationData.sequence.length];
+    if (sequenceItem) {
+      const delay = parseInt(sequenceItem.delay) || 0;
+      // 在循环中应用延迟
+      const adjustedTime = loopTime - delay;
+      
+      let sequenceProgress = 0;
+      if (adjustedTime >= 0) {
+        // 使用 ping-pong 进度，0-1-0 的曲线
+        const progressWithinLoop = adjustedTime / durationMs; // 在素材的 duration 内完成一次动画
+        const pingPongProgress = progressWithinLoop < 0.5 ? progressWithinLoop * 2 : 2 - progressWithinLoop * 2;
+        sequenceProgress = easingFn(Math.max(0, Math.min(1, pingPongProgress)));
+      }
+
+      const keyframes = animationData.keyframes || [
+        { opacity: 0, transform: 'scale(0.8)' },
+        { opacity: 1, transform: 'scale(1)' }
+      ];
+
+      const startFrame = keyframes[0] || { opacity: 0, transform: 'scale(0.8)' };
+      const endFrame = keyframes[keyframes.length - 1] || { opacity: 1, transform: 'scale(1)' };
+
+      return {
+        opacity: startFrame.opacity + (endFrame.opacity - startFrame.opacity) * sequenceProgress,
+        scale: parseFloat((startFrame.transform || 'scale(0.8)').match(/scale\(([\d.]+)\)/)?.[1] || '0.8') +
+               (parseFloat((endFrame.transform || 'scale(1)').match(/scale\(([\d.]+)\)/)?.[1] || '1') -
+                parseFloat((startFrame.transform || 'scale(0.8)').match(/scale\(([\d.]+)\)/)?.[1] || '0.8')) * sequenceProgress,
+        translateX: 0,
+        translateY: 0
+      };
+    }
+    return defaultTransform;
+  }
+
+  // 处理关键帧动画
+  const keyframes = animationData.keyframes || [];
+  if (keyframes.length >= 2) {
+    const startFrame = keyframes[0];
+    const endFrame = keyframes[keyframes.length - 1];
+
+    // 弹跳动画特殊处理 - 循环播放
+    if (animationData.type === 'bounce') {
+      // 使用素材中的 duration 作为循环周期
+      const durationMs = parseInt(animationData.duration) || 800;
+      const frequency = animationData.frequency || 1; // 默认为 1
+      const loopTime = animationTime % durationMs;
+      const loopProgress = (loopTime / durationMs) * frequency;
+      return {
+        opacity: 1,
+        scale: 1,
+        translateX: 0,
+        translateY: Math.sin(loopProgress * Math.PI * 2) * -10
+      };
+    }
+
+    // 根据动画类型分别处理
+    if (animationData.type === 'fadeIn' || animationData.type === 'scaleIn') {
+      // 淡入和缩放动画 - 循环播放
+      // 使用素材中的 duration 作为循环周期
+      const durationMs = parseInt(animationData.duration) || 800;
+      const loopTime = animationTime % (durationMs * 2); // 循环周期为两倍的 duration
+      const loopProgress = loopTime / (durationMs * 2);
+      // 使用循环进度，0-1-0 的曲线
+      const pingPongProgress = loopProgress < 0.5 ? loopProgress * 2 : 2 - loopProgress * 2;
+      const loopEasedProgress = easingFn(pingPongProgress);
+
+      const startOpacity = startFrame.opacity !== undefined ? startFrame.opacity : 0;
+      const endOpacity = endFrame.opacity !== undefined ? endFrame.opacity : 1;
+      const startScaleMatch = (startFrame.transform || '').match(/scale\(([\d.]+)\)/);
+      const endScaleMatch = (endFrame.transform || '').match(/scale\(([\d.]+)\)/);
+      const startScale = startScaleMatch ? parseFloat(startScaleMatch[1]) : 1;
+      const endScale = endScaleMatch ? parseFloat(endScaleMatch[1]) : 1;
+
+      return {
+        opacity: startOpacity + (endOpacity - startOpacity) * loopEasedProgress,
+        scale: startScale + (endScale - startScale) * loopEasedProgress,
+        translateX: 0,
+        translateY: 0
+      };
+    } else {
+      // 对于其他类型的关键帧动画，不修改透明度和缩放
+      return {
+        opacity: 1,
+        scale: 1,
+        translateX: 0,
+        translateY: 0
+      };
+    }
+  }
+
+  return defaultTransform;
+};
 
 interface CanvasRendererProps {
   nodes: MindMapNode[];
@@ -28,6 +167,9 @@ interface CanvasRendererProps {
   };
   parentMap?: Map<string, string>; // 子节点 ID 到父节点 ID 的映射表
   onFocusContentCardPosition?: (position: { x: number; y: number; width: number; height: number } | null) => void;
+  currentAssetAnimation?: any; // 当前使用的动画素材
+  animationVersion?: number; // 动画版本号，用于触发重新渲染
+  isAnimationPaused?: boolean; // 动画是否暂停
 }
 
 export const CanvasRenderer: React.FC<CanvasRendererProps> = ({
@@ -52,6 +194,9 @@ export const CanvasRenderer: React.FC<CanvasRendererProps> = ({
   focusState,
   parentMap,
   onFocusContentCardPosition,
+  currentAssetAnimation,
+  animationVersion,
+  isAnimationPaused,
 }) => {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const webglCanvasRef = useRef<HTMLCanvasElement>(null);
@@ -64,12 +209,21 @@ export const CanvasRenderer: React.FC<CanvasRendererProps> = ({
   const rafRef = useRef<number | null>(null);
   const animationRafRef = useRef<number | null>(null);
   const animationTimeRef = useRef(0);
+  const animationVersionRef = useRef(0);
   // 使用 refs 进行实时位置跟踪，避免 React 状态延迟
   const draggedNodePositionRef = useRef<{ x: number; y: number } | null>(null);
   const isNodeDraggingRef = useRef(false);
   const draggedNodeRef = useRef<string | null>(null);
   const { theme } = useTheme();
   const [isDarkMode, setIsDarkMode] = useState(false);
+
+  // Tooltip 状态
+  const [tooltip, setTooltip] = useState<{
+    visible: boolean;
+    x: number;
+    y: number;
+    title: string;
+  }>({ visible: false, x: 0, y: 0, title: '' });
 
   // 监听主题变化
   useEffect(() => {
@@ -80,6 +234,14 @@ export const CanvasRenderer: React.FC<CanvasRendererProps> = ({
       setIsDarkMode(theme === 'dark');
     }
   }, [theme]);
+
+  // 当动画素材或版本号变化时重置动画时间戳
+  useEffect(() => {
+    // 重置动画时间戳
+    animationTimeRef.current = 0;
+    // 增加动画版本号，强制重新渲染
+    animationVersionRef.current += 1;
+  }, [currentAssetAnimation, showAnimation, animationVersion]);
 
   // 检查 WebGL 可用性
   useEffect(() => {
@@ -304,6 +466,394 @@ export const CanvasRenderer: React.FC<CanvasRendererProps> = ({
       return getRelatedNodesSet(focusedNodeId);
     };
 
+    // 通用形状绘制函数
+    const drawShape = (
+      ctx: CanvasRenderingContext2D,
+      node: MindMapNode,
+      drawX: number,
+      drawY: number,
+      scale: number = 1
+    ) => {
+      const sizeFactor = (node.size || 100) / 100;
+      const baseWidth = 120 * sizeFactor * scale;
+      const baseHeight = 80 * scale; // 基础高度，不考虑 sizeFactor，保持高度不变
+      
+      // 尝试从 shapeAssetId 获取素材
+      const shapeAssetId = node.shapeAssetId;
+      let shapeAsset = shapeAssetId ? assetService.getAssetById(shapeAssetId) : null;
+      
+      // 如果没有找到素材，尝试通过 shape 类型查找
+      if (!shapeAsset) {
+        // 查找内置素材中匹配的类型
+        const allAssets = assetService.getAllAssets();
+        shapeAsset = allAssets.find(a => 
+          a.type === 'shape' && a.data?.type === node.shape
+        );
+      }
+      
+      // 如果找到素材且有绘制配置
+      if (shapeAsset?.data?.render) {
+        const render = shapeAsset.data.render;
+        const widthRatio = render.widthRatio || 1.5;
+        const heightRatio = render.heightRatio || 1;
+        
+        // 宽度考虑 sizeFactor，高度保持不变
+        const width = baseWidth * (widthRatio / 1.5); // 调整比例以匹配基础宽度
+        const height = baseHeight * heightRatio;
+        const halfWidth = width / 2;
+        const halfHeight = height / 2;
+        
+        if (render.type === 'path' && render.points) {
+          ctx.beginPath();
+          render.points.forEach((point: { x: number; y: number }, index: number) => {
+            const x = drawX + point.x * halfWidth;
+            const y = drawY + point.y * halfHeight;
+            if (index === 0) {
+              ctx.moveTo(x, y);
+            } else {
+              ctx.lineTo(x, y);
+            }
+          });
+          if (render.closePath) {
+            ctx.closePath();
+          }
+          ctx.fill();
+          ctx.stroke();
+          return;
+        }
+      }
+      
+      // 处理内置的基本形状
+      const width = baseWidth;
+      const height = 50 * scale;
+      const halfWidth = width / 2;
+      const halfHeight = height / 2;
+      
+      switch (node.shape) {
+        case 'rectangle':
+          ctx.fillRect(drawX - halfWidth, drawY - halfHeight, width, height);
+          ctx.strokeRect(drawX - halfWidth, drawY - halfHeight, width, height);
+          break;
+        case 'rounded':
+          // 绘制圆角矩形
+          const radius = 12 * scale;
+          ctx.beginPath();
+          ctx.moveTo(drawX - halfWidth + radius, drawY - halfHeight);
+          ctx.lineTo(drawX + halfWidth - radius, drawY - halfHeight);
+          ctx.quadraticCurveTo(drawX + halfWidth, drawY - halfHeight, drawX + halfWidth, drawY - halfHeight + radius);
+          ctx.lineTo(drawX + halfWidth, drawY + halfHeight - radius);
+          ctx.quadraticCurveTo(drawX + halfWidth, drawY + halfHeight, drawX + halfWidth - radius, drawY + halfHeight);
+          ctx.lineTo(drawX - halfWidth + radius, drawY + halfHeight);
+          ctx.quadraticCurveTo(drawX - halfWidth, drawY + halfHeight, drawX - halfWidth, drawY + halfHeight - radius);
+          ctx.lineTo(drawX - halfWidth, drawY - halfHeight + radius);
+          ctx.quadraticCurveTo(drawX - halfWidth, drawY - halfHeight, drawX - halfWidth + radius, drawY - halfHeight);
+          ctx.fill();
+          ctx.stroke();
+          break;
+        case 'circle':
+          // 绘制圆形（椭圆）
+          ctx.beginPath();
+          const radiusX = halfWidth;
+          const radiusY = halfHeight;
+          ctx.ellipse(drawX, drawY, radiusX, radiusY, 0, 0, Math.PI * 2);
+          ctx.fill();
+          ctx.stroke();
+          break;
+        case 'diamond':
+          // 绘制菱形
+          ctx.beginPath();
+          ctx.moveTo(drawX, drawY - halfHeight * 1.6); // 顶部点
+          ctx.lineTo(drawX + halfWidth, drawY); // 右侧点
+          ctx.lineTo(drawX, drawY + halfHeight * 1.6); // 底部点
+          ctx.lineTo(drawX - halfWidth, drawY); // 左侧点
+          ctx.closePath();
+          ctx.fill();
+          ctx.stroke();
+          break;
+        default:
+          // 回退到默认形状（矩形）
+          ctx.fillRect(drawX - halfWidth, drawY - halfHeight, width, height);
+          ctx.strokeRect(drawX - halfWidth, drawY - halfHeight, width, height);
+          break;
+      }
+    };
+
+    // 通用连接线绘制函数
+    const drawConnector = (
+      ctx: CanvasRenderingContext2D,
+      parentX: number,
+      parentY: number,
+      childX: number,
+      childY: number,
+      child: MindMapNode,
+      color: string,
+      isAnimated: boolean = false,
+      animationOffset: number = 0
+    ) => {
+      // 获取连接线素材
+      const connectorAssetId = child.connectorAssetId;
+      let connectorAsset = connectorAssetId ? assetService.getAssetById(connectorAssetId) : null;
+      
+      // 如果没有找到素材，尝试通过 connectionType 查找
+      if (!connectorAsset && child.connectionType) {
+        const allAssets = assetService.getAllAssets();
+        connectorAsset = allAssets.find(a => 
+          a.type === 'connector' && a.data?.type === child.connectionType
+        );
+      }
+      
+      // 获取渲染配置
+      const render = connectorAsset?.data?.render;
+      
+      // 设置线条样式
+      ctx.strokeStyle = color;
+      ctx.lineWidth = render?.lineWidth || 3;
+      
+      // 设置虚线样式
+      if (render?.lineDash && render.lineDash.length > 0) {
+        ctx.setLineDash(render.lineDash);
+      } else {
+        ctx.setLineDash([]);
+      }
+      
+      ctx.beginPath();
+      
+      // 优先使用素材的绘制类型，否则使用节点的 connectionType
+      let drawType = render?.drawType;
+      
+      // 处理内置的连接线类型
+      if (!drawType && child.connectionType) {
+        switch (child.connectionType) {
+          case 'straight':
+            drawType = 'straight';
+            break;
+          case 'dashed':
+            drawType = 'straight';
+            ctx.setLineDash([5, 5]);
+            break;
+          case 'wavy':
+            drawType = 'wavy';
+            break;
+          default:
+            drawType = 'curved';
+        }
+      }
+      
+      drawType = drawType || 'curved';
+      
+      switch (drawType) {
+        case 'straight':
+          if (isAnimated) {
+            const waveOffset = animationOffset;
+            const waveAmplitude = 5;
+            const waveFrequency = 0.003;
+            
+            ctx.moveTo(parentX, parentY);
+            
+            // 分段绘制带有动画的直线
+            const segments = 5;
+            for (let i = 0; i < segments; i++) {
+              const t2 = (i + 1) / segments;
+              
+              
+              const x2 = parentX + (childX - parentX) * t2;
+              const y2 = parentY + (childY - parentY) * t2 + Math.sin(animationTimeRef.current * waveFrequency + waveOffset + i + 1) * waveAmplitude;
+              
+              ctx.lineTo(x2, y2);
+            }
+          } else {
+            ctx.moveTo(parentX, parentY);
+            ctx.lineTo(childX, childY);
+          }
+          break;
+          
+        case 'step':
+          // 阶梯连线：先水平再垂直再水平
+          const midX = (parentX + childX) / 2;
+          if (isAnimated) {
+            const waveOffset = animationOffset;
+            const waveAmplitude = 5;
+            const waveFrequency = 0.003;
+            
+            ctx.moveTo(parentX, parentY);
+            
+            // 第一段水平
+            const midX1 = parentX + (midX - parentX) / 2;
+            const y1 = parentY + Math.sin(animationTimeRef.current * waveFrequency + waveOffset) * waveAmplitude;
+            ctx.quadraticCurveTo(midX1, y1, midX, parentY);
+            
+            // 垂直段
+            const midY = (parentY + childY) / 2;
+            ctx.quadraticCurveTo(midX, midY, midX, childY);
+            
+            // 第二段水平
+            const midX2 = midX + (childX - midX) / 2;
+            const y3 = childY + Math.sin(animationTimeRef.current * waveFrequency + waveOffset + 2) * waveAmplitude;
+            ctx.quadraticCurveTo(midX2, y3, childX, childY);
+          } else {
+            ctx.moveTo(parentX, parentY);
+            ctx.lineTo(midX, parentY);
+            ctx.lineTo(midX, childY);
+            ctx.lineTo(childX, childY);
+          }
+          break;
+          
+        case 'double':
+          // 双连线
+          const gap = render?.lineGap || 6;
+          const dx = childX - parentX;
+          const dy = childY - parentY;
+          const distance = Math.sqrt(dx * dx + dy * dy);
+          const offsetX = (-dy / distance) * gap;
+          const offsetY = (dx / distance) * gap;
+          
+          if (isAnimated) {
+            const waveOffset = animationOffset;
+            const waveAmplitude = 8;
+            const waveFrequency = 0.003;
+            
+            // 第一条线
+            const midX1 = (parentX + childX) / 2 + offsetX;
+            const midY1 = (parentY + childY) / 2 - 50 + offsetY;
+            const animatedMidY1 = midY1 + Math.sin(animationTimeRef.current * waveFrequency + waveOffset) * waveAmplitude;
+            
+            ctx.moveTo(parentX + offsetX, parentY + offsetY);
+            ctx.quadraticCurveTo(midX1, animatedMidY1, childX + offsetX, childY + offsetY);
+            
+            // 第二条线
+            const midX2 = (parentX + childX) / 2 - offsetX;
+            const midY2 = (parentY + childY) / 2 - 50 - offsetY;
+            const animatedMidY2 = midY2 + Math.sin(animationTimeRef.current * waveFrequency + waveOffset + 1) * waveAmplitude;
+            
+            ctx.moveTo(parentX - offsetX, parentY - offsetY);
+            ctx.quadraticCurveTo(midX2, animatedMidY2, childX - offsetX, childY - offsetY);
+          } else {
+            // 第一条线
+            ctx.moveTo(parentX + offsetX, parentY + offsetY);
+            ctx.quadraticCurveTo(
+              (parentX + childX) / 2 + offsetX,
+              (parentY + childY) / 2 - 50 + offsetY,
+              childX + offsetX,
+              childY + offsetY
+            );
+            
+            // 第二条线
+            ctx.moveTo(parentX - offsetX, parentY - offsetY);
+            ctx.quadraticCurveTo(
+              (parentX + childX) / 2 - offsetX,
+              (parentY + childY) / 2 - 50 - offsetY,
+              childX - offsetX,
+              childY - offsetY
+            );
+          }
+          break;
+          
+        case 'wavy':
+          // 波浪线
+          const dxWavy = childX - parentX;
+          const dyWavy = childY - parentY;
+          const distanceWavy = Math.sqrt(dxWavy * dxWavy + dyWavy * dyWavy);
+          const waveCount = Math.max(3, Math.floor(distanceWavy / 50));
+          const waveHeight = 15;
+          
+          ctx.moveTo(parentX, parentY);
+          
+          if (isAnimated) {
+            const waveOffset = animationOffset;
+            const waveFrequency = 0.003;
+            
+            for (let i = 0; i < waveCount; i++) {
+              const t1 = (i + 0.25) / waveCount;
+              const t2 = (i + 0.75) / waveCount;
+              const t3 = (i + 1) / waveCount;
+              
+              const x1 = parentX + dxWavy * t1;
+              const y1 = parentY + dyWavy * t1 + (i % 2 === 0 ? -waveHeight : waveHeight) + Math.sin(animationTimeRef.current * waveFrequency + waveOffset + i) * 3;
+              
+              const x2 = parentX + dxWavy * t2;
+              const y2 = parentY + dyWavy * t2 + (i % 2 === 0 ? waveHeight : -waveHeight) + Math.sin(animationTimeRef.current * waveFrequency + waveOffset + i + 1) * 3;
+              
+              const x3 = parentX + dxWavy * t3;
+              const y3 = parentY + dyWavy * t3 + (i % 2 === 0 ? waveHeight : -waveHeight) + Math.sin(animationTimeRef.current * waveFrequency + waveOffset + i + 2) * 3;
+              
+              ctx.bezierCurveTo(x1, y1, x2, y2, x3, y3);
+            }
+          } else {
+            for (let i = 0; i < waveCount; i++) {
+              const t1 = (i + 0.25) / waveCount;
+              const t2 = (i + 0.75) / waveCount;
+              const t3 = (i + 1) / waveCount;
+              
+              const x1 = parentX + dxWavy * t1;
+              const y1 = parentY + dyWavy * t1 + (i % 2 === 0 ? -waveHeight : waveHeight);
+              
+              const x2 = parentX + dxWavy * t2;
+              const y2 = parentY + dyWavy * t2 + (i % 2 === 0 ? waveHeight : -waveHeight);
+              
+              const x3 = parentX + dxWavy * t3;
+              const y3 = parentY + dyWavy * t3 + (i % 2 === 0 ? waveHeight : -waveHeight);
+              
+              ctx.bezierCurveTo(x1, y1, x2, y2, x3, y3);
+            }
+          }
+          break;
+          
+        case 'curved':
+        default:
+          // 默认曲线
+          if (isAnimated) {
+            const waveOffset = animationOffset;
+            const waveAmplitude = 8;
+            const waveFrequency = 0.003;
+            
+            const midX = (parentX + childX) / 2;
+            const midY = (parentY + childY) / 2 - 50;
+            const animatedMidY = midY + Math.sin(animationTimeRef.current * waveFrequency + waveOffset) * waveAmplitude;
+            
+            ctx.moveTo(parentX, parentY);
+            ctx.quadraticCurveTo(midX, animatedMidY, childX, childY);
+          } else {
+            ctx.moveTo(parentX, parentY);
+            ctx.quadraticCurveTo(
+              (parentX + childX) / 2,
+              (parentY + childY) / 2 - 50,
+              childX,
+              childY
+            );
+          }
+          break;
+      }
+      
+      ctx.stroke();
+      ctx.setLineDash([]);
+      
+      // 绘制箭头（如果需要）
+      if (render?.hasArrowHead) {
+        const arrowSize = (render?.arrowSize || 10) * 1.5; // 放大1.5倍
+        const angle = Math.atan2(childY - parentY, childX - parentX);
+        
+        // 计算箭头的位置，在线条的正中间
+        const midX = (parentX + childX) / 2;
+        const midY = (parentY + childY) / 2;
+        
+        // 设置箭头颜色与线条颜色一致
+        ctx.fillStyle = color;
+        
+        ctx.beginPath();
+        ctx.moveTo(midX, midY);
+        ctx.lineTo(
+          midX - arrowSize * Math.cos(angle - Math.PI / 6),
+          midY - arrowSize * Math.sin(angle - Math.PI / 6)
+        );
+        ctx.lineTo(
+          midX - arrowSize * Math.cos(angle + Math.PI / 6),
+          midY - arrowSize * Math.sin(angle + Math.PI / 6)
+        );
+        ctx.closePath();
+        ctx.fill();
+      }
+    };
+
     // 清空画布
     ctx.clearRect(0, 0, canvas.width, canvas.height);
 
@@ -488,137 +1038,17 @@ export const CanvasRenderer: React.FC<CanvasRendererProps> = ({
             }
             
             // 绘制连接线
-            if (showAnimation) {
-              const connectionHash = (node.id + child.id).split('').reduce((acc, char) => acc + char.charCodeAt(0), 0);
-              const waveOffset = connectionHash * 0.1;
-              const waveAmplitude = 8;
-              const waveFrequency = 0.5;
-              
-              const midX = (parentX + childX) / 2;
-              const midY = (parentY + childY) / 2 - 50;
-              const animatedMidY = midY + Math.sin(animationTimeRef.current * waveFrequency + waveOffset) * waveAmplitude;
-              
-              ctx.strokeStyle = node.color;
-              ctx.lineWidth = 3;
-              
-              // 聚焦模式下，为连接线添加不透明度
-              if (focusState?.isFocusMode) {
-                const isFocusedConnection = (node.id === focusState.focusedNode || child.id === focusState.focusedNode);
-                if (!isFocusedConnection) {
-                  ctx.globalAlpha = 0.5; // 非聚焦连接50%透明度
-                }
-              }
-              
-              if (child.connectionType === 'dashed') {
-                ctx.setLineDash([5, 5]);
-              } else {
-                ctx.setLineDash([]);
-              }
-              
-              ctx.beginPath();
-              if (child.connectionType === 'straight') {
-                ctx.moveTo(parentX, parentY);
-                ctx.lineTo(childX, childY);
-              } else if (child.connectionType === 'wavy') {
-                const dx = childX - parentX;
-                const dy = childY - parentY;
-                const distance = Math.sqrt(dx * dx + dy * dy);
-                const waveCount = Math.max(3, Math.floor(distance / 50));
-                const waveHeight = 15;
-                
-                ctx.moveTo(parentX, parentY);
-                
-                for (let i = 0; i < waveCount; i++) {
-                  const t1 = (i + 0.25) / waveCount;
-                  const t2 = (i + 0.75) / waveCount;
-                  const t3 = (i + 1) / waveCount;
-                  
-                  const x1 = parentX + dx * t1;
-                  const y1 = parentY + dy * t1 + (i % 2 === 0 ? -waveHeight : waveHeight) + Math.sin(animationTimeRef.current * waveFrequency + waveOffset + i) * 3;
-                  
-                  const x2 = parentX + dx * t2;
-                  const y2 = parentY + dy * t2 + (i % 2 === 0 ? waveHeight : -waveHeight) + Math.sin(animationTimeRef.current * waveFrequency + waveOffset + i + 1) * 3;
-                  
-                  const x3 = parentX + dx * t3;
-                  const y3 = parentY + dy * t3 + (i % 2 === 0 ? waveHeight : -waveHeight) + Math.sin(animationTimeRef.current * waveFrequency + waveOffset + i + 2) * 3;
-                  
-                  ctx.bezierCurveTo(x1, y1, x2, y2, x3, y3);
-                }
-              } else {
-                ctx.moveTo(parentX, parentY);
-                ctx.quadraticCurveTo(midX, animatedMidY, childX, childY);
-              }
-              ctx.stroke();
-              ctx.setLineDash([]);
-              
-              // 恢复透明度
-              if (focusState?.isFocusMode) {
-                ctx.globalAlpha = 1;
-              }
-            } else {
-              ctx.strokeStyle = node.color;
-              ctx.lineWidth = 3;
-              
-              // 聚焦模式下，为连接线添加不透明度
-              if (focusState?.isFocusMode) {
-                const isFocusedConnection = (node.id === focusState.focusedNode || child.id === focusState.focusedNode);
-                if (!isFocusedConnection) {
-                  ctx.globalAlpha = 0.5; // 非聚焦连接50%透明度
-                }
-              }
-              
-              if (child.connectionType === 'dashed') {
-                ctx.setLineDash([5, 5]);
-              } else {
-                ctx.setLineDash([]);
-              }
-              
-              ctx.beginPath();
-              if (child.connectionType === 'straight') {
-                ctx.moveTo(parentX, parentY);
-                ctx.lineTo(childX, childY);
-              } else if (child.connectionType === 'wavy') {
-                const dx = childX - parentX;
-                const dy = childY - parentY;
-                const distance = Math.sqrt(dx * dx + dy * dy);
-                const waveCount = Math.max(3, Math.floor(distance / 50));
-                const waveHeight = 15;
-                
-                ctx.moveTo(parentX, parentY);
-                
-                for (let i = 0; i < waveCount; i++) {
-                  const t1 = (i + 0.25) / waveCount;
-                  const t2 = (i + 0.75) / waveCount;
-                  const t3 = (i + 1) / waveCount;
-                  
-                  const x1 = parentX + dx * t1;
-                  const y1 = parentY + dy * t1 + (i % 2 === 0 ? -waveHeight : waveHeight);
-                  
-                  const x2 = parentX + dx * t2;
-                  const y2 = parentY + dy * t2 + (i % 2 === 0 ? waveHeight : -waveHeight);
-                  
-                  const x3 = parentX + dx * t3;
-                  const y3 = parentY + dy * t3 + (i % 2 === 0 ? waveHeight : -waveHeight);
-                  
-                  ctx.bezierCurveTo(x1, y1, x2, y2, x3, y3);
-                }
-              } else {
-                ctx.moveTo(parentX, parentY);
-                ctx.quadraticCurveTo(
-                  (parentX + childX) / 2,
-                  (parentY + childY) / 2 - 50,
-                  childX,
-                  childY
-                );
-              }
-              ctx.stroke();
-              ctx.setLineDash([]);
-              
-              // 恢复透明度
-              if (focusState?.isFocusMode) {
-                ctx.globalAlpha = 1;
-              }
-            }
+            // 绘制连接线
+            drawConnector(
+              ctx,
+              parentX,
+              parentY,
+              childX,
+              childY,
+              child,
+              node.color,
+              showAnimation
+            );
           }
         });
       }
@@ -722,66 +1152,55 @@ export const CanvasRenderer: React.FC<CanvasRendererProps> = ({
       drawY = pos.y;
     }
     
-    // 动画效果
+    // 动画效果 - 使用新的动画计算系统
+    let nodeTransform = { opacity: 1, scale: 1, translateX: 0, translateY: 0 };
     if (showAnimation) {
-      const nodeHash = node.id.split('').reduce((acc, char) => acc + char.charCodeAt(0), 0);
-      const nodeOffset = nodeHash * 0.2;
-      const nodeWaveAmplitude = 3;
-      drawY += Math.sin(animationTimeRef.current * 0.7 + nodeOffset) * nodeWaveAmplitude;
+      if (currentAssetAnimation && currentAssetAnimation.data) {
+        // 有素材动画，使用素材动画
+        const nodeIndex = nodes.findIndex(n => n.id === node.id);
+        nodeTransform = calculateNodeTransform(
+          node,
+          currentAssetAnimation.data,
+          animationTimeRef.current,
+          nodeIndex
+        );
+        // 应用位置变换
+        drawX += nodeTransform.translateX;
+        drawY += nodeTransform.translateY;
+      } else {
+        // 没有素材动画，使用默认动画
+        const nodeHash = node.id.split('').reduce((acc, char) => acc + char.charCodeAt(0), 0);
+        const nodeOffset = nodeHash * 0.2;
+        const nodeWaveAmplitude = 3;
+        // 节点使用稍微不同的频率，避免与连接线同步
+        drawY += Math.sin(animationTimeRef.current * 0.0038 + nodeOffset) * nodeWaveAmplitude;
+      }
     }
 
     // 聚焦模式下的特殊处理
     if (focusState?.isFocusMode) {
+      // 应用动画变换
+      ctx.globalAlpha = nodeTransform.opacity;
+      
       if (isFocused) {
         // 聚焦节点：放大、但保持原始颜色
         // 固定缩放比例为 1.2，避免在动画时继续放大
-        const scale = 1.2;
+        const scale = 1.2 * nodeTransform.scale;
         ctx.fillStyle = node.color; // 使用原始颜色，不增加亮度
         ctx.strokeStyle = '#1E40AF'; // 改为深蓝色，与编辑时的选中边框颜色一致
         ctx.lineWidth = 3;
         
         // 绘制放大的节点
-        const sizeFactor = (node.size || 100) / 100;
-        const width = 120 * sizeFactor * scale;
-        const halfWidth = width / 2;
-        
-        switch (node.shape) {
-          case 'rectangle':
-            ctx.fillRect(drawX - halfWidth, drawY - 25 * scale, width, 50 * scale);
-            ctx.strokeRect(drawX - halfWidth, drawY - 25 * scale, width, 50 * scale);
-            break;
-          case 'rounded':
-            ctx.beginPath();
-            roundRect(ctx, drawX - halfWidth, drawY - 25 * scale, width, 50 * scale, 12 * scale);
-            ctx.fill();
-            ctx.stroke();
-            break;
-          case 'circle':
-            ctx.beginPath();
-            const radiusX = halfWidth;
-            const radiusY = 40 * scale;
-            ctx.ellipse(drawX, drawY, radiusX, radiusY, 0, 0, Math.PI * 2);
-            ctx.fill();
-            ctx.stroke();
-            break;
-          case 'diamond':
-            ctx.beginPath();
-            ctx.moveTo(drawX, drawY - 40 * scale);
-            ctx.lineTo(drawX + halfWidth, drawY);
-            ctx.lineTo(drawX, drawY + 40 * scale);
-            ctx.lineTo(drawX - halfWidth, drawY);
-            ctx.closePath();
-            ctx.fill();
-            ctx.stroke();
-            break;
-        }
+        drawShape(ctx, node, drawX, drawY, scale);
         
         // 绘制节点文本（支持换行）
         ctx.fillStyle = '#FFFFFF';
         let fontWeight = node.fontWeight || 'normal';
         let fontStyle = node.fontStyle || 'normal';
         let fontSize = (node.fontSize || 14) * scale;
-        ctx.font = `${fontWeight} ${fontStyle} ${fontSize}px -apple-system, system-ui, sans-serif`;
+        let fontFamily = node.fontFamily || '-apple-system, system-ui, sans-serif';
+        const sizeFactor = (node.size || 100) / 100;
+        ctx.font = `${fontWeight} ${fontStyle} ${fontSize}px ${fontFamily}`;
         ctx.textAlign = 'center';
         ctx.textBaseline = 'middle';
         
@@ -803,71 +1222,86 @@ export const CanvasRenderer: React.FC<CanvasRendererProps> = ({
           ctx.stroke();
         }
       } else if (isFocusRelated) {
-        // 相关节点：虚化
-        ctx.globalAlpha = 0.75;
+        // 相关节点：虚化和动画变换
+        ctx.globalAlpha = 0.75 * nodeTransform.opacity;
         ctx.fillStyle = node.color;
         ctx.strokeStyle = isSelected ? '#1E40AF' : node.color;
         ctx.lineWidth = isSelected ? 3 : 1;
         
         // 绘制虚化的节点
-        const sizeFactor = (node.size || 100) / 100;
-        const width = 120 * sizeFactor;
-        const halfWidth = width / 2;
-
-        switch (node.shape) {
-          case 'rectangle':
-            ctx.fillRect(drawX - halfWidth, drawY - 25, width, 50);
-            ctx.strokeRect(drawX - halfWidth, drawY - 25, width, 50);
-            break;
-          case 'rounded':
-            ctx.beginPath();
-            roundRect(ctx, drawX - halfWidth, drawY - 25, width, 50, 12);
-            ctx.fill();
-            ctx.stroke();
-            break;
-          case 'circle':
-              ctx.beginPath();
-              const radiusX = halfWidth;
-              const radiusY = 40;
-              ctx.ellipse(drawX, drawY, radiusX, radiusY, 0, 0, Math.PI * 2);
-              ctx.fill();
-              ctx.stroke();
-              break;
-            case 'diamond':
-              ctx.beginPath();
-              ctx.moveTo(drawX, drawY - 40);
-              ctx.lineTo(drawX + halfWidth, drawY);
-              ctx.lineTo(drawX, drawY + 40);
-              ctx.lineTo(drawX - halfWidth, drawY);
-              ctx.closePath();
-              ctx.fill();
-              ctx.stroke();
-              break;
-        }
+        drawShape(ctx, node, drawX, drawY, nodeTransform.scale);
 
         if (!readOnly && node.children.length > 0) {
-          ctx.fillStyle = '#FFFFFF';
-          ctx.font = '12px Arial';
-          ctx.textAlign = 'center';
-          ctx.textBaseline = 'middle';
-          const sizeFactor = (node.size || 100) / 100;
-          const halfWidth = 60 * sizeFactor;
-          const indicatorX = drawX + halfWidth - 10;
-          ctx.fillText(isExpanded ? '▼' : '►', indicatorX, drawY);
+        ctx.fillStyle = '#FFFFFF';
+        ctx.font = '12px Arial';
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'middle';
+        const sizeFactor = (node.size || 100) / 100;
+        let indicatorX = drawX + 60 * sizeFactor - 10; // 默认位置
+        
+        // 如果是素材形状，计算实际的右侧边缘位置
+        if (node.shapeAssetId) {
+          const shapeAsset = assetService.getAssetById(node.shapeAssetId);
+          if (shapeAsset?.data?.render) {
+            const render = shapeAsset.data.render;
+            if (render.type === 'path' && render.points) {
+              // 计算素材形状的实际宽度
+              const widthRatio = render.widthRatio || 1.5;
+              const baseWidth = 120 * sizeFactor;
+              const width = baseWidth * (widthRatio / 1.5);
+              const halfWidth = width / 2;
+              
+              // 找到路径点中最右侧的两个点，用于计算边缘中心
+              let maxX = -Infinity;
+              let secondMaxX = -Infinity;
+              let maxPoint: { x: number; y: number } | null = null;
+              let secondMaxPoint: { x: number; y: number } | null = null;
+              
+              render.points.forEach((point: { x: number; y: number }) => {
+                if (point.x > maxX) {
+                  secondMaxX = maxX;
+                  secondMaxPoint = maxPoint;
+                  maxX = point.x;
+                  maxPoint = point;
+                } else if (point.x > secondMaxX) {
+                  secondMaxX = point.x;
+                  secondMaxPoint = point;
+                }
+              });
+              
+              // 计算边缘中心位置
+              let edgeCenterX = drawX + maxX * halfWidth;
+              if (maxPoint && secondMaxPoint) {
+                // 计算两个点的中点
+                const midX = ((maxPoint as { x: number }).x + (secondMaxPoint as { x: number }).x) / 2;
+                edgeCenterX = drawX + midX * halfWidth;
+              }
+              
+              // 计算实际的右侧边缘位置
+              const rightEdgeX = edgeCenterX;
+              // 统一使用10px间隔
+              const gap = 10;
+              indicatorX = rightEdgeX - gap; // 距离右侧边缘的间隔
+            }
+          }
         }
+        
+        ctx.fillText(isExpanded ? '▼' : '►', indicatorX, drawY);
+      }
 
         // 绘制节点文本（支持换行）
         ctx.fillStyle = '#FFFFFF';
         let fontWeight = node.fontWeight || 'normal';
         let fontStyle = node.fontStyle || 'normal';
-        let fontSize = node.fontSize || 14;
-        ctx.font = `${fontWeight} ${fontStyle} ${fontSize}px -apple-system, system-ui, sans-serif`;
+        let fontSize = (node.fontSize || 14) * nodeTransform.scale;
+        let fontFamily = node.fontFamily || '-apple-system, system-ui, sans-serif';
+        ctx.font = `${fontWeight} ${fontStyle} ${fontSize}px ${fontFamily}`;
         ctx.textAlign = 'center';
         ctx.textBaseline = 'middle';
         
         // 计算最大文本宽度（节点宽度减去边距）
         const relatedSizeFactor = (node.size || 100) / 100;
-        const relatedNodeWidth = 120 * relatedSizeFactor;
+        const relatedNodeWidth = 120 * relatedSizeFactor * nodeTransform.scale;
         const maxTextWidth = relatedNodeWidth - 20; // 左右各留10px边距
         const lineHeight = fontSize * 1.2;
         
@@ -887,45 +1321,14 @@ export const CanvasRenderer: React.FC<CanvasRendererProps> = ({
         ctx.globalAlpha = 1; // 恢复透明度
       }
     } else {
-      // 正常模式下的绘制
+      // 正常模式下的绘制 - 应用动画变换
+      ctx.globalAlpha = nodeTransform.opacity;
       ctx.fillStyle = node.color;
       ctx.strokeStyle = isSelected ? '#1E40AF' : node.color;
       ctx.lineWidth = isSelected ? 3 : 1;
 
-      const sizeFactor = (node.size || 100) / 100;
-      const width = 120 * sizeFactor;
-      const halfWidth = width / 2;
-
-      switch (node.shape) {
-        case 'rectangle':
-          ctx.fillRect(drawX - halfWidth, drawY - 25, width, 50);
-          ctx.strokeRect(drawX - halfWidth, drawY - 25, width, 50);
-          break;
-        case 'rounded':
-          ctx.beginPath();
-          roundRect(ctx, drawX - halfWidth, drawY - 25, width, 50, 12);
-          ctx.fill();
-          ctx.stroke();
-          break;
-        case 'circle':
-            ctx.beginPath();
-            const radiusX = halfWidth;
-            const radiusY = 40;
-            ctx.ellipse(drawX, drawY, radiusX, radiusY, 0, 0, Math.PI * 2);
-            ctx.fill();
-            ctx.stroke();
-            break;
-          case 'diamond':
-            ctx.beginPath();
-            ctx.moveTo(drawX, drawY - 40);
-            ctx.lineTo(drawX + halfWidth, drawY);
-            ctx.lineTo(drawX, drawY + 40);
-            ctx.lineTo(drawX - halfWidth, drawY);
-            ctx.closePath();
-            ctx.fill();
-            ctx.stroke();
-            break;
-      }
+      // 绘制节点形状
+      drawShape(ctx, node, drawX, drawY, nodeTransform.scale);
 
       if (!readOnly && node.children.length > 0) {
         ctx.fillStyle = '#FFFFFF';
@@ -933,8 +1336,55 @@ export const CanvasRenderer: React.FC<CanvasRendererProps> = ({
         ctx.textAlign = 'center';
         ctx.textBaseline = 'middle';
         const sizeFactor = (node.size || 100) / 100;
-        const halfWidth = 60 * sizeFactor;
-        const indicatorX = drawX + halfWidth - 10;
+        let indicatorX = drawX + 60 * sizeFactor - 10; // 默认位置
+        
+        // 如果是素材形状，计算实际的右侧边缘位置
+        if (node.shapeAssetId) {
+          const shapeAsset = assetService.getAssetById(node.shapeAssetId);
+          if (shapeAsset?.data?.render) {
+            const render = shapeAsset.data.render;
+            if (render.type === 'path' && render.points) {
+              // 计算素材形状的实际宽度
+              const widthRatio = render.widthRatio || 1.5;
+              const baseWidth = 120 * sizeFactor;
+              const width = baseWidth * (widthRatio / 1.5);
+              const halfWidth = width / 2;
+              
+              // 找到路径点中最右侧的两个点，用于计算边缘中心
+              let maxX = -Infinity;
+              let secondMaxX = -Infinity;
+              let maxPoint: { x: number; y: number } | null = null;
+              let secondMaxPoint: { x: number; y: number } | null = null;
+              
+              render.points.forEach((point: { x: number; y: number }) => {
+                if (point.x > maxX) {
+                  secondMaxX = maxX;
+                  secondMaxPoint = maxPoint;
+                  maxX = point.x;
+                  maxPoint = point;
+                } else if (point.x > secondMaxX) {
+                  secondMaxX = point.x;
+                  secondMaxPoint = point;
+                }
+              });
+              
+              // 计算边缘中心位置
+              let edgeCenterX = drawX + maxX * halfWidth;
+              if (maxPoint && secondMaxPoint) {
+                // 计算两个点的中点
+                const midX = ((maxPoint as { x: number }).x + (secondMaxPoint as { x: number }).x) / 2;
+                edgeCenterX = drawX + midX * halfWidth;
+              }
+              
+              // 计算实际的右侧边缘位置
+              const rightEdgeX = edgeCenterX;
+              // 统一使用10px间隔
+              const gap = 10;
+              indicatorX = rightEdgeX - gap; // 距离右侧边缘的间隔
+            }
+          }
+        }
+        
         ctx.fillText(isExpanded ? '▼' : '►', indicatorX, drawY);
       }
 
@@ -942,14 +1392,15 @@ export const CanvasRenderer: React.FC<CanvasRendererProps> = ({
       ctx.fillStyle = '#FFFFFF';
       let fontWeight = node.fontWeight || 'normal';
       let fontStyle = node.fontStyle || 'normal';
-      let fontSize = node.fontSize || 14;
-      ctx.font = `${fontWeight} ${fontStyle} ${fontSize}px -apple-system, system-ui, sans-serif`;
+      let fontSize = (node.fontSize || 14) * nodeTransform.scale;
+      let fontFamily = node.fontFamily || '-apple-system, system-ui, sans-serif';
+      ctx.font = `${fontWeight} ${fontStyle} ${fontSize}px ${fontFamily}`;
       ctx.textAlign = 'center';
       ctx.textBaseline = 'middle';
       
       // 计算最大文本宽度（节点宽度减去边距）
       const textSizeFactor = (node.size || 100) / 100;
-      const textNodeWidth = 120 * textSizeFactor;
+      const textNodeWidth = 120 * textSizeFactor * nodeTransform.scale;
       const maxTextWidth = textNodeWidth - 20; // 左右各留10px边距
       const lineHeight = fontSize * 1.2;
       
@@ -979,43 +1430,8 @@ export const CanvasRenderer: React.FC<CanvasRendererProps> = ({
         ctx.strokeStyle = '#1E40AF'; // 高亮被拖拽的节点
         ctx.lineWidth = 3;
 
-        // 计算宽度缩放因子，范围75-275%
-        const sizeFactor = (node.size || 100) / 100;
-        const width = 120 * sizeFactor;
-        const halfWidth = width / 2;
-
-        switch (node.shape) {
-          case 'rectangle':
-            ctx.fillRect(x - halfWidth, y - 25, width, 50);
-            ctx.strokeRect(x - halfWidth, y - 25, width, 50);
-            break;
-          case 'rounded':
-            ctx.beginPath();
-            roundRect(ctx, x - halfWidth, y - 25, width, 50, 12);
-            ctx.fill();
-            ctx.stroke();
-            break;
-          case 'circle':
-            ctx.beginPath();
-            // 绘制椭圆，宽度根据size调整，高度80
-            const radiusX = halfWidth; // 宽度的一半
-            const radiusY = 40; // 高度的一半
-            ctx.ellipse(x, y, radiusX, radiusY, 0, 0, Math.PI * 2);
-            ctx.fill();
-            ctx.stroke();
-            break;
-          case 'diamond':
-            ctx.beginPath();
-            // 绘制菱形，宽度根据size调整，高度80
-            ctx.moveTo(x, y - 40); // 顶部点
-            ctx.lineTo(x + halfWidth, y); // 右侧点
-            ctx.lineTo(x, y + 40); // 底部点
-            ctx.lineTo(x - halfWidth, y); // 左侧点
-            ctx.closePath();
-            ctx.fill();
-            ctx.stroke();
-            break;
-        }
+        // 绘制拖拽中的节点
+        drawShape(ctx, node, x, y, 1);
 
         // 如果节点有子节点，绘制展开/折叠指示器
         if (!readOnly && node.children.length > 0) {
@@ -1026,8 +1442,35 @@ export const CanvasRenderer: React.FC<CanvasRendererProps> = ({
           ctx.textBaseline = 'middle';
           // 根据节点大小计算右侧位置
           const sizeFactor = (node.size || 100) / 100;
-          const halfWidth = 60 * sizeFactor;
-          const indicatorX = x + halfWidth - 10; // 距离右侧边缘10px
+          let indicatorX = x + 60 * sizeFactor - 10; // 默认位置
+          
+          // 如果是素材形状，计算实际的右侧边缘位置
+          if (node.shapeAssetId) {
+            const shapeAsset = assetService.getAssetById(node.shapeAssetId);
+            if (shapeAsset?.data?.render) {
+              const render = shapeAsset.data.render;
+              if (render.type === 'path' && render.points) {
+                // 计算素材形状的实际宽度
+                const widthRatio = render.widthRatio || 1.5;
+                const baseWidth = 120 * sizeFactor;
+                const width = baseWidth * (widthRatio / 1.5);
+                const halfWidth = width / 2;
+                
+                // 找到路径点中最右侧的点
+                let maxX = -Infinity;
+                render.points.forEach((point: { x: number; y: number }) => {
+                  if (point.x > maxX) {
+                    maxX = point.x;
+                  }
+                });
+                
+                // 计算实际的右侧边缘位置
+                const rightEdgeX = x + maxX * halfWidth;
+                indicatorX = rightEdgeX - 10; // 距离右侧边缘10px
+              }
+            }
+          }
+          
           ctx.fillText(isExpanded ? '▼' : '►', indicatorX, y);
         }
 
@@ -1125,24 +1568,6 @@ export const CanvasRenderer: React.FC<CanvasRendererProps> = ({
   };
 
   // 绘制圆角矩形的辅助函数
-  const roundRect = (
-    ctx: CanvasRenderingContext2D,
-    x: number,
-    y: number,
-    width: number,
-    height: number,
-    radius: number
-  ) => {
-    ctx.moveTo(x + radius, y);
-    ctx.lineTo(x + width - radius, y);
-    ctx.quadraticCurveTo(x + width, y, x + width, y + radius);
-    ctx.lineTo(x + width, y + height - radius);
-    ctx.quadraticCurveTo(x + width, y + height, x + width - radius, y + height);
-    ctx.lineTo(x + radius, y + height);
-    ctx.quadraticCurveTo(x, y + height, x, y + height - radius);
-    ctx.lineTo(x, y + radius);
-    ctx.quadraticCurveTo(x, y, x + radius, y);
-  };
 
 
 
@@ -1214,8 +1639,18 @@ export const CanvasRenderer: React.FC<CanvasRendererProps> = ({
   // 动画循环
   useEffect(() => {
     if (showAnimation) {
+      let lastTime = Date.now();
       const animate = () => {
-        animationTimeRef.current += 0.05;
+        const now = Date.now();
+        const deltaTime = now - lastTime;
+        lastTime = now;
+        
+        // 只有在不暂停时才更新动画时间
+        if (!isAnimationPaused) {
+          animationTimeRef.current += deltaTime;
+        }
+        
+        // 无论是否暂停，都要重绘，这样暂停时动画会保持在当前状态
         drawWithCanvas2D();
         animationRafRef.current = requestAnimationFrame(animate);
       };
@@ -1232,7 +1667,7 @@ export const CanvasRenderer: React.FC<CanvasRendererProps> = ({
         cancelAnimationFrame(animationRafRef.current);
       }
     };
-  }, [showAnimation]);
+  }, [showAnimation, isAnimationPaused]);
 
   // 当节点、缩放、平移、选中节点、展开节点或隐藏层级变化时重绘
   useEffect(() => {
@@ -1247,6 +1682,9 @@ export const CanvasRenderer: React.FC<CanvasRendererProps> = ({
     
     const canvas = canvasRef.current;
     if (!canvas) return;
+    
+    const ctx = canvas.getContext('2d');
+    if (!ctx) return;
 
     const rect = canvas.getBoundingClientRect();
     const mouseX = (e.clientX - rect.left - pan.x) / zoom;
@@ -1266,23 +1704,149 @@ export const CanvasRenderer: React.FC<CanvasRendererProps> = ({
       const sizeFactor = (node.size || 100) / 100;
       const halfWidth = 60 * sizeFactor;
 
-      switch (node.shape) {
-        case 'rectangle':
-        case 'rounded':
+      // 首先检查是否使用了素材形状
+      if (node.shapeAssetId) {
+        const shapeAsset = assetService.getAssetById(node.shapeAssetId);
+        if (shapeAsset?.data?.render) {
+          const render = shapeAsset.data.render;
+          
+          if (render.type === 'path' && render.points) {
+            // 使用基于路径的碰撞检测
+            const widthRatio = render.widthRatio || 1.5;
+            const heightRatio = render.heightRatio || 1;
+            
+            // 宽度考虑 sizeFactor，高度保持不变
+            const width = 120 * sizeFactor * (widthRatio / 1.5);
+            const height = 80 * heightRatio;
+            const halfWidth = width / 2;
+            const halfHeight = height / 2;
+            
+            // 创建路径
+            const path = new Path2D();
+            render.points.forEach((point: { x: number; y: number }, index: number) => {
+              const x = nodePos.x + point.x * halfWidth;
+              const y = nodePos.y + point.y * halfHeight;
+              if (index === 0) {
+                path.moveTo(x, y);
+              } else {
+                path.lineTo(x, y);
+              }
+            });
+            if (render.closePath) {
+              path.closePath();
+            }
+            
+            // 使用 isPointInPath 进行精确的碰撞检测
+            isClicked = ctx.isPointInPath(path, mouseX, mouseY);
+          } else {
+            // 如果没有路径数据，使用矩形碰撞检测
+            const widthRatio = render.widthRatio || 1.5;
+            const heightRatio = render.heightRatio || 1;
+            
+            // 宽度考虑 sizeFactor，高度保持不变
+            const width = 120 * sizeFactor * (widthRatio / 1.5);
+            const height = 80 * heightRatio;
+            
+            isClicked = mouseX >= nodePos.x - width / 2 && mouseX <= nodePos.x + width / 2 &&
+                       mouseY >= nodePos.y - height / 2 && mouseY <= nodePos.y + height / 2;
+          }
+        } else {
+          // 如果没有渲染配置，使用默认矩形碰撞检测
           isClicked = mouseX >= nodePos.x - halfWidth && mouseX <= nodePos.x + halfWidth &&
                      mouseY >= nodePos.y - 25 && mouseY <= nodePos.y + 25;
-          break;
-        case 'circle':
-          const radiusX = halfWidth;
-          const radiusY = 40;
-          const normalizedX = (mouseX - nodePos.x) / radiusX;
-          const normalizedY = (mouseY - nodePos.y) / radiusY;
-          isClicked = normalizedX * normalizedX + normalizedY * normalizedY <= 1;
-          break;
-        case 'diamond':
-          isClicked = mouseX >= nodePos.x - halfWidth && mouseX <= nodePos.x + halfWidth &&
-                     mouseY >= nodePos.y - 40 && mouseY <= nodePos.y + 40;
-          break;
+        }
+      } else {
+        // 处理内置形状
+        switch (node.shape) {
+          case 'rectangle':
+          case 'rounded':
+            isClicked = mouseX >= nodePos.x - halfWidth && mouseX <= nodePos.x + halfWidth &&
+                       mouseY >= nodePos.y - 25 && mouseY <= nodePos.y + 25;
+            break;
+          case 'circle':
+            const radiusX = halfWidth;
+            const radiusY = 40;
+            const normalizedX = (mouseX - nodePos.x) / radiusX;
+            const normalizedY = (mouseY - nodePos.y) / radiusY;
+            isClicked = normalizedX * normalizedX + normalizedY * normalizedY <= 1;
+            break;
+          case 'diamond':
+            isClicked = mouseX >= nodePos.x - halfWidth && mouseX <= nodePos.x + halfWidth &&
+                       mouseY >= nodePos.y - 40 && mouseY <= nodePos.y + 40;
+            break;
+          default:
+            // 对于其他形状，使用默认矩形碰撞检测
+            isClicked = mouseX >= nodePos.x - halfWidth && mouseX <= nodePos.x + halfWidth &&
+                       mouseY >= nodePos.y - 25 && mouseY <= nodePos.y + 25;
+            break;
+        }
+      }
+
+      // 检查是否点击了展开/折叠指示器（无论是否点击了节点）
+      if (!readOnly && node.children && node.children.length > 0) {
+        const sizeFactor = (node.size || 100) / 100;
+        let indicatorX = nodePos.x + 60 * sizeFactor - 10; // 默认位置
+        
+        // 如果是素材形状，计算实际的右侧边缘位置
+        if (node.shapeAssetId) {
+          const shapeAsset = assetService.getAssetById(node.shapeAssetId);
+          if (shapeAsset?.data?.render) {
+            const render = shapeAsset.data.render;
+            if (render.type === 'path' && render.points) {
+              // 计算素材形状的实际宽度
+              const widthRatio = render.widthRatio || 1.5;
+              const baseWidth = 120 * sizeFactor;
+              const width = baseWidth * (widthRatio / 1.5);
+              const halfWidth = width / 2;
+              
+              // 找到路径点中最右侧的两个点，用于计算边缘中心
+              let maxX = -Infinity;
+              let secondMaxX = -Infinity;
+              let maxPoint: { x: number; y: number } | null = null;
+              let secondMaxPoint: { x: number; y: number } | null = null;
+              
+              render.points.forEach((point: { x: number; y: number }) => {
+                if (point.x > maxX) {
+                  secondMaxX = maxX;
+                  secondMaxPoint = maxPoint;
+                  maxX = point.x;
+                  maxPoint = point;
+                } else if (point.x > secondMaxX) {
+                  secondMaxX = point.x;
+                  secondMaxPoint = point;
+                }
+              });
+              
+              // 计算边缘中心位置
+              let edgeCenterX = nodePos.x + maxX * halfWidth;
+              if (maxPoint && secondMaxPoint) {
+                // 计算两个点的中点
+                const midX = ((maxPoint as { x: number }).x + (secondMaxPoint as { x: number }).x) / 2;
+                edgeCenterX = nodePos.x + midX * halfWidth;
+              }
+              
+              // 计算实际的右侧边缘位置
+              const rightEdgeX = edgeCenterX;
+              // 统一使用10px间隔
+              const gap = 10;
+              indicatorX = rightEdgeX - gap; // 距离右侧边缘的间隔
+            }
+          }
+        }
+        
+        const indicatorY = nodePos.y;
+        const indicatorSize = 12;
+        
+        const isClickOnIndicator = mouseX >= indicatorX - indicatorSize/2 && 
+                                  mouseX <= indicatorX + indicatorSize/2 && 
+                                  mouseY >= indicatorY - indicatorSize/2 && 
+                                  mouseY <= indicatorY + indicatorSize/2;
+        
+        if (isClickOnIndicator) {
+          const isExpanded = expandedNodes.has(node.id);
+          onNodeExpand(node.id, !isExpanded);
+          return; // 点击了指示器，直接返回，不执行其他操作
+        }
       }
 
       if (isClicked) {
@@ -1299,24 +1863,6 @@ export const CanvasRenderer: React.FC<CanvasRendererProps> = ({
               onNodeFocus(node.id);
               return;
             }
-          }
-        }
-        
-        if (!readOnly && node.children && node.children.length > 0) {
-          const sizeFactor = (node.size || 100) / 100;
-          const halfWidth = 60 * sizeFactor;
-          const indicatorX = nodePos.x + halfWidth - 10;
-          const indicatorY = nodePos.y;
-          const indicatorSize = 12;
-          
-          const isClickOnIndicator = mouseX >= indicatorX - indicatorSize/2 && 
-                                    mouseX <= indicatorX + indicatorSize/2 && 
-                                    mouseY >= indicatorY - indicatorSize/2 && 
-                                    mouseY <= indicatorY + indicatorSize/2;
-          
-          if (isClickOnIndicator) {
-            const isExpanded = expandedNodes.has(node.id);
-            onNodeExpand(node.id, !isExpanded);
           }
         }
         
@@ -1452,6 +1998,9 @@ export const CanvasRenderer: React.FC<CanvasRendererProps> = ({
     isNodeDraggingRef.current = false;
     draggedNodeRef.current = null;
     draggedNodePositionRef.current = null;
+    
+    // 隐藏 tooltip
+    setTooltip(prev => ({ ...prev, visible: false }));
   };
 
   // 处理上下文菜单（右键点击）
@@ -1460,41 +2009,104 @@ export const CanvasRenderer: React.FC<CanvasRendererProps> = ({
     
     const canvas = canvasRef.current;
     if (!canvas) return;
+    
+    const ctx = canvas.getContext('2d');
+    if (!ctx) return;
 
     const rect = canvas.getBoundingClientRect();
     const mouseX = (e.clientX - rect.left - pan.x) / zoom;
     const mouseY = (e.clientY - rect.top - pan.y) / zoom;
 
+    const relatedNodes = focusState?.isFocusMode && focusState.focusedNode 
+      ? getRelatedNodesSet(focusState.focusedNode)
+      : new Set<string>();
+    
+    const nodesToCheck = getNodesToCheck();
+
     // 检查是否右键点击了节点
-    for (const node of nodes) {
+    for (const node of nodesToCheck) {
       let isClicked = false;
       
-      // 计算宽度缩放因子，范围75-275%
+      const nodePos = getFocusNodePosition(node.id, relatedNodes, focusState);
       const sizeFactor = (node.size || 100) / 100;
       const halfWidth = 60 * sizeFactor;
 
-      switch (node.shape) {
-        case 'rectangle':
-          isClicked = mouseX >= node.x - halfWidth && mouseX <= node.x + halfWidth &&
-                     mouseY >= node.y - 25 && mouseY <= node.y + 25;
-          break;
-        case 'rounded':
-          isClicked = mouseX >= node.x - halfWidth && mouseX <= node.x + halfWidth &&
-                     mouseY >= node.y - 25 && mouseY <= node.y + 25;
-          break;
-        case 'circle':
-          // 椭圆的点击检测
-          const radiusX = halfWidth;
-          const radiusY = 40;
-          const normalizedX = (mouseX - node.x) / radiusX;
-          const normalizedY = (mouseY - node.y) / radiusY;
-          isClicked = normalizedX * normalizedX + normalizedY * normalizedY <= 1;
-          break;
-        case 'diamond':
-          // 菱形的点击检测，使用菱形的边界
-          isClicked = mouseX >= node.x - halfWidth && mouseX <= node.x + halfWidth &&
-                     mouseY >= node.y - 40 && mouseY <= node.y + 40;
-          break;
+      // 首先检查是否使用了素材形状
+      if (node.shapeAssetId) {
+        const shapeAsset = assetService.getAssetById(node.shapeAssetId);
+        if (shapeAsset?.data?.render) {
+          const render = shapeAsset.data.render;
+          
+          if (render.type === 'path' && render.points) {
+            // 使用基于路径的碰撞检测
+            const widthRatio = render.widthRatio || 1.5;
+            const heightRatio = render.heightRatio || 1;
+            
+            // 宽度考虑 sizeFactor，高度保持不变
+            const width = 120 * sizeFactor * (widthRatio / 1.5);
+            const height = 80 * heightRatio;
+            const halfWidth = width / 2;
+            const halfHeight = height / 2;
+            
+            // 创建路径
+            const path = new Path2D();
+            render.points.forEach((point: { x: number; y: number }, index: number) => {
+              const x = nodePos.x + point.x * halfWidth;
+              const y = nodePos.y + point.y * halfHeight;
+              if (index === 0) {
+                path.moveTo(x, y);
+              } else {
+                path.lineTo(x, y);
+              }
+            });
+            if (render.closePath) {
+              path.closePath();
+            }
+            
+            // 使用 isPointInPath 进行精确的碰撞检测
+            isClicked = ctx.isPointInPath(path, mouseX, mouseY);
+          } else {
+            // 如果没有路径数据，使用矩形碰撞检测
+            const widthRatio = render.widthRatio || 1.5;
+            const heightRatio = render.heightRatio || 1;
+            
+            // 宽度考虑 sizeFactor，高度保持不变
+            const width = 120 * sizeFactor * (widthRatio / 1.5);
+            const height = 80 * heightRatio;
+            
+            isClicked = mouseX >= nodePos.x - width / 2 && mouseX <= nodePos.x + width / 2 &&
+                       mouseY >= nodePos.y - height / 2 && mouseY <= nodePos.y + height / 2;
+          }
+        } else {
+          // 如果没有渲染配置，使用默认矩形碰撞检测
+          isClicked = mouseX >= nodePos.x - halfWidth && mouseX <= nodePos.x + halfWidth &&
+                     mouseY >= nodePos.y - 25 && mouseY <= nodePos.y + 25;
+        }
+      } else {
+        // 处理内置形状
+        switch (node.shape) {
+          case 'rectangle':
+          case 'rounded':
+            isClicked = mouseX >= nodePos.x - halfWidth && mouseX <= nodePos.x + halfWidth &&
+                       mouseY >= nodePos.y - 25 && mouseY <= nodePos.y + 25;
+            break;
+          case 'circle':
+            const radiusX = halfWidth;
+            const radiusY = 40;
+            const normalizedX = (mouseX - nodePos.x) / radiusX;
+            const normalizedY = (mouseY - nodePos.y) / radiusY;
+            isClicked = normalizedX * normalizedX + normalizedY * normalizedY <= 1;
+            break;
+          case 'diamond':
+            isClicked = mouseX >= nodePos.x - halfWidth && mouseX <= nodePos.x + halfWidth &&
+                       mouseY >= nodePos.y - 40 && mouseY <= nodePos.y + 40;
+            break;
+          default:
+            // 对于其他形状，使用默认矩形碰撞检测
+            isClicked = mouseX >= nodePos.x - halfWidth && mouseX <= nodePos.x + halfWidth &&
+                       mouseY >= nodePos.y - 25 && mouseY <= nodePos.y + 25;
+            break;
+        }
       }
 
       if (isClicked) {
@@ -1511,6 +2123,9 @@ export const CanvasRenderer: React.FC<CanvasRendererProps> = ({
   const handleDoubleClick = (e: React.MouseEvent<HTMLCanvasElement>) => {
     const canvas = canvasRef.current;
     if (!canvas) return;
+    
+    const ctx = canvas.getContext('2d');
+    if (!ctx) return;
 
     const rect = canvas.getBoundingClientRect();
     const mouseX = (e.clientX - rect.left - pan.x) / zoom;
@@ -1523,35 +2138,159 @@ export const CanvasRenderer: React.FC<CanvasRendererProps> = ({
     const nodesToCheck = getNodesToCheck();
 
     for (const node of nodesToCheck) {
+      const nodePos = getFocusNodePosition(node.id, relatedNodes, focusState);
+      
+      // 首先检查是否点击了展开/折叠指示器
+      if (!readOnly && node.children && node.children.length > 0) {
+        const sizeFactor = (node.size || 100) / 100;
+        let indicatorX = nodePos.x + 60 * sizeFactor - 10; // 默认位置
+        
+        // 如果是素材形状，计算实际的右侧边缘位置
+        if (node.shapeAssetId) {
+          const shapeAsset = assetService.getAssetById(node.shapeAssetId);
+          if (shapeAsset?.data?.render) {
+            const render = shapeAsset.data.render;
+            if (render.type === 'path' && render.points) {
+              // 计算素材形状的实际宽度
+              const widthRatio = render.widthRatio || 1.5;
+              const baseWidth = 120 * sizeFactor;
+              const width = baseWidth * (widthRatio / 1.5);
+              const halfWidth = width / 2;
+              
+              // 找到路径点中最右侧的两个点，用于计算边缘中心
+              let maxX = -Infinity;
+              let secondMaxX = -Infinity;
+              let maxPoint: { x: number; y: number } | null = null;
+              let secondMaxPoint: { x: number; y: number } | null = null;
+              
+              render.points.forEach((point: { x: number; y: number }) => {
+                if (point.x > maxX) {
+                  secondMaxX = maxX;
+                  secondMaxPoint = maxPoint;
+                  maxX = point.x;
+                  maxPoint = point;
+                } else if (point.x > secondMaxX) {
+                  secondMaxX = point.x;
+                  secondMaxPoint = point;
+                }
+              });
+              
+              // 计算边缘中心位置
+              let edgeCenterX = nodePos.x + maxX * halfWidth;
+              if (maxPoint && secondMaxPoint) {
+                // 计算两个点的中点
+                const midX = ((maxPoint as { x: number }).x + (secondMaxPoint as { x: number }).x) / 2;
+                edgeCenterX = nodePos.x + midX * halfWidth;
+              }
+              
+              // 计算实际的右侧边缘位置
+              const rightEdgeX = edgeCenterX;
+              // 统一使用10px间隔
+              const gap = 10;
+              indicatorX = rightEdgeX - gap; // 距离右侧边缘的间隔
+            }
+          }
+        }
+        
+        const indicatorY = nodePos.y;
+        const indicatorSize = 12;
+        
+        const isClickOnIndicator = mouseX >= indicatorX - indicatorSize/2 && 
+                                  mouseX <= indicatorX + indicatorSize/2 && 
+                                  mouseY >= indicatorY - indicatorSize/2 && 
+                                  mouseY <= indicatorY + indicatorSize/2;
+        
+        if (isClickOnIndicator) {
+          // 点击了三角形，不触发双击节点的逻辑
+          continue;
+        }
+      }
+      
       let isClicked = false;
       
-      const nodePos = getFocusNodePosition(node.id, relatedNodes, focusState);
       const sizeFactor = (node.size || 100) / 100;
       const halfWidth = 60 * sizeFactor;
 
-      switch (node.shape) {
-        case 'rectangle':
-        case 'rounded':
+      // 首先检查是否使用了素材形状
+      if (node.shapeAssetId) {
+        const shapeAsset = assetService.getAssetById(node.shapeAssetId);
+        if (shapeAsset?.data?.render) {
+          const render = shapeAsset.data.render;
+          
+          if (render.type === 'path' && render.points) {
+            // 使用基于路径的碰撞检测
+            const widthRatio = render.widthRatio || 1.5;
+            const heightRatio = render.heightRatio || 1;
+            
+            // 宽度考虑 sizeFactor，高度保持不变
+            const width = 120 * sizeFactor * (widthRatio / 1.5);
+            const height = 80 * heightRatio;
+            const halfWidth = width / 2;
+            const halfHeight = height / 2;
+            
+            // 创建路径
+            const path = new Path2D();
+            render.points.forEach((point: { x: number; y: number }, index: number) => {
+              const x = nodePos.x + point.x * halfWidth;
+              const y = nodePos.y + point.y * halfHeight;
+              if (index === 0) {
+                path.moveTo(x, y);
+              } else {
+                path.lineTo(x, y);
+              }
+            });
+            if (render.closePath) {
+              path.closePath();
+            }
+            
+            // 使用 isPointInPath 进行精确的碰撞检测
+            isClicked = ctx.isPointInPath(path, mouseX, mouseY);
+          } else {
+            // 如果没有路径数据，使用矩形碰撞检测
+            const widthRatio = render.widthRatio || 1.5;
+            const heightRatio = render.heightRatio || 1;
+            
+            // 宽度考虑 sizeFactor，高度保持不变
+            const width = 120 * sizeFactor * (widthRatio / 1.5);
+            const height = 80 * heightRatio;
+            
+            isClicked = mouseX >= nodePos.x - width / 2 && mouseX <= nodePos.x + width / 2 &&
+                       mouseY >= nodePos.y - height / 2 && mouseY <= nodePos.y + height / 2;
+          }
+        } else {
+          // 如果没有渲染配置，使用默认矩形碰撞检测
           isClicked = mouseX >= nodePos.x - halfWidth && mouseX <= nodePos.x + halfWidth &&
                      mouseY >= nodePos.y - 25 && mouseY <= nodePos.y + 25;
-          break;
-        case 'circle':
-          const radiusX = halfWidth;
-          const radiusY = 40;
-          const normalizedX = (mouseX - nodePos.x) / radiusX;
-          const normalizedY = (mouseY - nodePos.y) / radiusY;
-          isClicked = normalizedX * normalizedX + normalizedY * normalizedY <= 1;
-          break;
-        case 'diamond':
-          isClicked = mouseX >= nodePos.x - halfWidth && mouseX <= nodePos.x + halfWidth &&
-                     mouseY >= nodePos.y - 40 && mouseY <= nodePos.y + 40;
-          break;
+        }
+      } else {
+        // 处理内置形状
+        switch (node.shape) {
+          case 'rectangle':
+          case 'rounded':
+            isClicked = mouseX >= nodePos.x - halfWidth && mouseX <= nodePos.x + halfWidth &&
+                       mouseY >= nodePos.y - 25 && mouseY <= nodePos.y + 25;
+            break;
+          case 'circle':
+            const radiusX = halfWidth;
+            const radiusY = 40;
+            const normalizedX = (mouseX - nodePos.x) / radiusX;
+            const normalizedY = (mouseY - nodePos.y) / radiusY;
+            isClicked = normalizedX * normalizedX + normalizedY * normalizedY <= 1;
+            break;
+          case 'diamond':
+            isClicked = mouseX >= nodePos.x - halfWidth && mouseX <= nodePos.x + halfWidth &&
+                       mouseY >= nodePos.y - 40 && mouseY <= nodePos.y + 40;
+            break;
+          default:
+            // 对于其他形状，使用默认矩形碰撞检测
+            isClicked = mouseX >= nodePos.x - halfWidth && mouseX <= nodePos.x + halfWidth &&
+                       mouseY >= nodePos.y - 25 && mouseY <= nodePos.y + 25;
+            break;
+        }
       }
 
       if (isClicked) {
-        console.log('Double clicked on node:', node.id);
         if (onNodeFocus) {
-          console.log('Calling onNodeFocus with nodeId:', node.id);
           onNodeFocus(node.id);
         } else {
           onNodeSelect(node.id);
@@ -1705,8 +2444,35 @@ export const CanvasRenderer: React.FC<CanvasRendererProps> = ({
           if (node.children && node.children.length > 0) {
             const nodePos = getFocusNodePosition(node.id, relatedNodes, focusState);
             const sizeFactor = (node.size || 100) / 100;
-            const halfWidth = 60 * sizeFactor;
-            const indicatorX = nodePos.x + halfWidth - 10;
+            let indicatorX = nodePos.x + 60 * sizeFactor - 10; // 默认位置
+            
+            // 如果是素材形状，计算实际的右侧边缘位置
+            if (node.shapeAssetId) {
+              const shapeAsset = assetService.getAssetById(node.shapeAssetId);
+              if (shapeAsset?.data?.render) {
+                const render = shapeAsset.data.render;
+                if (render.type === 'path' && render.points) {
+                  // 计算素材形状的实际宽度
+                  const widthRatio = render.widthRatio || 1.5;
+                  const baseWidth = 120 * sizeFactor;
+                  const width = baseWidth * (widthRatio / 1.5);
+                  const halfWidth = width / 2;
+                  
+                  // 找到路径点中最右侧的点
+                  let maxX = -Infinity;
+                  render.points.forEach((point: { x: number; y: number }) => {
+                    if (point.x > maxX) {
+                      maxX = point.x;
+                    }
+                  });
+                  
+                  // 计算实际的右侧边缘位置
+                  const rightEdgeX = nodePos.x + maxX * halfWidth;
+                  indicatorX = rightEdgeX - 10; // 距离右侧边缘10px
+                }
+              }
+            }
+            
             const indicatorY = nodePos.y;
             const indicatorSize = 12;
             
@@ -1727,33 +2493,130 @@ export const CanvasRenderer: React.FC<CanvasRendererProps> = ({
         const halfWidth = 60 * sizeFactor;
         
         let isHovering = false;
-        switch (node.shape) {
-          case 'rectangle':
-          case 'rounded':
+        
+        // 首先检查是否使用了素材形状
+        if (node.shapeAssetId) {
+          const shapeAsset = assetService.getAssetById(node.shapeAssetId);
+          if (shapeAsset?.data?.render) {
+            const render = shapeAsset.data.render;
+            
+            if (render.type === 'path' && render.points) {
+              // 使用基于路径的碰撞检测
+              const widthRatio = render.widthRatio || 1.5;
+              const heightRatio = render.heightRatio || 1;
+              
+              const width = 80 * heightRatio * widthRatio * sizeFactor;
+              const height = 80 * heightRatio * sizeFactor;
+              const halfWidth = width / 2;
+              const halfHeight = height / 2;
+              
+              // 创建路径
+              const path = new Path2D();
+              render.points.forEach((point: { x: number; y: number }, index: number) => {
+                const x = nodePos.x + point.x * halfWidth;
+                const y = nodePos.y + point.y * halfHeight;
+                if (index === 0) {
+                  path.moveTo(x, y);
+                } else {
+                  path.lineTo(x, y);
+                }
+              });
+              if (render.closePath) {
+                path.closePath();
+              }
+              
+              // 使用 isPointInPath 进行精确的碰撞检测
+              const canvas = canvasRef.current;
+              if (canvas) {
+                const ctx = canvas.getContext('2d');
+                if (ctx) {
+                  isHovering = ctx.isPointInPath(path, mouseX, mouseY);
+                }
+              }
+            } else {
+              // 如果没有路径数据，使用矩形碰撞检测
+              const widthRatio = render.widthRatio || 1.5;
+              const heightRatio = render.heightRatio || 1;
+              
+              const width = 80 * heightRatio * widthRatio * sizeFactor;
+              const height = 80 * heightRatio * sizeFactor;
+              
+              isHovering = mouseX >= nodePos.x - width / 2 && 
+                          mouseX <= nodePos.x + width / 2 && 
+                          mouseY >= nodePos.y - height / 2 && 
+                          mouseY <= nodePos.y + height / 2;
+            }
+          } else {
+            // 如果没有渲染配置，使用默认矩形碰撞检测
             isHovering = mouseX >= nodePos.x - halfWidth && 
                         mouseX <= nodePos.x + halfWidth && 
                         mouseY >= nodePos.y - 25 && 
                         mouseY <= nodePos.y + 25;
-            break;
-          case 'circle':
-            const radiusX = halfWidth;
-            const radiusY = 40;
-            const normalizedX = (mouseX - nodePos.x) / radiusX;
-            const normalizedY = (mouseY - nodePos.y) / radiusY;
-            isHovering = (normalizedX * normalizedX + normalizedY * normalizedY) <= 1;
-            break;
-          case 'diamond':
-            isHovering = mouseX >= nodePos.x - halfWidth && 
-                        mouseX <= nodePos.x + halfWidth && 
-                        mouseY >= nodePos.y - 40 && 
-                        mouseY <= nodePos.y + 40;
-            break;
+          }
+        } else {
+          // 处理内置形状
+          switch (node.shape) {
+            case 'rectangle':
+            case 'rounded':
+              isHovering = mouseX >= nodePos.x - halfWidth && 
+                          mouseX <= nodePos.x + halfWidth && 
+                          mouseY >= nodePos.y - 25 && 
+                          mouseY <= nodePos.y + 25;
+              break;
+            case 'circle':
+              const radiusX = halfWidth;
+              const radiusY = 40;
+              const normalizedX = (mouseX - nodePos.x) / radiusX;
+              const normalizedY = (mouseY - nodePos.y) / radiusY;
+              isHovering = (normalizedX * normalizedX + normalizedY * normalizedY) <= 1;
+              break;
+            case 'diamond':
+              isHovering = mouseX >= nodePos.x - halfWidth && 
+                          mouseX <= nodePos.x + halfWidth && 
+                          mouseY >= nodePos.y - 40 && 
+                          mouseY <= nodePos.y + 40;
+              break;
+            default:
+              // 对于其他形状，使用默认矩形碰撞检测
+              isHovering = mouseX >= nodePos.x - halfWidth && 
+                          mouseX <= nodePos.x + halfWidth && 
+                          mouseY >= nodePos.y - 25 && 
+                          mouseY <= nodePos.y + 25;
+              break;
+          }
         }
         
         if (isHovering) {
           isOverNode = true;
+          
+          // 检查节点标题是否超出限制，显示 tooltip
+          const maxTextWidth = halfWidth * 2 - 20;
+          const canvas = canvasRef.current;
+          if (canvas) {
+            const ctx = canvas.getContext('2d');
+            if (ctx && node.title) {
+              ctx.font = '14px sans-serif';
+              const textMetrics = ctx.measureText(node.title);
+              // 如果标题宽度超过最大宽度，显示 tooltip
+              if (textMetrics.width > maxTextWidth) {
+                setTooltip({
+                  visible: true,
+                  x: e.clientX + 10,
+                  y: e.clientY - 30,
+                  title: node.title
+                });
+              } else {
+                setTooltip(prev => ({ ...prev, visible: false }));
+              }
+            }
+          }
           break;
         }
+      }
+      
+      // 如果没有悬停在节点上，隐藏 tooltip
+      if (!isOverNode) {
+        setTooltip(prev => ({ ...prev, visible: false }));
       }
       
       // 根据悬停状态改变鼠标样式
@@ -1826,6 +2689,19 @@ export const CanvasRenderer: React.FC<CanvasRendererProps> = ({
         onDragOver={handleDragOver}
         onDrop={handleDrop}
       />
+      
+      {/* Tooltip - 显示完整标题 */}
+      {tooltip.visible && (
+        <div
+          className="fixed z-[9999] px-3 py-2 text-sm bg-gray-900 text-white rounded-lg shadow-lg pointer-events-none max-w-xs break-words"
+          style={{
+            left: tooltip.x,
+            top: tooltip.y,
+          }}
+        >
+          {tooltip.title}
+        </div>
+      )}
     </div>
   );
 };

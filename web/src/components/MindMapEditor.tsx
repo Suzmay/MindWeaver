@@ -12,6 +12,7 @@ import {
   Layers,
   RefreshCw,
   Eye,
+  Heart,
 } from 'lucide-react';
 import { Button } from './ui/button';
 import { Separator } from './ui/separator';
@@ -29,6 +30,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from './ui/dialog';
+import { Asset, assetService } from '../services/assets/AssetService';
 import { CanvasRenderer,
 } from './canvas/CanvasRenderer';
 import { MiniMap } from './canvas/MiniMap';
@@ -155,9 +157,28 @@ export function MindMapEditor({ workId, onBack, onPreview }: MindMapEditorProps)
   
   // AI生成摘要的状态
   const [isGeneratingSummary, setIsGeneratingSummary] = useState(false);
-  
+
+  // 配色方案相关状态
+  const [isColorSchemeDialogOpen, setIsColorSchemeDialogOpen] = useState(false);
+  const [previewColorSchemeAsset, setPreviewColorSchemeAsset] = useState<Asset | null>(null);
+  const [originalNodes, setOriginalNodes] = useState<MindMapNode[]>([]);
+  const [isUsingColorScheme, setIsUsingColorScheme] = useState(false); // 是否使用了配色方案
+  const [currentColorSchemeAsset, setCurrentColorSchemeAsset] = useState<Asset | null>(null); // 当前选定的配色方案
+  const [customColorNodes, setCustomColorNodes] = useState<MindMapNode[]>([]); // 存储用户自定义的颜色状态
+
   // 引用
   const autoSaveTimerRef = useRef<NodeJS.Timeout | null>(null);
+  const nodesRef = useRef<MindMapNode[]>(nodes);
+  const connectionsRef = useRef<any[]>(connections);
+  
+  // 同步 nodes 和 connections 到 ref
+  useEffect(() => {
+    nodesRef.current = nodes;
+  }, [nodes]);
+  
+  useEffect(() => {
+    connectionsRef.current = connections;
+  }, [connections]);
 
   // 监控节点变化并确保新节点在 expandedNodes 集合中
   useEffect(() => {
@@ -493,12 +514,15 @@ export function MindMapEditor({ workId, onBack, onPreview }: MindMapEditorProps)
         if (workDetails && workDetails.encryptedData) {
           // 等待数据加载完成后初始化历史记录
           setTimeout(() => {
-            if (nodes.length > 0 && nodes[0].id === 'root') {
+            // 使用最新的 nodes 和 connections 状态
+            const currentNodes = nodesRef.current;
+            const currentConnections = connectionsRef.current;
+            if (currentNodes.length > 0 && currentNodes[0].id === 'root') {
               // 清空历史记录并添加当前状态作为初始状态
               historyManagerRef.current.clear();
               const initialState: HistoryState = {
-                nodes,
-                connections,
+                nodes: currentNodes,
+                connections: currentConnections,
                 timestamp: Date.now(),
                 description: '初始状态',
               };
@@ -586,6 +610,153 @@ export function MindMapEditor({ workId, onBack, onPreview }: MindMapEditorProps)
     }
   };
 
+  // 处理配色方案对话框打开
+  const handleOpenColorSchemeDialog = () => {
+    // 只有在未使用配色方案时，才保存当前状态为自定义颜色状态
+    if (!isUsingColorScheme) {
+      setCustomColorNodes([...nodes]);
+    }
+    // 每次都保存当前状态，用于预览时的恢复
+    setOriginalNodes([...nodes]);
+    // 如果当前已选择了配色方案，默认选中它
+    if (currentColorSchemeAsset) {
+      setPreviewColorSchemeAsset(currentColorSchemeAsset);
+      // 应用预览，确保对话框打开时显示当前配色方案
+      const colors = currentColorSchemeAsset.data?.colors || [];
+      if (colors.length > 0) {
+        // 按层级分组节点，用于在同一层内轮换颜色
+        const levelGroups = new Map<number, MindMapNode[]>();
+        nodes.forEach(node => {
+          const level = node.level ?? 0;
+          if (!levelGroups.has(level)) {
+            levelGroups.set(level, []);
+          }
+          levelGroups.get(level)!.push(node);
+        });
+
+        const newNodes = nodes.map((node) => {
+          const level = node.level ?? 0;
+          
+          if (level === 0) {
+            // 中心节点使用第一个颜色
+            return {
+              ...node,
+              color: colors[0]
+            };
+          }
+          
+          // 其他层级：每3个颜色一组，轮换使用
+          // 第1层用 colors[1,2,3]，第2层用 colors[4,5,6]，以此类推
+          // 超出范围后回到第一组
+          const groupIndex = ((level - 1) % 5) * 3; // 5组轮换 (15个颜色 / 3 = 5组)
+          
+          // 在同一层内按节点顺序轮换3个颜色
+          const levelNodes = levelGroups.get(level) || [];
+          const nodeIndexInLevel = levelNodes.findIndex(n => n.id === node.id);
+          const colorInGroup = nodeIndexInLevel % 3; // 0, 1, 2 轮换
+          
+          const colorIndex = 1 + groupIndex + colorInGroup;
+          
+          return {
+            ...node,
+            color: colors[Math.min(colorIndex, colors.length - 1)]
+          };
+        });
+        setNodes(newNodes);
+      }
+    } else {
+      setPreviewColorSchemeAsset(null);
+    }
+    setIsColorSchemeDialogOpen(true);
+  };
+
+  // 应用配色方案（预览）
+  const applyColorSchemePreview = (colorSchemeAsset: Asset) => {
+    // 如果点击的是已选中的配色方案，则取消选中
+    if (previewColorSchemeAsset?.id === colorSchemeAsset.id) {
+      setPreviewColorSchemeAsset(null);
+      // 恢复原始节点颜色
+      setNodes([...originalNodes]);
+      return;
+    }
+    
+    setPreviewColorSchemeAsset(colorSchemeAsset);
+    const colors = colorSchemeAsset.data?.colors || [];
+    if (colors.length === 0) return;
+
+    // 按层级分组节点，用于在同一层内轮换颜色
+    const levelGroups = new Map<number, MindMapNode[]>();
+    nodes.forEach(node => {
+      const level = node.level ?? 0;
+      if (!levelGroups.has(level)) {
+        levelGroups.set(level, []);
+      }
+      levelGroups.get(level)!.push(node);
+    });
+
+    const newNodes = nodes.map((node) => {
+      const level = node.level ?? 0;
+      
+      if (level === 0) {
+        // 中心节点使用第一个颜色
+        return {
+          ...node,
+          color: colors[0]
+        };
+      }
+      
+      // 其他层级：每3个颜色一组，轮换使用
+      // 第1层用 colors[1,2,3]，第2层用 colors[4,5,6]，以此类推
+      // 超出范围后回到第一组
+      const groupIndex = ((level - 1) % 5) * 3; // 5组轮换 (15个颜色 / 3 = 5组)
+      
+      // 在同一层内按节点顺序轮换3个颜色
+      const levelNodes = levelGroups.get(level) || [];
+      const nodeIndexInLevel = levelNodes.findIndex(n => n.id === node.id);
+      const colorInGroup = nodeIndexInLevel % 3; // 0, 1, 2 轮换
+      
+      const colorIndex = 1 + groupIndex + colorInGroup;
+      
+      return {
+        ...node,
+        color: colors[Math.min(colorIndex, colors.length - 1)]
+      };
+    });
+    setNodes(newNodes);
+  };
+
+  // 确认应用配色方案
+  const handleConfirmColorScheme = () => {
+    setIsColorSchemeDialogOpen(false);
+    // 无论是否选择了配色方案，都记录历史状态
+    if (previewColorSchemeAsset) {
+      // 如果是首次应用配色方案，保存当前状态为自定义颜色状态
+      if (!isUsingColorScheme) {
+        setCustomColorNodes([...originalNodes]);
+      }
+      addHistoryState(originalNodes, connections, '应用配色方案');
+      // 更新当前选定的配色方案
+      setCurrentColorSchemeAsset(previewColorSchemeAsset);
+      setIsUsingColorScheme(true);
+    } else {
+      // 恢复颜色状态：如果有自定义颜色状态则恢复，否则恢复到打开对话框时的状态
+      const nodesToRestore = customColorNodes.length > 0 ? customColorNodes : originalNodes;
+      setNodes([...nodesToRestore]);
+      addHistoryState(originalNodes, connections, '取消配色方案');
+      // 取消对配色方案的使用，恢复到自定义颜色的状态
+      setIsUsingColorScheme(false);
+      setCurrentColorSchemeAsset(null);
+    }
+    setHasUnsavedChanges(true);
+  };
+
+  // 取消配色方案
+  const handleCancelColorScheme = () => {
+    setNodes(originalNodes);
+    setPreviewColorSchemeAsset(null);
+    setIsColorSchemeDialogOpen(false);
+  };
+
   // 处理保存并继续
   const handleSaveAndContinue = async () => {
     try {
@@ -659,6 +830,13 @@ export function MindMapEditor({ workId, onBack, onPreview }: MindMapEditorProps)
   const handleStyleChange = (nodeIds: string[], style: any) => {
     const newNodes = NodeOperations.batchUpdateNodes(nodes, nodeIds, style);
     setNodes(newNodes);
+    // 如果修改了节点颜色，取消配色方案的选择
+    if (style.color && isUsingColorScheme) {
+      setIsUsingColorScheme(false);
+      setCurrentColorSchemeAsset(null);
+      // 更新自定义颜色状态
+      setCustomColorNodes([...newNodes]);
+    }
     addHistoryState(newNodes, connections, '修改样式');
     setHasUnsavedChanges(true);
   };
@@ -1174,7 +1352,16 @@ export function MindMapEditor({ workId, onBack, onPreview }: MindMapEditorProps)
             </DropdownMenuContent>
           </DropdownMenu>
 
-
+          {/* 素材 - 配色方案 */}
+          <Button 
+            variant="outline" 
+            size="sm" 
+            className="rounded-lg"
+            onClick={handleOpenColorSchemeDialog}
+          >
+            <Heart className="w-4 h-4 mr-2" />
+            素材
+          </Button>
 
           <Separator orientation="vertical" className="h-6" />
 
@@ -1353,6 +1540,69 @@ export function MindMapEditor({ workId, onBack, onPreview }: MindMapEditorProps)
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      {/* 配色方案选择对话框 */}
+      <Dialog open={isColorSchemeDialogOpen} onOpenChange={setIsColorSchemeDialogOpen}>
+        <DialogContent className="max-w-2xl max-h-[70vh] flex flex-col overflow-hidden">
+          <DialogHeader className="flex-shrink-0">
+            <DialogTitle className="flex items-center gap-2">
+              选择在素材中心收藏的配色方案
+            </DialogTitle>
+          </DialogHeader>
+          <div className="flex-1 min-h-0 overflow-y-auto py-4">
+            {(() => {
+              const favorites = assetService.loadFavoriteAssets();
+              const colorSchemes = favorites.filter(asset => asset.type === 'colorScheme');
+              
+              if (colorSchemes.length === 0) {
+                return (
+                  <div className="text-center py-12 text-muted-foreground">
+                    <Heart className="w-12 h-12 mx-auto mb-4 text-muted-foreground/50" />
+                    <p>暂无收藏的配色方案</p>
+                    <p className="text-sm mt-2">请到素材中心收藏您需要的配色方案</p>
+                  </div>
+                );
+              }
+              
+              return (
+                <div className="grid grid-cols-4 gap-3">
+                  {colorSchemes.map((asset) => {
+                    const isSelected = previewColorSchemeAsset?.id === asset.id;
+                    const isCurrent = currentColorSchemeAsset?.id === asset.id;
+                    return (
+                      <button
+                        key={asset.id}
+                        onClick={() => applyColorSchemePreview(asset)}
+                        className={`p-2 border rounded-lg hover:border-primary transition-all flex flex-col items-center bg-card ${isSelected ? 'border-primary bg-primary/5' : isCurrent ? 'border-green-500 bg-green-50' : ''}`}
+                      >
+                        <img
+                          src={asset.thumbnail}
+                          alt={asset.name}
+                          className="w-16 h-16 mb-2"
+                        />
+                        <span className="text-xs text-center">{asset.name}</span>
+                        {isCurrent && <span className="text-xs text-green-500 mt-1">当前使用</span>}
+                      </button>
+                    );
+                  })}
+                </div>
+              );
+            })()}
+          </div>
+          <DialogFooter className="flex-shrink-0 flex justify-between">
+            <Button variant="outline" onClick={handleCancelColorScheme}>
+              取消
+            </Button>
+            <Button 
+              onClick={handleConfirmColorScheme}
+              disabled={previewColorSchemeAsset?.id === currentColorSchemeAsset?.id}
+            >
+              确定
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
     </div>
   );
 }

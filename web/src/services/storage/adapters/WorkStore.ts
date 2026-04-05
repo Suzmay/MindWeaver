@@ -102,8 +102,8 @@ export class WorkStore implements WorkRepository {
       throw new Error('作品未找到');
     }
     
-    // 更新字段
-    const now = new Date().toISOString();
+    // 只有当更新了 encryptedData 时（即打开思维导图内部并保存），才更新 lastModified 时间戳
+    const now = dto.encryptedData ? new Date().toISOString() : work.lastModified;
     const updatedWork: Work = {
       ...work,
       title: dto.title || work.title,

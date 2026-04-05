@@ -60,7 +60,11 @@ export function WorksPage({ onEditWork }: WorksPageProps) {
 
   // 分页状态
   const [currentPage, setCurrentPage] = useState(1);
-  const [pageSize, setPageSize] = useState(12); // 默认12，是3的倍数，适合一行显示3个作品
+  const [pageSize, setPageSize] = useState(() => {
+    // 从 localStorage 读取保存的 pageSize，默认12
+    const savedPageSize = localStorage.getItem('worksPageSize');
+    return savedPageSize ? Number(savedPageSize) : 12;
+  }); // 默认12，是3的倍数，适合一行显示3个作品
   const [totalWorks, setTotalWorks] = useState(0);
   
   // 废纸篓状态
@@ -592,15 +596,13 @@ export function WorksPage({ onEditWork }: WorksPageProps) {
   };
 
   // 生成作品缩略图的函数
-  const generateThumbnail = (work: Work) => {
+  const generateThumbnail = (_work: Work) => {
     // 使用统一的背景颜色
     const bgColor = 'hsl(200 75% 85% / 0.2)';
     
-    // 基于作品标签生成图标
-    const tagCount = work.tags?.length || 0;
-    const iconIndex = tagCount % 5;
-    const icons = ['FileText', 'Star', 'Clock', 'Folder', 'Tag'];
-    const selectedIcon = icons[iconIndex];
+    // 始终使用文件图标作为默认图标
+    // 不再基于标签数量变化，保持图标一致性
+    const selectedIcon = 'FileText';
     
     return {
       bgColor,
@@ -618,15 +620,16 @@ export function WorksPage({ onEditWork }: WorksPageProps) {
       return matchesSearch && matchesCategory && matchesTag && matchesStarred;
     })
     .sort((a, b) => {
-      if (sortBy === 'starred') {
-        return (b.starred ? 1 : 0) - (a.starred ? 1 : 0);
-      }
-      // 当在分组视图中时，先按分类排序，然后按收藏状态排序
+      // 收藏的思维导图永远在前面
+      if (a.starred && !b.starred) return -1;
+      if (!a.starred && b.starred) return 1;
+      
+      // 当在分组视图中时，先按分类排序
       if (filterCategory === 'grouped') {
         const categoryCompare = (a.category || '').localeCompare(b.category || '');
         if (categoryCompare !== 0) return categoryCompare;
-        return (b.starred ? 1 : 0) - (a.starred ? 1 : 0);
       }
+      
       return 0; // 默认按最近（已按顺序排列）
     });
 
@@ -751,7 +754,7 @@ export function WorksPage({ onEditWork }: WorksPageProps) {
               type="button"
               variant="outline"
               onClick={() => setDeleteConfirmDialogOpen(false)}
-              className="rounded-xl hover:text-foreground bg-white dark:bg-transparent"
+              className="rounded-xl"
             >
               取消
             </Button>
@@ -1455,8 +1458,11 @@ export function WorksPage({ onEditWork }: WorksPageProps) {
             <div className="flex items-center gap-2">
               <span className="text-sm">每页显示：</span>
               <Select value={pageSize.toString()} onValueChange={(value) => {
-                setPageSize(Number(value));
+                const newPageSize = Number(value);
+                setPageSize(newPageSize);
                 setCurrentPage(1);
+                // 保存到 localStorage
+                localStorage.setItem('worksPageSize', newPageSize.toString());
               }}>
                 <SelectTrigger className="w-[100px] rounded-xl border-primary/20">
                   <SelectValue placeholder="每页显示" />
@@ -1545,7 +1551,7 @@ export function WorksPage({ onEditWork }: WorksPageProps) {
             <Button 
               variant="outline" 
               onClick={() => setRenameDialogOpen(false)}
-              className="rounded-xl bg-white dark:bg-transparent"
+              className="rounded-xl"
             >
               取消
             </Button>

@@ -2,6 +2,62 @@
 @tailwind components;
 @tailwind utilities;
 
+/* 内置字体声明 */
+
+/* 黑体：Aa厚底黑 */
+@font-face {
+  font-family: 'AaHouDiHei';
+  src: url('../fonts/AaHouDiHei-2.ttf') format('truetype');
+  font-weight: 400;
+  font-style: normal;
+  font-display: swap;
+}
+
+/* 宋体：汇文明朝体 */
+@font-face {
+  font-family: 'HuiWenMingChao';
+  src: url('../fonts/汇文明朝体.otf') format('opentype');
+  font-weight: 400;
+  font-style: normal;
+  font-display: swap;
+}
+
+/* 宋体：思源宋体 Bold */
+@font-face {
+  font-family: 'SourceHanSerifCN';
+  src: url('../fonts/SourceHanSerifCN-Bold.otf') format('opentype');
+  font-weight: 700;
+  font-style: normal;
+  font-display: swap;
+}
+
+/* 圆体：思源柔黑 Bold */
+@font-face {
+  font-family: 'GenJyuuGothic';
+  src: url('../fonts/GenJyuuGothic-Bold-2.ttf') format('truetype');
+  font-weight: 700;
+  font-style: normal;
+  font-display: swap;
+}
+
+/* 楷体：汇文正楷 */
+@font-face {
+  font-family: 'HuiWenZhengKai';
+  src: url('../fonts/汇文正楷v1.001.ttf') format('truetype');
+  font-weight: 400;
+  font-style: normal;
+  font-display: swap;
+}
+
+/* 手写：Tanugo糖果手写体 Bold */
+@font-face {
+  font-family: 'Tanugo';
+  src: url('../fonts/Tanugo-Round-Bold-2.otf') format('opentype');
+  font-weight: 700;
+  font-style: normal;
+  font-display: swap;
+}
+
 @layer properties {
   @supports (((-webkit-hyphens: none)) and (not (margin-trim: inline))) or ((-moz-orient: inline) and (not (color: rgb(from red r g b)))) {
     *, :before, :after, ::backdrop {

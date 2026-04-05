@@ -5,48 +5,129 @@ import { Button } from '../ui/button';
 import { Label } from '../ui/label';
 import { Slider } from '../ui/slider';
 import { Popover, PopoverContent, PopoverTrigger } from '../ui/popover';
+import { assetService } from '../../services/assets/AssetService';
+
+// 将 kebab-case 转换为 PascalCase
+const kebabToPascalCase = (str: string): string => {
+  return str
+    .split('-')
+    .map(word => word.charAt(0).toUpperCase() + word.slice(1))
+    .join('');
+};
 
 // 简单的Markdown渲染函数
 const renderMarkdown = (text: string) => {
   if (!text) return '无';
   
-  return text.split('\n').map((line, index) => {
-    // 处理H1标题
+  // 提取大图标
+  let largeIconSvg: string | null = null;
+  const largeIconMatch = text.match(/:icon-([\w-]+?)-large:/);
+  if (largeIconMatch) {
+    const iconId = largeIconMatch[1];
+    // 先尝试直接使用 iconId（适用于 iconify 图标）
+    let asset = assetService.getAssetById(iconId);
+    if (!asset) {
+      // 再尝试添加 icon- 前缀（适用于默认图标）
+      asset = assetService.getAssetById(`icon-${iconId}`);
+    }
+    if (asset && asset.data && asset.data.svg) {
+      largeIconSvg = asset.data.svg
+        .replace(/width="[^"]*"/, 'width="128"')
+        .replace(/height="[^"]*"/, 'height="128"')
+        .replace(/viewBox="[^"]*"/, 'viewBox="0 0 24 24"');
+    } else {
+      // 如果在资产中找不到，尝试从图标组合中查找
+      const pascalName = kebabToPascalCase(iconId);
+      const iconSvg = assetService.getIconSvgByName(pascalName);
+      if (iconSvg) {
+        largeIconSvg = iconSvg
+          .replace(/width="[^"]*"/, 'width="128"')
+          .replace(/height="[^"]*"/, 'height="128"')
+          .replace(/viewBox="[^"]*"/, 'viewBox="0 0 24 24"');
+      }
+    }
+  }
+  
+  // 去除大图标标记后的文本
+  const textWithoutLargeIcon = text.replace(/:icon-[\w-]+?-large:/g, '');
+  
+  // 通用的图标替换函数（只处理小图标）
+  const replaceSmallIcons = (str: string) => {
+    let result = str;
+    
+    // 替换小图标
+      result = result.replace(/:icon-([\w-]+?):/g, (match, iconId) => {
+        // 先尝试直接使用 iconId（适用于 iconify 图标）
+        let asset = assetService.getAssetById(iconId);
+        if (!asset) {
+          // 再尝试添加 icon- 前缀（适用于默认图标）
+          asset = assetService.getAssetById(`icon-${iconId}`);
+        }
+      if (asset && asset.data && asset.data.svg) {
+        return `<span class="inline-flex items-center justify-center w-4 h-4 align-middle" style="vertical-align: middle;">${asset.data.svg}</span>`;
+      } else {
+        // 如果在资产中找不到，尝试从图标组合中查找
+        const pascalName = kebabToPascalCase(iconId);
+        const iconSvg = assetService.getIconSvgByName(pascalName);
+        if (iconSvg) {
+          return `<span class="inline-flex items-center justify-center w-4 h-4 align-middle" style="vertical-align: middle;">${iconSvg}</span>`;
+        }
+      }
+      return match;
+    });
+    
+    return result;
+  };
+  
+  const lines = textWithoutLargeIcon.split('\n').map((line, index) => {
     if (line.startsWith('# ')) {
       return <h1 key={index} className="text-xl font-bold mt-1 mb-1">{line.substring(2)}</h1>;
     }
-    // 处理H2标题
     if (line.startsWith('## ')) {
       return <h2 key={index} className="text-lg font-semibold mt-1 mb-1">{line.substring(3)}</h2>;
     }
-    // 处理项目符号列表
     if (line.startsWith('- ')) {
       let listContent = line.substring(2);
-      // 处理列表项中的格式
       listContent = listContent
         .replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>')
         .replace(/\*(.*?)\*/g, '<em>$1</em>')
         .replace(/__(.*?)__/g, '<u>$1</u>');
+      listContent = replaceSmallIcons(listContent);
       return <li key={index} className="ml-4 list-disc" dangerouslySetInnerHTML={{ __html: listContent }} />;
     }
-    // 处理编号列表
     if (line.match(/^\d+\. /)) {
       let listContent = line.substring(line.indexOf(' ') + 1);
-      // 处理列表项中的格式
       listContent = listContent
         .replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>')
         .replace(/\*(.*?)\*/g, '<em>$1</em>')
         .replace(/__(.*?)__/g, '<u>$1</u>');
+      listContent = replaceSmallIcons(listContent);
       return <li key={index} className="ml-4 list-decimal" dangerouslySetInnerHTML={{ __html: listContent }} />;
     }
-    // 处理普通文本中的格式
     let processedLine = line
       .replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>')
       .replace(/\*(.*?)\*/g, '<em>$1</em>')
       .replace(/__(.*?)__/g, '<u>$1</u>');
+    processedLine = replaceSmallIcons(processedLine);
     
     return <p key={index} dangerouslySetInnerHTML={{ __html: processedLine }} />;
   });
+  
+  // 如果有大图标，使用特殊布局
+  if (largeIconSvg) {
+    return (
+      <div className="flex items-start gap-4">
+        <div className="flex-1">{lines}</div>
+        <div 
+          className="flex-shrink-0 flex items-center justify-center" 
+          style={{ width: '128px', height: '128px', alignSelf: 'center' }}
+          dangerouslySetInnerHTML={{ __html: largeIconSvg }} 
+        />
+      </div>
+    );
+  }
+  
+  return lines;
 };
 
 interface NodeCardProps {
@@ -185,9 +266,9 @@ export const NodeCard: React.FC<NodeCardProps> = ({
         </div>
       </div>
 
-      <div className="flex-1 overflow-y-auto space-y-4">
+      <div className="flex-1 space-y-4">
         {showMode === 'summary' && (
-          <div className="space-y-2">
+          <div className="space-y-2 h-full">
             <div className="flex justify-between items-center">
               <Label className="text-sm font-medium">摘要</Label>
               {!readOnly && (
@@ -233,18 +314,18 @@ export const NodeCard: React.FC<NodeCardProps> = ({
                 </div>
               )}
             </div>
-            <p className="text-sm text-muted-foreground bg-muted/30 p-2 rounded-lg min-h-[40px]">
+            <div className="text-sm text-muted-foreground bg-muted/30 p-2 rounded-lg h-[180px] overflow-y-auto">
               {node.summary || '无'}
-            </p>
+            </div>
           </div>
         )}
 
         {showMode === 'content' && (
-          <div className="space-y-2">
+          <div className="space-y-2 h-full">
             <div className="flex justify-between items-center">
               <Label className="text-sm font-medium">内容</Label>
             </div>
-            <div className="text-sm text-muted-foreground bg-muted/30 p-2 rounded-lg min-h-[40px]">
+            <div className="text-sm text-muted-foreground bg-muted/30 p-2 rounded-lg h-[180px] overflow-y-auto">
               {renderMarkdown(node.content || '')}
             </div>
           </div>

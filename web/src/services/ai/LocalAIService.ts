@@ -2,6 +2,40 @@ export class LocalAIService {
   private static instance: LocalAIService;
   private baseUrl: string = 'http://localhost:11434/api';
   private model: string = 'llama2-chinese';
+  
+  /**
+   * 清理 Markdown 格式，移除所有格式标记和图标标记
+   * @param text 包含 Markdown 格式的文本
+   * @returns 纯文本内容
+   */
+  private cleanMarkdown(text: string): string {
+    let result = text;
+    
+    // 1. 移除图标标记（大图标和小图标）
+    result = result.replace(/:icon-[\w-]+?-large:/g, '');
+    result = result.replace(/:icon-[\w-]+?:/g, '');
+    
+    // 2. 移除标题标记 (#, ##)
+    result = result.replace(/^#{1,6}\s*/gm, '');
+    
+    // 3. 移除列表标记 (-, *, +, 1., 2., 等)
+    result = result.replace(/^([-*+]|\d+\.)\s*/gm, '');
+    
+    // 4. 移除粗体标记 (**text**)
+    result = result.replace(/\*\*(.*?)\*\*/g, '$1');
+    
+    // 5. 移除斜体标记 (*text*)
+    result = result.replace(/\*(.*?)\*/g, '$1');
+    
+    // 6. 移除下划线标记 (__text__)
+    result = result.replace(/__(.*?)__/g, '$1');
+    
+    // 7. 清理多余的空行和空白
+    result = result.replace(/\n{3,}/g, '\n\n');
+    result = result.trim();
+    
+    return result;
+  }
 
   private constructor() {}
 
@@ -103,7 +137,9 @@ export class LocalAIService {
         }
       }
 
-      const prompt = `请为以下内容生成简洁、准确的中文摘要，${maxLength}字以内，请自检确保不要超过${maxLength}字：\n\n${content}`;
+      // 清理 Markdown 格式，只保留纯文本
+      const cleanContent = this.cleanMarkdown(content);
+      const prompt = `请为以下内容生成简洁、准确的中文摘要，${maxLength}字以内，请自检确保不要超过${maxLength}字：\n\n${cleanContent}`;
       
       const response = await fetch(`${this.baseUrl}/generate`, {
         method: 'POST',
