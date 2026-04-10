@@ -7,6 +7,7 @@ export interface Asset {
   tags: string[];
   thumbnail: string;
   uploader: string;
+  description?: string; // 素材描述
   data?: any; // 素材的实际数据
 }
 
@@ -22,7 +23,7 @@ const lucideGraduationCapSvg = `<svg xmlns="http://www.w3.org/2000/svg" width="2
 // 将 SVG 转换为 data URL
 const svgToDataUrl = (svg: string): string => {
   const encoded = encodeURIComponent(svg);
-  return `data:image/svg+xml;charset=utf-8,${encoded}`;
+  return `data:image/svg+xml;utf8,${encoded}`;
 };
 
 
@@ -321,10 +322,11 @@ const generateIconSetSvg = (icons: { name: string; svg: string }[]): string => {
 };
 
 // 生成字体样式 SVG 的函数
-const generateFontStyleSvg = (fontFamily: string, fontSize: string, fontWeight: string): string => {
+const generateFontStyleSvg = (fontFamily: string, _fontSize: string, fontWeight: string): string => {
   return `<svg xmlns="http://www.w3.org/2000/svg" width="64" height="64" viewBox="0 0 64 64" fill="none" stroke="none">
-  <text x="32" y="28" font-family="${fontFamily}" font-size="${fontSize}" font-weight="${fontWeight}" fill="#000" text-anchor="middle" dominant-baseline="middle">Mind</text>
-  <text x="32" y="44" font-family="${fontFamily}" font-size="${fontSize}" font-weight="${fontWeight}" fill="#000" text-anchor="middle" dominant-baseline="middle">Weaver</text>
+  <rect width="100%" height="100%" fill="#3b82f6"/>
+  <text x="32" y="28" font-family="${fontFamily}" font-size="10px" font-weight="${fontWeight}" fill="#ffffff" text-anchor="middle" dominant-baseline="middle">字体预览</text>
+  <text x="32" y="44" font-family="${fontFamily}" font-size="10px" font-weight="${fontWeight}" fill="#ffffff" text-anchor="middle" dominant-baseline="middle">MindWeaver</text>
 </svg>`;
 };
 
@@ -804,17 +806,56 @@ const fontStyleAssets: Asset[] = [
 
 const builtInAssets: Asset[] = [...iconAssets, ...shapeAssets, ...connectorAssets, ...iconSetAssets, ...fontStyleAssets, ...colorSchemeAssets, ...backgroundAssets, ...animationAssets];
 
+// 导入API服务
+import { apiService } from '../api/ApiService';
+
 // 素材服务类
 class AssetService {
   private STORAGE_KEY = 'mindweaver_favorite_assets';
+  private USER_ASSETS_KEY = 'mindweaver_user_assets';
   private favoriteAssets: Asset[] = [];
+  private userAssets: Asset[] = [];
+  private apiAvailable: boolean = false;
   
   constructor() {
+    // 初始化时检查API是否可用
+    this.checkApiAvailability();
     // 初始化时加载收藏的素材
     this.favoriteAssets = this.loadFavoriteAssets();
+    // 初始化时同步加载用户上传的素材
+    this.userAssets = this.loadUserAssetsFromLocal();
+    // 异步加载（从API或本地）
+    this.loadUserAssetsAsync();
   }
   
-  // 获取所有素材（包含内置和收藏的）
+  // 检查API是否可用
+  private async checkApiAvailability() {
+    this.apiAvailable = await apiService.isApiAvailable();
+    console.log('API可用性:', this.apiAvailable);
+  }
+  
+  // 异步加载用户上传的素材
+  private async loadUserAssetsAsync() {
+    try {
+      if (this.apiAvailable) {
+        const response = await apiService.getAssets();
+        if (response.success && response.assets) {
+          this.userAssets = response.assets as Asset[];
+          // 同时保存到本地作为备份
+          this.saveUserAssetsToLocal(this.userAssets);
+          return;
+        }
+      }
+      // 降级到本地存储
+      this.userAssets = this.loadUserAssetsFromLocal();
+    } catch (error) {
+      console.error('加载用户素材失败:', error);
+      // 降级到本地存储
+      this.userAssets = this.loadUserAssetsFromLocal();
+    }
+  }
+  
+  // 获取所有素材（包含内置、收藏的和用户上传的）
   getAllAssets(): Asset[] {
     const allAssetIds = new Set<string>();
     const result: Asset[] = [];
@@ -827,7 +868,15 @@ class AssetService {
       }
     });
     
-    // 再添加收藏的素材（避免重复）
+    // 再添加用户上传的素材（避免重复）
+    this.userAssets.forEach(asset => {
+      if (!allAssetIds.has(asset.id)) {
+        allAssetIds.add(asset.id);
+        result.push(asset);
+      }
+    });
+    
+    // 最后添加收藏的素材（避免重复）
     this.favoriteAssets.forEach(asset => {
       if (!allAssetIds.has(asset.id)) {
         allAssetIds.add(asset.id);
@@ -974,6 +1023,93 @@ class AssetService {
     return builtInAssets.filter(asset => ['icon-lightbulb', 'icon-briefcase'].includes(asset.id));
   }
 
+  // 保存用户上传的素材到本地存储
+  private saveUserAssetsToLocal(assets: Asset[]): void {
+    try {
+      localStorage.setItem(this.USER_ASSETS_KEY, JSON.stringify(assets));
+    } catch (e) {
+      console.error('Failed to save user assets to local storage:', e);
+    }
+  }
+
+  // 从本地存储加载用户上传的素材
+  private loadUserAssetsFromLocal(): Asset[] {
+    try {
+      const stored = localStorage.getItem(this.USER_ASSETS_KEY);
+      if (stored) {
+        return JSON.parse(stored);
+      }
+    } catch (e) {
+      console.error('Failed to load user assets from local storage:', e);
+    }
+    return [];
+  }
+
+  // 保存用户上传的素材
+  async saveUserAssets(assets: Asset[]): Promise<void> {
+    try {
+      this.userAssets = assets;
+      
+      if (this.apiAvailable) {
+        // 这里可以实现批量上传逻辑
+        // 目前我们只保存到本地，因为上传逻辑在AssetUploadDialog中处理
+      }
+      
+      // 保存到本地作为备份
+      this.saveUserAssetsToLocal(assets);
+    } catch (e) {
+      console.error('Failed to save user assets:', e);
+    }
+  }
+
+  // 加载用户上传的素材
+  loadUserAssets(): Asset[] {
+    return this.userAssets;
+  }
+
+  // 获取用户上传的素材
+  getUserAssets(): Asset[] {
+    return this.userAssets;
+  }
+
+  // 上传素材到服务端
+  async uploadAsset(file: File, name: string, type: Asset['type'], tags: string[]): Promise<Asset | null> {
+    try {
+      if (this.apiAvailable) {
+        const response = await apiService.uploadAsset(file, name, type, tags);
+        if (response.success && response.asset) {
+          // 更新本地素材列表
+          this.userAssets.push(response.asset as Asset);
+          await this.saveUserAssets(this.userAssets);
+          return response.asset as Asset;
+        }
+      }
+      return null;
+    } catch (error) {
+      console.error('上传素材失败:', error);
+      return null;
+    }
+  }
+
+  // 删除素材
+  async deleteAsset(assetId: string): Promise<boolean> {
+    try {
+      if (this.apiAvailable) {
+        const response = await apiService.deleteAsset(assetId);
+        if (response.success) {
+          // 更新本地素材列表
+          this.userAssets = this.userAssets.filter(asset => asset.id !== assetId);
+          await this.saveUserAssets(this.userAssets);
+          return true;
+        }
+      }
+      return false;
+    } catch (error) {
+      console.error('删除素材失败:', error);
+      return false;
+    }
+  }
+
   // 根据图标名称从图标组合中查找 SVG
   getIconSvgByName(iconName: string): string | null {
     // 查找所有图标组合
@@ -1017,13 +1153,21 @@ class AssetService {
     return [];
   }
 
-  // 获取所有素材（包含内置、收藏和系统字体）
+  // 获取所有素材（包含内置、用户上传、收藏和系统字体）
   async getAllAssetsWithSystemFonts(): Promise<Asset[]> {
     const allAssetIds = new Set<string>();
     const result: Asset[] = [];
     
     // 先添加内置素材
     builtInAssets.forEach(asset => {
+      if (!allAssetIds.has(asset.id)) {
+        allAssetIds.add(asset.id);
+        result.push(asset);
+      }
+    });
+    
+    // 再添加用户上传的素材（避免重复）
+    this.userAssets.forEach(asset => {
       if (!allAssetIds.has(asset.id)) {
         allAssetIds.add(asset.id);
         result.push(asset);

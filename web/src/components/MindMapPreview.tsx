@@ -79,20 +79,32 @@ const renderMarkdown = (text: string) => {
       // 再尝试添加 icon- 前缀（适用于默认图标）
       asset = assetService.getAssetById(`icon-${iconId}`);
     }
-    if (asset && asset.data && asset.data.svg) {
-      largeIconSvg = asset.data.svg
-        .replace(/width="[^"]*"/, 'width="128"')
-        .replace(/height="[^"]*"/, 'height="128"')
-        .replace(/viewBox="[^"]*"/, 'viewBox="0 0 24 24"');
+    if (asset) {
+      // 先检查是否有 svg（内置图标）
+      if (asset.data && asset.data.svg) {
+        largeIconSvg = asset.data.svg
+          .replace(/width="[^"]*"/, 'width="128"')
+          .replace(/height="[^"]*"/, 'height="128"')
+          .replace(/viewBox="[^"]*"/, 'viewBox="0 0 24 24"');
+      } else if (asset.data && asset.data.content) {
+        // 再检查是否有 content（用户上传的图片）
+        largeIconSvg = `<img src="${asset.data.content}" alt="图标" class="w-32 h-32 object-contain" />`;
+      }
     } else {
       // 如果在资产中找不到，尝试从图标组合中查找
       const pascalName = kebabToPascalCase(iconId);
       const iconSvg = assetService.getIconSvgByName(pascalName);
       if (iconSvg) {
-        largeIconSvg = iconSvg
-          .replace(/width="[^"]*"/, 'width="128"')
-          .replace(/height="[^"]*"/, 'height="128"')
-          .replace(/viewBox="[^"]*"/, 'viewBox="0 0 24 24"');
+        // 检查是否是 data URL（用户上传的图片）
+        if (iconSvg.startsWith('data:')) {
+          largeIconSvg = `<img src="${iconSvg}" alt="图标" class="w-32 h-32 object-contain" />`;
+        } else {
+          // 是 SVG 字符串（内置图标）
+          largeIconSvg = iconSvg
+            .replace(/width="[^"]*"/, 'width="128"')
+            .replace(/height="[^"]*"/, 'height="128"')
+            .replace(/viewBox="[^"]*"/, 'viewBox="0 0 24 24"');
+        }
       }
     }
   }
@@ -112,16 +124,28 @@ const renderMarkdown = (text: string) => {
         // 再尝试添加 icon- 前缀（适用于默认图标）
         asset = assetService.getAssetById(`icon-${iconId}`);
       }
-      if (asset && asset.data && asset.data.svg) {
-        return `<span class="inline-flex items-center justify-center w-4 h-4 align-middle" style="vertical-align: middle;">${asset.data.svg}</span>`;
-      } else {
-        // 如果在资产中找不到，尝试从图标组合中查找
-        const pascalName = kebabToPascalCase(iconId);
-        const iconSvg = assetService.getIconSvgByName(pascalName);
-        if (iconSvg) {
-          return `<span class="inline-flex items-center justify-center w-4 h-4 align-middle" style="vertical-align: middle;">${iconSvg}</span>`;
+      if (asset) {
+        // 先检查是否有 svg（内置图标）
+        if (asset.data && asset.data.svg) {
+          return `<span class="inline-flex items-center justify-center w-4 h-4 align-middle" style="vertical-align: middle;">${asset.data.svg}</span>`;
+        } else if (asset.data && asset.data.content) {
+          // 再检查是否有 content（用户上传的图片）
+          return `<span class="inline-flex items-center justify-center w-4 h-4 align-middle" style="vertical-align: middle;"><img src="${asset.data.content}" alt="图标" class="w-4 h-4 object-contain" /></span>`;
         }
-      }
+      } else {
+          // 如果在资产中找不到，尝试从图标组合中查找
+          const pascalName = kebabToPascalCase(iconId);
+          const iconSvg = assetService.getIconSvgByName(pascalName);
+          if (iconSvg) {
+            // 检查是否是 data URL（用户上传的图片）
+            if (iconSvg.startsWith('data:')) {
+              return `<span class="inline-flex items-center justify-center w-4 h-4 align-middle" style="vertical-align: middle;"><img src="${iconSvg}" alt="图标" class="w-4 h-4 object-contain" /></span>`;
+            } else {
+              // 是 SVG 字符串（内置图标）
+              return `<span class="inline-flex items-center justify-center w-4 h-4 align-middle" style="vertical-align: middle;">${iconSvg}</span>`;
+            }
+          }
+        }
       return match;
     });
     
@@ -293,7 +317,7 @@ export function MindMapPreview({ workId, onBack, onEdit }: MindMapPreviewProps) 
   const [currentAssetBackground, setCurrentAssetBackground] = useState<Asset | null>(null); // 当前使用的素材背景
   const [currentAssetBackgroundId, setCurrentAssetBackgroundId] = useState<string | null>(null); // 当前使用的素材背景
   const [originalAssetBackgroundId, setOriginalAssetBackgroundId] = useState<string | null>(null); // 原始素材背景ID，用于检测是否修改
-  const [isUsingAssetAnimation, setIsUsingAssetAnimation] = useState(false); // 是否使用了素材动画
+
   const [currentAssetAnimation, setCurrentAssetAnimation] = useState<Asset | null>(null); // 当前使用的素材动画
   const [currentAssetAnimationId, setCurrentAssetAnimationId] = useState<string | null>(null); // 当前使用的素材动画ID
   const [originalAssetAnimationId, setOriginalAssetAnimationId] = useState<string | null>(null); // 原始素材动画ID，用于检测是否修改
@@ -441,7 +465,11 @@ export function MindMapPreview({ workId, onBack, onEdit }: MindMapPreviewProps) 
                   setIsUsingAssetBackground(true);
                   // 重新应用素材背景的样式
                   const asset = decryptedData.assetBackground;
-                  if (asset.data?.type === 'gradient' && asset.data?.colors) {
+                  if (asset.data?.content) {
+                    // 用户上传的图片背景
+                    setCanvasBackground(asset.data.content);
+                    setOriginalBackground(asset.data.content);
+                  } else if (asset.data?.type === 'gradient' && asset.data?.colors) {
                     const gradient = `linear-gradient(135deg, ${asset.data.colors.join(', ')})`;
                     setCanvasBackground(gradient);
                     setOriginalBackground(gradient);
@@ -449,9 +477,9 @@ export function MindMapPreview({ workId, onBack, onEdit }: MindMapPreviewProps) 
                     const bgColor = asset.data.backgroundColor;
                     setCanvasBackground(bgColor);
                     setOriginalBackground(bgColor);
-                  } else if (asset.data?.backgroundColor) {
-                    setCanvasBackground(asset.data.backgroundColor);
-                    setOriginalBackground(asset.data.backgroundColor);
+                  } else if (asset.data?.type === 'solid' && asset.data?.color) {
+                    setCanvasBackground(asset.data.color);
+                    setOriginalBackground(asset.data.color);
                   }
                 } else {
                   setCurrentAssetBackground(null);
@@ -465,13 +493,11 @@ export function MindMapPreview({ workId, onBack, onEdit }: MindMapPreviewProps) 
                   setCurrentAssetAnimation(decryptedData.assetAnimation);
                   setCurrentAssetAnimationId(decryptedData.assetAnimation.id);
                   setOriginalAssetAnimationId(decryptedData.assetAnimation.id);
-                  setIsUsingAssetAnimation(true);
                   setShowAnimation(true);
                 } else {
                   setCurrentAssetAnimation(null);
                   setCurrentAssetAnimationId(null);
                   setOriginalAssetAnimationId(null);
-                  setIsUsingAssetAnimation(false);
                 }
               }
             } catch (decryptError) {
@@ -809,10 +835,7 @@ export function MindMapPreview({ workId, onBack, onEdit }: MindMapPreviewProps) 
       if (!currentAssetBackground) {
         setIsUsingAssetBackground(false);
       }
-      // 只有在没有选定素材动画的情况下，才将 isUsingAssetAnimation 设置为 false
-      if (!currentAssetAnimation) {
-        setIsUsingAssetAnimation(false);
-      }
+
     } else {
       // 首次预览，保存原始状态
       if (!previewAsset) {
@@ -824,7 +847,11 @@ export function MindMapPreview({ workId, onBack, onEdit }: MindMapPreviewProps) 
       setPreviewAsset(asset);
       switch (asset.type) {
         case 'background':
-          if (asset.data?.type === 'gradient' && asset.data?.colors) {
+          if (asset.data?.content) {
+            // 支持用户上传的图片背景
+            setPreviewBackground(asset.data.content);
+            setIsUsingAssetBackground(true);
+          } else if (asset.data?.type === 'gradient' && asset.data?.colors) {
             // 提取渐变的第一个颜色作为预览背景值
             const previewColor = asset.data.colors[0] || '#ffffff';
             setPreviewBackground(previewColor);
@@ -834,8 +861,8 @@ export function MindMapPreview({ workId, onBack, onEdit }: MindMapPreviewProps) 
             const previewColor = asset.data.backgroundColor;
             setPreviewBackground(previewColor);
             setIsUsingAssetBackground(true);
-          } else if (asset.data?.backgroundColor) {
-            const previewColor = asset.data.backgroundColor;
+          } else if (asset.data?.type === 'solid' && asset.data?.color) {
+            const previewColor = asset.data.color;
             setPreviewBackground(previewColor);
             setIsUsingAssetBackground(true);
           }
@@ -846,7 +873,6 @@ export function MindMapPreview({ workId, onBack, onEdit }: MindMapPreviewProps) 
             setIsAnimationPaused(true);
             // 预览动画时，确保动画处于开启状态
             setShowAnimation(true);
-            setIsUsingAssetAnimation(true);
             // 更新动画版本号，确保 CanvasRenderer 重新渲染，只运行预览的动画
             setAnimationVersion(prev => prev + 1);
             // 延迟一小段时间后继续播放动画，确保动画切换完成
@@ -860,7 +886,7 @@ export function MindMapPreview({ workId, onBack, onEdit }: MindMapPreviewProps) 
   };
 
   // 处理素材选择（确定）
-  const handleAssetSelect = (asset: Asset | null, size: 'small' | 'large', activeTab?: string) => {
+  const handleAssetSelect = (asset: Asset | null, _size: 'small' | 'large', activeTab?: string) => {
     // 标记刚刚完成了确定操作
     justConfirmedRef.current = true;
     
@@ -874,7 +900,6 @@ export function MindMapPreview({ workId, onBack, onEdit }: MindMapPreviewProps) 
         // 保持当前的 canvasBackground，因为它已经是背景按钮选择的颜色
       } else if (activeTab === 'animations') {
         // 恢复动画状态
-        setIsUsingAssetAnimation(false);
         setCurrentAssetAnimation(null);
         setCurrentAssetAnimationId(null);
         setShowAnimation(false);
@@ -883,7 +908,12 @@ export function MindMapPreview({ workId, onBack, onEdit }: MindMapPreviewProps) 
       // 应用素材
       switch (asset.type) {
         case 'background':
-          if (asset.data?.type === 'gradient' && asset.data?.colors) {
+          if (asset.data?.content) {
+            // 支持用户上传的图片背景
+            setIsUsingAssetBackground(true);
+            setCurrentAssetBackground(asset);
+            setCurrentAssetBackgroundId(asset.id);
+          } else if (asset.data?.type === 'gradient' && asset.data?.colors) {
             // 只更新素材背景相关状态，不修改 canvasBackground
             setIsUsingAssetBackground(true);
             setCurrentAssetBackground(asset);
@@ -893,7 +923,7 @@ export function MindMapPreview({ workId, onBack, onEdit }: MindMapPreviewProps) 
               setIsUsingAssetBackground(true);
               setCurrentAssetBackground(asset);
               setCurrentAssetBackgroundId(asset.id);
-          } else if (asset.data?.backgroundColor) {
+          } else if (asset.data?.type === 'solid' && asset.data?.color) {
             // 只更新素材背景相关状态，不修改 canvasBackground
             setIsUsingAssetBackground(true);
             setCurrentAssetBackground(asset);
@@ -902,7 +932,6 @@ export function MindMapPreview({ workId, onBack, onEdit }: MindMapPreviewProps) 
           break;
         case 'animation':
           if (asset.data?.type) {
-            setIsUsingAssetAnimation(true);
             setCurrentAssetAnimation(asset);
             setCurrentAssetAnimationId(asset.id);
             setShowAnimation(true);
@@ -1019,12 +1048,12 @@ export function MindMapPreview({ workId, onBack, onEdit }: MindMapPreviewProps) 
                 // 打开动画时：检查是否有 currentAssetAnimation
                 setShowAnimation(true);
                 if (currentAssetAnimation) {
-                  // 如果有选中的素材动画，使用它
-                  setIsUsingAssetAnimation(true);
+                  // 使用选中的素材动画
+                } else {
+                  // 使用默认动画
                 }
-                // 否则使用默认动画（isUsingAssetAnimation 保持 false）
               }
-            }} 
+            }}
             className="rounded-lg w-20"
           >
             <Sparkles className="w-4 h-4 mr-2" />
@@ -1185,6 +1214,17 @@ export function MindMapPreview({ workId, onBack, onEdit }: MindMapPreviewProps) 
         className="flex-1 relative overflow-hidden"
         style={{ 
           backgroundColor: (() => {
+            // 处理用户上传的图片背景：不设置背景色，直接使用背景图片
+            if (previewAsset?.data?.content || (isUsingAssetBackground && currentAssetBackground?.data?.content)) {
+              return 'transparent';
+            }
+            // 处理纯色背景
+            if (previewAsset?.data?.type === 'solid' && previewAsset?.data?.color) {
+              return previewAsset.data.color;
+            }
+            if (isUsingAssetBackground && currentAssetBackground?.data?.type === 'solid' && currentAssetBackground?.data?.color) {
+              return currentAssetBackground.data.color;
+            }
             // 处理格子背景的背景色
             if (previewAsset?.data?.type === 'grid' && previewAsset?.data?.backgroundColor) {
               return previewAsset.data.backgroundColor;
@@ -1195,6 +1235,13 @@ export function MindMapPreview({ workId, onBack, onEdit }: MindMapPreviewProps) 
             return previewBackground || canvasBackground;
           })(),
           backgroundImage: (() => {
+            // 处理用户上传的图片背景
+            if (previewAsset?.data?.content) {
+              return `url(${previewAsset.data.content})`;
+            }
+            if (isUsingAssetBackground && currentAssetBackground?.data?.content) {
+              return `url(${currentAssetBackground.data.content})`;
+            }
             // 处理渐变背景
             if (previewAsset) {
               if (previewAsset.data?.type === 'gradient' && previewAsset.data?.colors) {
@@ -1215,6 +1262,10 @@ export function MindMapPreview({ workId, onBack, onEdit }: MindMapPreviewProps) 
             return undefined;
           })(),
           backgroundSize: (() => {
+            // 处理用户上传的图片背景：设置为cover以填充整个画布
+            if (previewAsset?.data?.content || (isUsingAssetBackground && currentAssetBackground?.data?.content)) {
+              return 'cover';
+            }
             // 处理格子背景的大小
             if (previewAsset) {
               if (previewAsset.data?.type === 'grid' && previewAsset.data?.size) {
@@ -1227,6 +1278,20 @@ export function MindMapPreview({ workId, onBack, onEdit }: MindMapPreviewProps) 
                 return `${currentAssetBackground.data.size} ${currentAssetBackground.data.size}`;
               }
               return undefined;
+            }
+            return undefined;
+          })(),
+          backgroundRepeat: (() => {
+            // 处理用户上传的图片背景：不重复
+            if (previewAsset?.data?.content || (isUsingAssetBackground && currentAssetBackground?.data?.content)) {
+              return 'no-repeat';
+            }
+            return undefined;
+          })(),
+          backgroundPosition: (() => {
+            // 处理用户上传的图片背景：居中
+            if (previewAsset?.data?.content || (isUsingAssetBackground && currentAssetBackground?.data?.content)) {
+              return 'center';
             }
             return undefined;
           })()

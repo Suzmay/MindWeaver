@@ -830,11 +830,58 @@ export const CanvasRenderer: React.FC<CanvasRendererProps> = ({
       // 绘制箭头（如果需要）
       if (render?.hasArrowHead) {
         const arrowSize = (render?.arrowSize || 10) * 1.5; // 放大1.5倍
-        const angle = Math.atan2(childY - parentY, childX - parentX);
+        let midX = (parentX + childX) / 2;
+        let midY = (parentY + childY) / 2;
+        let angle = Math.atan2(childY - parentY, childX - parentX);
         
-        // 计算箭头的位置，在线条的正中间
-        const midX = (parentX + childX) / 2;
-        const midY = (parentY + childY) / 2;
+        // 根据线条类型计算箭头位置，确保箭头在线上
+        if (render.drawType === 'curved') {
+          // 曲线：计算二次贝塞尔曲线在 t=0.5 时的点
+          // B(t) = (1-t)²P0 + 2(1-t)tP1 + t²P2
+          const t = 0.5;
+          const P0x = parentX;
+          const P0y = parentY;
+          const P1x = (parentX + childX) / 2;
+          const P1y = (parentY + childY) / 2 - 50;
+          const P2x = childX;
+          const P2y = childY;
+          
+          midX = (1 - t) * (1 - t) * P0x + 2 * (1 - t) * t * P1x + t * t * P2x;
+          midY = (1 - t) * (1 - t) * P0y + 2 * (1 - t) * t * P1y + t * t * P2y;
+          
+          // 计算切线方向作为箭头角度
+          const tangentX = 2 * (1 - t) * (P1x - P0x) + 2 * t * (P2x - P1x);
+          const tangentY = 2 * (1 - t) * (P1y - P0y) + 2 * t * (P2y - P1y);
+          angle = Math.atan2(tangentY, tangentX);
+        } else if (render.drawType === 'step') {
+          // 阶梯线：由三段组成 (水平 → 垂直 → 水平)
+          const stepMidX = (parentX + childX) / 2;
+          
+          // 计算阶梯线各段长度
+          const horizontalLength1 = Math.abs(stepMidX - parentX);
+          const verticalLength = Math.abs(childY - parentY);
+          const horizontalLength2 = Math.abs(childX - stepMidX);
+          const totalLength = horizontalLength1 + verticalLength + horizontalLength2;
+          const halfLength = totalLength / 2;
+          
+          if (halfLength <= horizontalLength1) {
+            // 中点在第一段水平线上
+            midX = parentX + (halfLength / horizontalLength1) * (stepMidX - parentX);
+            midY = parentY;
+            angle = Math.atan2(0, stepMidX - parentX); // 水平方向
+          } else if (halfLength <= horizontalLength1 + verticalLength) {
+            // 中点在垂直段上
+            midX = stepMidX;
+            midY = parentY + ((halfLength - horizontalLength1) / verticalLength) * (childY - parentY);
+            angle = Math.atan2(childY - parentY, 0); // 垂直方向
+          } else {
+            // 中点在第二段水平线上
+            midX = stepMidX + ((halfLength - horizontalLength1 - verticalLength) / horizontalLength2) * (childX - stepMidX);
+            midY = childY;
+            angle = Math.atan2(0, childX - stepMidX); // 水平方向
+          }
+        }
+        // 直线(straight)和波浪线(wavy)：使用默认的中心点
         
         // 设置箭头颜色与线条颜色一致
         ctx.fillStyle = color;

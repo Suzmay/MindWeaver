@@ -10,6 +10,7 @@ import { Template, TemplateCreateDTO, TemplateUpdateDTO } from '../../models/Tem
 import { HistoryVersion, HistoryVersionCreateDTO } from '../../models/HistoryVersion';
 import { LRUCache } from './utils/LRUCache';
 import { ShardManager } from './utils/ShardManager';
+import { apiService } from '../api/ApiService';
 
 export class StorageService {
   private static instance: StorageService;
@@ -25,6 +26,8 @@ export class StorageService {
   private initialized = false;
   private initializationPromise: Promise<void> | null = null;
   private cacheCleanupInterval: NodeJS.Timeout | null = null;
+  private apiAvailable = false;
+  private syncInProgress = false;
 
   private constructor() {
     this.eventEmitter = new SimpleEventEmitter();
@@ -63,11 +66,16 @@ export class StorageService {
     try {
       await this.dbAdapter.initialize();
       this.startCacheCleanup();
+      
+      // 检查 API 可用性
+      await this.checkApiAvailability();
+      
       this.initialized = true;
       
       this.emitEvent(EventType.INITIALIZED, {
         data: {
-          message: '存储服务初始化成功'
+          message: '存储服务初始化成功',
+          apiAvailable: this.apiAvailable
         }
       });
     } catch (error) {
@@ -121,18 +129,61 @@ export class StorageService {
     return this.initialized;
   }
 
+  // 检查 API 可用性
+  async checkApiAvailability(): Promise<boolean> {
+    try {
+      this.apiAvailable = await apiService.isApiAvailable();
+      return this.apiAvailable;
+    } catch (error) {
+      console.error('检查 API 可用性失败:', error);
+      this.apiAvailable = false;
+      return false;
+    }
+  }
+
+  // 获取 API 可用性状态
+  isApiAvailable(): boolean {
+    return this.apiAvailable;
+  }
+
   // 作品操作
   async createWork(dto: WorkCreateDTO): Promise<Work> {
     this.ensureInitialized();
     
     try {
+      // 先在本地创建作品
       const work = await this.workStore.create(dto);
       this.workCache.set(work.id, work);
+      
+      // 如果 API 可用，同步到服务端
+      if (this.apiAvailable) {
+        try {
+          const response = await fetch('/api/works/', {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json'
+            },
+            body: JSON.stringify(work)
+          });
+          
+          if (response.ok) {
+            const serverWork = await response.json();
+            if (serverWork.success && serverWork.work) {
+              // 使用服务端返回的作品数据更新本地缓存
+              this.workCache.set(serverWork.work.id, serverWork.work);
+            }
+          }
+        } catch (apiError) {
+          console.warn('同步作品到服务端失败:', apiError);
+          // 继续执行，不影响本地创建
+        }
+      }
       
       this.emitEvent(EventType.WORK_CREATED, {
         workId: work.id,
         data: {
-          message: `作品创建成功: ${work.title}`
+          message: `作品创建成功: ${work.title}`,
+          synced: this.apiAvailable
         }
       });
 
@@ -178,10 +229,35 @@ export class StorageService {
       const work = await this.workStore.update(workId, dto);
       this.workCache.set(work.id, work);
       
+      // 如果 API 可用，同步到服务端
+      if (this.apiAvailable) {
+        try {
+          const response = await fetch(`/api/works/${workId}`, {
+            method: 'PUT',
+            headers: {
+              'Content-Type': 'application/json'
+            },
+            body: JSON.stringify(work)
+          });
+          
+          if (response.ok) {
+            const serverWork = await response.json();
+            if (serverWork.success && serverWork.work) {
+              // 使用服务端返回的作品数据更新本地缓存
+              this.workCache.set(serverWork.work.id, serverWork.work);
+            }
+          }
+        } catch (apiError) {
+          console.warn('同步作品更新到服务端失败:', apiError);
+          // 继续执行，不影响本地更新
+        }
+      }
+      
       this.emitEvent(EventType.WORK_UPDATED, {
         workId: work.id,
         data: {
-          message: `作品更新成功: ${work.title}`
+          message: `作品更新成功: ${work.title}`,
+          synced: this.apiAvailable
         }
       });
 
@@ -225,10 +301,27 @@ export class StorageService {
         // 清除相关分片缓存
         this.shardManager.clearCache(workId);
         
+        // 如果 API 可用，同步到服务端
+        if (this.apiAvailable) {
+          try {
+            const response = await fetch(`/api/works/${workId}`, {
+              method: 'DELETE'
+            });
+            
+            if (!response.ok) {
+              console.warn('同步作品删除到服务端失败:', response.status);
+            }
+          } catch (apiError) {
+            console.warn('同步作品删除到服务端失败:', apiError);
+            // 继续执行，不影响本地删除
+          }
+        }
+        
         this.emitEvent(EventType.WORK_DELETED, {
           workId,
           data: {
-            message: `作品删除成功: ${workId}`
+            message: `作品删除成功: ${workId}`,
+            synced: this.apiAvailable
           }
         });
       }
@@ -275,11 +368,35 @@ export class StorageService {
         title: finalTitle,
         category: existingWork.category,
         tags: existingWork.tags,
-        nodes: existingWork.nodes
+        nodes: existingWork.nodes,
+        layout: existingWork.layout
       };
       
       // 创建新作品
       const copiedWork = await this.workStore.create(dto);
+      
+      // 复制原作品的加密数据
+      if (existingWork.encryptedData) {
+        await this.workStore.update(copiedWork.id, {
+          encryptedData: existingWork.encryptedData
+        });
+        
+        // 重新读取更新后的作品
+        const updatedWork = await this.workStore.read(copiedWork.id);
+        if (updatedWork) {
+          this.workCache.set(updatedWork.id, updatedWork);
+          
+          this.emitEvent(EventType.WORK_CREATED, {
+            workId: updatedWork.id,
+            data: {
+              message: `作品复制成功: ${updatedWork.title}`
+            }
+          });
+
+          return updatedWork;
+        }
+      }
+      
       this.workCache.set(copiedWork.id, copiedWork);
       
       this.emitEvent(EventType.WORK_CREATED, {
@@ -341,6 +458,83 @@ export class StorageService {
         ...options
       };
       
+      // 如果 API 可用，尝试从服务端获取作品列表
+      if (this.apiAvailable) {
+        try {
+          const response = await fetch('/api/works/');
+          
+          if (response.ok) {
+            const serverResult = await response.json();
+            if (serverResult.success && serverResult.works) {
+              // 过滤和分页
+              let works = serverResult.works;
+              
+              // 应用搜索过滤
+              if (safeOptions.searchText) {
+                const searchLower = safeOptions.searchText.toLowerCase();
+                works = works.filter((work: any) => 
+                  work.title.toLowerCase().includes(searchLower) ||
+                  (work.tags && work.tags.some((tag: string) => tag.toLowerCase().includes(searchLower)))
+                );
+              }
+              
+              // 应用分类过滤
+              if (safeOptions.category) {
+                works = works.filter((work: any) => work.category === safeOptions.category);
+              }
+              
+              // 应用标签过滤
+              if (safeOptions.tags && safeOptions.tags.length > 0) {
+                works = works.filter((work: any) => 
+                  work.tags && safeOptions.tags!.every(tag => work.tags.includes(tag))
+                );
+              }
+              
+              // 应用排序
+              if (safeOptions.sortBy) {
+                works.sort((a: any, b: any) => {
+                  const aValue = a[safeOptions.sortBy as string];
+                  const bValue = b[safeOptions.sortBy as string];
+                  
+                  if (aValue && bValue) {
+                    if (aValue < bValue) return safeOptions.sortOrder === 'asc' ? -1 : 1;
+                    if (aValue > bValue) return safeOptions.sortOrder === 'asc' ? 1 : -1;
+                  }
+                  return 0;
+                });
+              } else {
+                // 默认按更新时间排序
+                works.sort((a: any, b: any) => {
+                  const aTime = a.updatedAt ? new Date(a.updatedAt).getTime() : 0;
+                  const bTime = b.updatedAt ? new Date(b.updatedAt).getTime() : 0;
+                  return bTime - aTime;
+                });
+              }
+              
+              // 应用分页
+              const total = works.length;
+              const start = (safeOptions.page - 1) * safeOptions.pageSize;
+              const end = start + safeOptions.pageSize;
+              const paginatedWorks = works.slice(start, end);
+              
+              // 更新本地缓存
+              paginatedWorks.forEach((work: any) => this.workCache.set(work.id, work));
+              
+              return {
+                works: paginatedWorks,
+                total,
+                page: safeOptions.page,
+                pageSize: safeOptions.pageSize
+              };
+            }
+          }
+        } catch (apiError) {
+          console.warn('从服务端获取作品列表失败:', apiError);
+          // 继续执行，使用本地存储
+        }
+      }
+      
+      // 从本地存储获取作品列表
       const result = await this.workStore.list(safeOptions);
       return result;
     } catch (error) {
@@ -766,6 +960,104 @@ export class StorageService {
     this.workCache.clear();
     this.templateCache.clear();
     this.shardManager.clearCache('');
+  }
+
+  // 同步作品到服务端
+  async syncWorks(): Promise<{ success: boolean; syncedCount: number; errors: string[] }> {
+    this.ensureInitialized();
+    
+    if (!this.apiAvailable) {
+      return { success: false, syncedCount: 0, errors: ['API 服务不可用'] };
+    }
+    
+    if (this.syncInProgress) {
+      return { success: false, syncedCount: 0, errors: ['同步正在进行中'] };
+    }
+    
+    this.syncInProgress = true;
+    const errors: string[] = [];
+    let syncedCount = 0;
+    
+    try {
+      // 获取本地所有作品
+      const localWorksResult = await this.workStore.list({
+        page: 1,
+        pageSize: 1000,
+        deletedOnly: false
+      });
+      
+      const localWorks = localWorksResult.works;
+      
+      // 获取服务端所有作品
+      const response = await fetch('/api/works/');
+      if (!response.ok) {
+        throw new Error(`获取服务端作品失败: ${response.status}`);
+      }
+      
+      const serverResult = await response.json();
+      if (!serverResult.success || !serverResult.works) {
+        throw new Error('服务端返回数据格式错误');
+      }
+      
+      const serverWorks = serverResult.works;
+      const serverWorkIds = new Set(serverWorks.map((work: Work) => work.id));
+      
+      // 同步本地作品到服务端
+      for (const localWork of localWorks) {
+        try {
+          if (serverWorkIds.has(localWork.id)) {
+            // 更新服务端作品
+            const updateResponse = await fetch(`/api/works/${localWork.id}`, {
+              method: 'PUT',
+              headers: {
+                'Content-Type': 'application/json'
+              },
+              body: JSON.stringify(localWork)
+            });
+            
+            if (updateResponse.ok) {
+              syncedCount++;
+            } else {
+              errors.push(`更新作品 ${localWork.title} 失败: ${updateResponse.status}`);
+            }
+          } else {
+            // 创建新作品到服务端
+            const createResponse = await fetch('/api/works/', {
+              method: 'POST',
+              headers: {
+                'Content-Type': 'application/json'
+              },
+              body: JSON.stringify(localWork)
+            });
+            
+            if (createResponse.ok) {
+              syncedCount++;
+            } else {
+              errors.push(`创建作品 ${localWork.title} 失败: ${createResponse.status}`);
+            }
+          }
+        } catch (error) {
+          errors.push(`同步作品 ${localWork.title} 失败: ${error instanceof Error ? error.message : String(error)}`);
+        }
+      }
+      
+      this.emitEvent(EventType.WORK_SYNCED, {
+        data: {
+          message: `同步完成，成功 ${syncedCount} 个，失败 ${errors.length} 个`,
+          syncedCount,
+          errorCount: errors.length
+        }
+      });
+      
+      return { success: errors.length === 0, syncedCount, errors };
+    } catch (error) {
+      const errorMessage = `同步过程中发生错误: ${error instanceof Error ? error.message : String(error)}`;
+      errors.push(errorMessage);
+      this.handleError('同步作品', error as Error);
+      return { success: false, syncedCount: 0, errors };
+    } finally {
+      this.syncInProgress = false;
+    }
   }
 
   // 数据库管理方法

@@ -15,12 +15,12 @@ const kebabToPascalCase = (str: string): string => {
     .join('');
 };
 
-// 简单的Markdown渲染函数
+  // 简单的Markdown渲染函数
 const renderMarkdown = (text: string) => {
   if (!text) return '无';
   
   // 提取大图标
-  let largeIconSvg: string | null = null;
+  let largeIconHtml: string | null = null;
   const largeIconMatch = text.match(/:icon-([\w-]+?)-large:/);
   if (largeIconMatch) {
     const iconId = largeIconMatch[1];
@@ -30,20 +30,33 @@ const renderMarkdown = (text: string) => {
       // 再尝试添加 icon- 前缀（适用于默认图标）
       asset = assetService.getAssetById(`icon-${iconId}`);
     }
-    if (asset && asset.data && asset.data.svg) {
-      largeIconSvg = asset.data.svg
-        .replace(/width="[^"]*"/, 'width="128"')
-        .replace(/height="[^"]*"/, 'height="128"')
-        .replace(/viewBox="[^"]*"/, 'viewBox="0 0 24 24"');
-    } else {
+    if (asset) {
+      // 先检查是否有 svg（内置图标）
+      if (asset.data && asset.data.svg) {
+        largeIconHtml = asset.data.svg
+          .replace(/width="[^"]*"/, 'width="128"')
+          .replace(/height="[^"]*"/, 'height="128"')
+          .replace(/viewBox="[^"]*"/, 'viewBox="0 0 24 24"');
+      } else if (asset.data && asset.data.content) {
+        // 再检查是否有 content（用户上传的图片）
+        largeIconHtml = `<img src="${asset.data.content}" alt="图标" class="w-32 h-32 object-contain" />`;
+      }
+    }
+    if (!largeIconHtml) {
       // 如果在资产中找不到，尝试从图标组合中查找
       const pascalName = kebabToPascalCase(iconId);
       const iconSvg = assetService.getIconSvgByName(pascalName);
       if (iconSvg) {
-        largeIconSvg = iconSvg
-          .replace(/width="[^"]*"/, 'width="128"')
-          .replace(/height="[^"]*"/, 'height="128"')
-          .replace(/viewBox="[^"]*"/, 'viewBox="0 0 24 24"');
+        // 检查是否是 data URL（用户上传的图片）
+        if (iconSvg.startsWith('data:')) {
+          largeIconHtml = `<img src="${iconSvg}" alt="图标" class="w-32 h-32 object-contain" />`;
+        } else {
+          // 是 SVG 字符串（内置图标）
+          largeIconHtml = iconSvg
+            .replace(/width="[^"]*"/, 'width="128"')
+            .replace(/height="[^"]*"/, 'height="128"')
+            .replace(/viewBox="[^"]*"/, 'viewBox="0 0 24 24"');
+        }
       }
     }
   }
@@ -63,18 +76,29 @@ const renderMarkdown = (text: string) => {
           // 再尝试添加 icon- 前缀（适用于默认图标）
           asset = assetService.getAssetById(`icon-${iconId}`);
         }
-      if (asset && asset.data && asset.data.svg) {
-        return `<span class="inline-flex items-center justify-center w-4 h-4 align-middle" style="vertical-align: middle;">${asset.data.svg}</span>`;
-      } else {
+        if (asset) {
+          // 先检查是否有 svg（内置图标）
+          if (asset.data && asset.data.svg) {
+            return `<span class="inline-flex items-center justify-center w-4 h-4 align-middle" style="vertical-align: middle;">${asset.data.svg}</span>`;
+          } else if (asset.data && asset.data.content) {
+            // 再检查是否有 content（用户上传的图片）
+            return `<span class="inline-flex items-center justify-center w-4 h-4 align-middle" style="vertical-align: middle;"><img src="${asset.data.content}" alt="图标" class="w-4 h-4 object-contain" /></span>`;
+          }
+        }
         // 如果在资产中找不到，尝试从图标组合中查找
         const pascalName = kebabToPascalCase(iconId);
         const iconSvg = assetService.getIconSvgByName(pascalName);
         if (iconSvg) {
-          return `<span class="inline-flex items-center justify-center w-4 h-4 align-middle" style="vertical-align: middle;">${iconSvg}</span>`;
+          // 检查是否是 data URL（用户上传的图片）
+          if (iconSvg.startsWith('data:')) {
+            return `<span class="inline-flex items-center justify-center w-4 h-4 align-middle" style="vertical-align: middle;"><img src="${iconSvg}" alt="图标" class="w-4 h-4 object-contain" /></span>`;
+          } else {
+            // 是 SVG 字符串（内置图标）
+            return `<span class="inline-flex items-center justify-center w-4 h-4 align-middle" style="vertical-align: middle;">${iconSvg}</span>`;
+          }
         }
-      }
-      return match;
-    });
+        return match;
+      });
     
     return result;
   };
@@ -114,14 +138,14 @@ const renderMarkdown = (text: string) => {
   });
   
   // 如果有大图标，使用特殊布局
-  if (largeIconSvg) {
+  if (largeIconHtml) {
     return (
       <div className="flex items-start gap-4">
         <div className="flex-1">{lines}</div>
         <div 
           className="flex-shrink-0 flex items-center justify-center" 
           style={{ width: '128px', height: '128px', alignSelf: 'center' }}
-          dangerouslySetInnerHTML={{ __html: largeIconSvg }} 
+          dangerouslySetInnerHTML={{ __html: largeIconHtml }} 
         />
       </div>
     );

@@ -438,7 +438,7 @@ export const AssetSelectorDialog: React.FC<AssetSelectorDialogProps> = ({
                         >
                           {/* 预览图 */}
                           <img
-                            src={svgToDataUrl(icon.svg)}
+                            src={icon.svg.startsWith('data:') ? icon.svg : svgToDataUrl(icon.svg)}
                             alt={icon.name}
                             className="w-8 h-8 mb-1"
                           />

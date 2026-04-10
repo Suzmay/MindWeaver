@@ -207,6 +207,9 @@ export class LayoutManager {
     const children = parentNode.children;
     if (children.length === 0) return;
 
+    // 为垂直布局增加水平间距
+    const horizontalSpacing = direction === 'vertical' ? nodeSpacing * 1.5 : nodeSpacing;
+
     children.forEach((childId, index) => {
       const childNode = nodeMap.get(childId);
       if (!childNode) return;
@@ -220,7 +223,7 @@ export class LayoutManager {
           childY = parentY + (index - children.length / 2) * nodeSpacing;
           break;
         case 'vertical':
-          childX = parentX + (index - children.length / 2) * nodeSpacing;
+          childX = parentX + (index - children.length / 2) * horizontalSpacing;
           childY = parentY + levelSpacing;
           break;
         case 'radial':
@@ -312,15 +315,18 @@ export class LayoutManager {
     const children = parentNode.children;
     if (children.length === 0) return;
 
+    // 为组织结构布局增加水平间距
+    const horizontalSpacing = nodeSpacing * 1.5;
+
     // 计算子节点所需的总宽度
-    const totalWidth = children.length * nodeSpacing;
-    const startX = parentX - (totalWidth / 2) + (nodeSpacing / 2);
+    const totalWidth = children.length * horizontalSpacing;
+    const startX = parentX - (totalWidth / 2) + (horizontalSpacing / 2);
 
     children.forEach((childId, index) => {
       const childNode = nodeMap.get(childId);
       if (!childNode) return;
 
-      const childX = startX + index * nodeSpacing;
+      const childX = startX + index * horizontalSpacing;
       const childY = parentY + levelSpacing;
 
       const nodeIndex = nodes.findIndex((node) => node.id === childId);

@@ -1,0 +1,27 @@
+# 依赖包
+node_modules/
+
+# 构建输出
+dist/
+
+# 环境变量（保持 .dev.vars 仅本地使用）
+.env
+.env.local
+.env.*.local
+
+# IDE 配置
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# 操作系统文件
+.DS_Store
+Thumbs.db
+
+# 日志文件
+*.log
+npm-debug.log*
+
+# Wrangler 缓存
+.wrangler/

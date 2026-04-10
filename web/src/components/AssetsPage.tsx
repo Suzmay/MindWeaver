@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { Search, Upload, Filter, Globe } from 'lucide-react';
+import { Search, Upload, Filter, Globe, Settings } from 'lucide-react';
 import { Input } from './ui/input';
 import { Button } from './ui/button';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from './ui/tabs';
@@ -7,6 +7,8 @@ import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigge
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from './ui/select';
 import { Badge } from './ui/badge';
 import AssetPreview from './assets/AssetPreview';
+import { AssetUploadDialog } from './assets/AssetUploadDialog';
+import { AssetManagementDialog } from './assets/AssetManagementDialog';
 import IconifySearch from './iconify/IconifySearch';
 import { assetService, Asset } from '../services/assets/AssetService';
 import { iconifyService } from '../services/iconify/IconifyService';
@@ -21,8 +23,16 @@ export function AssetsPage() {
     // 从 localStorage 加载收藏的素材
     return assetService.loadFavoriteAssets();
   });
+  const [userAssets, setUserAssets] = useState<Asset[]>(() => {
+    // 从 localStorage 加载用户上传的素材
+    return assetService.loadUserAssets();
+  });
   const [favoriteFilterType, setFavoriteFilterType] = useState<string>('all'); // 收藏页面的类型筛选
   const [activeTab, setActiveTab] = useState('all'); // 当前活动标签
+  
+  // 上传和管理对话框状态
+  const [uploadDialogOpen, setUploadDialogOpen] = useState(false);
+  const [managementDialogOpen, setManagementDialogOpen] = useState(false);
   
   // 分页状态
   const [currentPage, setCurrentPage] = useState(1);
@@ -37,16 +47,29 @@ export function AssetsPage() {
   const [fontStyleAssetsWithSystemFonts, setFontStyleAssetsWithSystemFonts] = useState<Asset[]>([]);
   const [isLoading, setIsLoading] = useState(false);
 
-  // 从素材服务获取数据（同步版本，不包含系统字体）
-  const allAssets = assetService.getAllAssets();
-  const iconAssets = assetService.getAssetsByType('icon');
-  const shapeAssets = assetService.getAssetsByType('shape');
-  const connectorAssets = assetService.getAssetsByType('connector');
-  const iconSetAssets = assetService.getAssetsByType('iconSet');
-  const colorSchemeAssets = assetService.getAssetsByType('colorScheme');
-  const backgroundAssets = assetService.getAssetsByType('background');
-  const animationAssets = assetService.getAssetsByType('animation');
-  const tags = assetService.getAllTags();
+  // 从素材服务获取数据（使用状态，可刷新）
+  const [allAssets, setAllAssets] = useState<Asset[]>(() => assetService.getAllAssets());
+  const [iconAssets, setIconAssets] = useState<Asset[]>(() => assetService.getAssetsByType('icon'));
+  const [shapeAssets, setShapeAssets] = useState<Asset[]>(() => assetService.getAssetsByType('shape'));
+  const [connectorAssets, setConnectorAssets] = useState<Asset[]>(() => assetService.getAssetsByType('connector'));
+  const [iconSetAssets, setIconSetAssets] = useState<Asset[]>(() => assetService.getAssetsByType('iconSet'));
+  const [colorSchemeAssets, setColorSchemeAssets] = useState<Asset[]>(() => assetService.getAssetsByType('colorScheme'));
+  const [backgroundAssets, setBackgroundAssets] = useState<Asset[]>(() => assetService.getAssetsByType('background'));
+  const [animationAssets, setAnimationAssets] = useState<Asset[]>(() => assetService.getAssetsByType('animation'));
+  const [tags, setTags] = useState<string[]>(() => assetService.getAllTags());
+
+  // 刷新素材列表
+  const refreshAssets = () => {
+    setAllAssets(assetService.getAllAssets());
+    setIconAssets(assetService.getAssetsByType('icon'));
+    setShapeAssets(assetService.getAssetsByType('shape'));
+    setConnectorAssets(assetService.getAssetsByType('connector'));
+    setIconSetAssets(assetService.getAssetsByType('iconSet'));
+    setColorSchemeAssets(assetService.getAssetsByType('colorScheme'));
+    setBackgroundAssets(assetService.getAssetsByType('background'));
+    setAnimationAssets(assetService.getAssetsByType('animation'));
+    setTags(assetService.getAllTags());
+  };
 
   // 加载系统字体
   useEffect(() => {
@@ -391,6 +414,37 @@ export function AssetsPage() {
     }
     return null;
   };
+  
+  // 处理素材上传
+  const handleAssetUpload = (asset: Asset) => {
+    // 添加到用户上传素材列表
+    setUserAssets(prev => {
+      const updatedUserAssets = [...prev, asset];
+      assetService.saveUserAssets(updatedUserAssets);
+      return updatedUserAssets;
+    });
+    refreshAssets();
+  };
+  
+  // 处理素材更新
+  const handleAssetUpdate = (updatedAsset: Asset) => {
+    setUserAssets(prev => {
+      const updatedUserAssets = prev.map(asset => asset.id === updatedAsset.id ? updatedAsset : asset);
+      assetService.saveUserAssets(updatedUserAssets);
+      return updatedUserAssets;
+    });
+    refreshAssets();
+  };
+  
+  // 处理素材删除
+  const handleAssetDelete = (assetId: string) => {
+    setUserAssets(prev => {
+      const updatedUserAssets = prev.filter(asset => asset.id !== assetId);
+      assetService.saveUserAssets(updatedUserAssets);
+      return updatedUserAssets;
+    });
+    refreshAssets();
+  };
 
   // 移除游客模式限制，允许游客访问素材中心
 
@@ -406,18 +460,28 @@ export function AssetsPage() {
             </p>
           </div>
           <div className="flex gap-2">
-            <Button className="rounded-2xl gap-2 bg-gradient-to-br from-primary to-secondary hover:opacity-90 shadow-ocean font-semibold">
+            <Button 
+              className="rounded-2xl gap-2 bg-gradient-to-br from-primary to-secondary hover:opacity-90 shadow-ocean font-semibold"
+              onClick={() => setUploadDialogOpen(true)}
+            >
               <Upload className="w-5 h-5" />
               上传素材
+            </Button>
+            <Button 
+              className="rounded-2xl gap-2 bg-gradient-to-br from-primary to-secondary hover:opacity-90 shadow-ocean font-semibold"
+              onClick={() => setManagementDialogOpen(true)}
+            >
+              <Settings className="w-5 h-5" />
+              管理素材
             </Button>
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
                 <Button 
-                  className="rounded-2xl gap-2 bg-gradient-to-br from-primary to-secondary hover:opacity-90 shadow-ocean font-semibold"
+                  className="rounded-2xl gap-2 bg-gradient-to-br from-primary to-secondary hover:opacity-90 shadow-ocean font-semibold min-w-[100px]"
                   disabled={activeTab === 'iconify'}
                 >
                   <Filter className="w-5 h-5" />
-                  筛选标签
+                  {filterTag ? '筛选中' : '筛选标签'}
                 </Button>
               </DropdownMenuTrigger>
               <DropdownMenuContent className="rounded-xl">
@@ -873,6 +937,22 @@ export function AssetsPage() {
           </div>
         )}
       </div>
+      
+      {/* 上传对话框 */}
+      <AssetUploadDialog
+        open={uploadDialogOpen}
+        onOpenChange={setUploadDialogOpen}
+        onUpload={handleAssetUpload}
+      />
+      
+      {/* 管理对话框 */}
+      <AssetManagementDialog
+        open={managementDialogOpen}
+        onOpenChange={setManagementDialogOpen}
+        assets={userAssets}
+        onUpdate={handleAssetUpdate}
+        onDelete={handleAssetDelete}
+      />
     </div>
   );
 }

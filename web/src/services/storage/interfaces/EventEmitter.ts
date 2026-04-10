@@ -3,6 +3,7 @@ export enum EventType {
   WORK_UPDATED = 'work_updated',
   WORK_DELETED = 'work_deleted',
   WORK_RESTORED = 'work_restored',
+  WORK_SYNCED = 'work_synced',
   TEMPLATE_CREATED = 'template_created',
   TEMPLATE_UPDATED = 'template_updated',
   VERSION_CREATED = 'version_created',
