@@ -25,5 +25,25 @@
       "bucket_name": "mindweaver-assets",
       "preview_bucket_name": "mindweaver-assets-preview"
     }
-  ]
+  ],
+  "env": {
+    "production": {
+      "kv_namespaces": [
+        {
+          "binding": "ASSETS_KV",
+          "id": "36f0f3a7d82947608120fd976e47f347"
+        },
+        {
+          "binding": "WORKS_KV",
+          "id": "1f99853603804c8a880723e20464fc77"
+        }
+      ],
+      "r2_buckets": [
+        {
+          "binding": "ASSETS_R2",
+          "bucket_name": "mindweaver-assets"
+        }
+      ]
+    }
+  }
 }

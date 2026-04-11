@@ -38,6 +38,7 @@ jobs:
           accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
           command: deploy --env production
           wranglerVersion: '4.81.1'
+          workingDirectory: web
         env:
           ASSETS_KV: ${{ secrets.ASSETS_KV_ID }}
           WORKS_KV: ${{ secrets.WORKS_KV_ID }}
