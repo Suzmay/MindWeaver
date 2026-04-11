@@ -791,8 +791,9 @@ export function AssetUploadDialog({ open, onOpenChange, onUpload }: AssetUploadD
             content: thumbnail
           };
         } else if (assetType === 'fontStyle') {
-          // 对于字体，存储字体文件信息
+          // 对于字体，存储文件内容
           asset.data = {
+            content: thumbnail,
             fileName: file.name,
             fileType: file.type
           };
