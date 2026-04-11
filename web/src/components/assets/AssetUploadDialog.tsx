@@ -350,8 +350,6 @@ export function AssetUploadDialog({ open, onOpenChange, onUpload }: AssetUploadD
         return 'image/*,application/svg+xml';
       case 'background':
         return 'image/*,application/svg+xml';
-      case 'fontStyle':
-        return 'font/*,application/font-woff,application/font-woff2,application/vnd.ms-fontobject,application/x-font-ttf,application/x-font-otf';
       case 'iconSet':
         return 'image/*,application/svg+xml';
       default:
@@ -361,7 +359,7 @@ export function AssetUploadDialog({ open, onOpenChange, onUpload }: AssetUploadD
   
   // 支持文件上传的类型
   const supportsFileUpload = () => {
-    return ['icon', 'background', 'fontStyle', 'iconSet'].includes(assetType);
+    return ['icon', 'background', 'iconSet'].includes(assetType);
   };
   
   // 根据素材类型设置分类
@@ -370,7 +368,6 @@ export function AssetUploadDialog({ open, onOpenChange, onUpload }: AssetUploadD
       case 'icon': return '图标';
       case 'connector': return '连接线';
       case 'iconSet': return '图标组合';
-      case 'fontStyle': return '字体样式';
       case 'colorScheme': return '配色方案';
       case 'background': return '导图背景';
       case 'animation': return '动画效果';
@@ -378,26 +375,7 @@ export function AssetUploadDialog({ open, onOpenChange, onUpload }: AssetUploadD
     }
   };
   
-  // 生成字体样式预览
-  const generateFontStylePreview = (): string => {
-    const size = 200;
-    // 生成字体预览 SVG
-    if (filePreview) {
-      // 使用默认字体作为后备，因为 SVG 中的 @font-face 可能无法正确加载 data URL 字体
-      // 实际字体加载将在预览显示时通过 FontFace API 处理
-      const fontName = name || 'UploadedFont';
-      const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="${size}" height="${size}" viewBox="0 0 ${size} ${size}" fill="none" stroke="none">
-        <rect width="100%" height="100%"/>
-        <text x="${size/2}" y="${size*0.4}" font-family="'${fontName}', Arial, sans-serif" font-size="32px" font-weight="400" fill="#ffffff" text-anchor="middle" dominant-baseline="middle">字体预览</text>
-        <text x="${size/2}" y="${size*0.6}" font-family="'${fontName}', Arial, sans-serif" font-size="28px" font-weight="400" fill="#ffffff" text-anchor="middle" dominant-baseline="middle">MindWeaver</text>
-      </svg>`;
-      // 使用 encodeURIComponent 处理 SVG 字符串，避免 btoa 无法处理中文字符的问题
-      return `data:image/svg+xml;utf8,${encodeURIComponent(svg)}`;
-    } else {
-      // 如果没有上传文件，返回空字符串，使用通用提示
-      return '';
-    }
-  };
+
   
   // 生成图标组合预览
   const generateIconSetPreview = (): string => {
@@ -445,9 +423,6 @@ export function AssetUploadDialog({ open, onOpenChange, onUpload }: AssetUploadD
       case 'iconSet':
         // 对于图标组合，生成特殊的预览
         return generateIconSetPreview();
-      case 'fontStyle':
-        // 对于字体样式，生成特殊的预览
-        return generateFontStylePreview();
       case 'background':
         // 如果上传了文件，显示文件预览；否则显示背景配置预览
         if (filePreview) {
@@ -702,7 +677,7 @@ export function AssetUploadDialog({ open, onOpenChange, onUpload }: AssetUploadD
       return;
     }
     
-    if (assetType === 'icon' || assetType === 'fontStyle') {
+    if (assetType === 'icon') {
       if (!file) {
         setFileError('请上传文件');
         return;
@@ -789,13 +764,6 @@ export function AssetUploadDialog({ open, onOpenChange, onUpload }: AssetUploadD
           // 对于图片类素材，存储文件内容
           asset.data = {
             content: thumbnail
-          };
-        } else if (assetType === 'fontStyle') {
-          // 对于字体，存储文件内容
-          asset.data = {
-            content: thumbnail,
-            fileName: file.name,
-            fileType: file.type
           };
         }
       } else {
@@ -1031,7 +999,6 @@ export function AssetUploadDialog({ open, onOpenChange, onUpload }: AssetUploadD
                 <SelectItem value="icon">图标</SelectItem>
                 <SelectItem value="connector">连接线</SelectItem>
                 <SelectItem value="iconSet">图标组合</SelectItem>
-                <SelectItem value="fontStyle">字体样式</SelectItem>
                 <SelectItem value="colorScheme">配色方案</SelectItem>
                 <SelectItem value="background">导图背景</SelectItem>
                 <SelectItem value="animation">动画效果</SelectItem>
@@ -1083,7 +1050,6 @@ export function AssetUploadDialog({ open, onOpenChange, onUpload }: AssetUploadD
                 <p className="text-xs text-muted-foreground mt-1">
                   {assetType === 'icon' && '支持 PNG、JPG、SVG 格式'}
                   {assetType === 'background' && '支持 PNG、JPG、SVG 格式'}
-                  {assetType === 'fontStyle' && '支持 TTF、OTF、WOFF 格式'}
                   {assetType === 'iconSet' && '支持 PNG、JPG、SVG 格式（可选择多个文件）'}
                 </p>
               </div>
