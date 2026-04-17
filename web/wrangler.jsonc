@@ -43,10 +43,10 @@
   ],
   "vars": {
     "TURNSTILE_SITE_KEY": "0x4AAAAAAC99C3qDh87-npLk",
-    "TURNSTILE_SECRET_KEY": "0x4AAAAAAC99C7SXOeaie_xprMT5GUaDIq0",
+    "TURNSTILE_SECRET_KEY": "your-turnstile-secret-key",
     "EMAIL_FROM": "no-reply@mindweaver.dev",
     "EMAIL_FROM_NAME": "MindWeaver",
-    "JWT_SECRET": "mindweaver_jwt_secret_key_2026_secure_random_string",
+    "JWT_SECRET": "your-jwt-secret",
     "GH_CLIENT_ID": "your-github-client-id",
     "GH_CLIENT_SECRET": "your-github-client-secret"
   },
