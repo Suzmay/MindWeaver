@@ -35,8 +35,12 @@ export const LoginForm: React.FC<LoginFormProps> = ({
   const [codeSent, setCodeSent] = useState(false);
   const { loginPassword, loginCode, sendVerificationCode, isLoading, error, clearError } = useUser();
 
-  const passwordForm = useForm<PasswordFormData>();
-  const codeForm = useForm<CodeFormData>();
+  const passwordForm = useForm<PasswordFormData>({
+    mode: 'onChange'
+  });
+  const codeForm = useForm<CodeFormData>({
+    mode: 'onChange'
+  });
 
   const handlePasswordSubmit = async (data: PasswordFormData) => {
     try {

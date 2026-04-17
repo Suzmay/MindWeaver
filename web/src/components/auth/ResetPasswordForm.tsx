@@ -34,8 +34,12 @@ export const ResetPasswordForm: React.FC<ResetPasswordFormProps> = ({
   const [isSendingCode, setIsSendingCode] = useState(false);
   const { sendVerificationCode, resetPassword, isLoading, error, clearError } = useUser();
 
-  const requestForm = useForm<RequestFormData>();
-  const resetForm = useForm<ResetFormData>();
+  const requestForm = useForm<RequestFormData>({
+    mode: 'onChange'
+  });
+  const resetForm = useForm<ResetFormData>({
+    mode: 'onChange'
+  });
 
   const handleRequestSubmit = async (data: RequestFormData) => {
     try {

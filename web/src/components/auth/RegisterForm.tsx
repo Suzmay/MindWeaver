@@ -25,7 +25,9 @@ export const RegisterForm: React.FC<RegisterFormProps> = ({ onSuccess }) => {
   const [codeSent, setCodeSent] = useState(false);
   const { register: registerUser, sendVerificationCode, isLoading, error, clearError } = useUser();
 
-  const form = useForm<RegisterFormData>();
+  const form = useForm<RegisterFormData>({
+    mode: 'onChange'
+  });
 
   const handleSubmit = async (data: RegisterFormData) => {
     if (data.password !== data.confirmPassword) {
