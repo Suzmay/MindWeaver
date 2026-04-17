@@ -1,6 +1,21 @@
 // Cloudflare Worker 主入口文件
 // 使用 TypeScript 语法，标准的 ASSETS 绑定处理静态资产
 
+import {
+  handleSendVerificationCode,
+  handleVerifyCode,
+  handleRegister,
+  handleLoginPassword,
+  handleLoginCode,
+  handleResetPasswordRequest,
+  handleResetPasswordConfirm,
+  handleGetMe,
+  handleUpdateMe,
+  handleLogout,
+  handleGitHubLogin,
+  handleGitHubCallback,
+} from './src/worker/auth';
+
 // 定义 Fetcher 接口
 interface Fetcher {
   fetch: (request: Request) => Promise<Response>;
@@ -9,9 +24,19 @@ interface Fetcher {
 // Worker 环境接口
 interface Env {
   ASSETS: Fetcher;
-  ASSETS_KV: KVNamespace; // 用于存储素材元数据
-  WORKS_KV: KVNamespace; // 用于存储作品数据
-  ASSETS_R2: R2Bucket; // 用于存储素材文件
+  ASSETS_KV: KVNamespace;
+  WORKS_KV: KVNamespace;
+  ASSETS_R2: R2Bucket;
+  USERS_KV: KVNamespace;
+  VERIFICATION_CODES_KV: KVNamespace;
+  TOKEN_BLACKLIST_KV: KVNamespace;
+  TURNSTILE_SITE_KEY: string;
+  TURNSTILE_SECRET_KEY: string;
+  EMAIL_FROM: string;
+  EMAIL_FROM_NAME: string;
+  JWT_SECRET: string;
+  GH_CLIENT_ID: string;
+  GH_CLIENT_SECRET: string;
 }
 
 // 添加 CORS 头
@@ -51,6 +76,71 @@ async function handleApiRequest(request: Request, env: Env): Promise<Response> {
       headers: { "Content-Type": "application/json" }
     });
     return addCorsHeaders(response);
+  }
+
+  // 认证 API
+  if (path.startsWith("/api/auth/")) {
+    const authPath = path.substring(10);
+
+    if (authPath === "send-code" && request.method === "POST") {
+      const response = await handleSendVerificationCode(request, env);
+      return addCorsHeaders(response);
+    }
+
+    if (authPath === "verify-code" && request.method === "POST") {
+      const response = await handleVerifyCode(request, env);
+      return addCorsHeaders(response);
+    }
+
+    if (authPath === "register" && request.method === "POST") {
+      const response = await handleRegister(request, env);
+      return addCorsHeaders(response);
+    }
+
+    if (authPath === "login-password" && request.method === "POST") {
+      const response = await handleLoginPassword(request, env);
+      return addCorsHeaders(response);
+    }
+
+    if (authPath === "login-code" && request.method === "POST") {
+      const response = await handleLoginCode(request, env);
+      return addCorsHeaders(response);
+    }
+
+    if (authPath === "reset-password-request" && request.method === "POST") {
+      const response = await handleResetPasswordRequest(request, env);
+      return addCorsHeaders(response);
+    }
+
+    if (authPath === "reset-password-confirm" && request.method === "POST") {
+      const response = await handleResetPasswordConfirm(request, env);
+      return addCorsHeaders(response);
+    }
+
+    if (authPath === "me" && request.method === "GET") {
+      const response = await handleGetMe(request, env);
+      return addCorsHeaders(response);
+    }
+
+    if (authPath === "me" && request.method === "PUT") {
+      const response = await handleUpdateMe(request, env);
+      return addCorsHeaders(response);
+    }
+
+    if (authPath === "logout" && request.method === "POST") {
+      const response = await handleLogout(request, env);
+      return addCorsHeaders(response);
+    }
+
+    if (authPath === "github" && request.method === "GET") {
+      const response = await handleGitHubLogin(request, env);
+      return response;
+    }
+
+    if (authPath === "github/callback" && request.method === "GET") {
+      const response = await handleGitHubCallback(request, env);
+      return response;
+    }
   }
   
   // 素材管理 API

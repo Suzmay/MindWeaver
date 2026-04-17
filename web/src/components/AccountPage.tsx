@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { Camera, Lock, AlertCircle } from 'lucide-react';
+import { Camera, Lock, AlertCircle, LogOut, Github } from 'lucide-react';
 import { Avatar, AvatarFallback, AvatarImage } from './ui/avatar';
 import { Button } from './ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from './ui/card';
@@ -8,10 +8,13 @@ import { Label } from './ui/label';
 import { Badge } from './ui/badge';
 import { toast } from 'sonner';
 import { useUser } from '../context/UserContext';
+import { LoginRegisterDialog } from './auth';
 
 export function AccountPage() {
-  const { user, isGuest, updateUser, switchToUser } = useUser();
+  const { user, isGuest, isAuthenticated, updateUser, switchToUser, logout } = useUser();
   const [isEditing, setIsEditing] = useState(false);
+  const [loginDialogOpen, setLoginDialogOpen] = useState(false);
+  const [registerDialogOpen, setRegisterDialogOpen] = useState(false);
   const [username, setUsername] = useState(user?.username || '张三');
   const [email, setEmail] = useState(user?.email || '张三@示例.中国');
   const [avatar, setAvatar] = useState(user?.avatar || '');
@@ -28,7 +31,7 @@ export function AccountPage() {
   }, [user]);
 
   const validateForm = () => {
-    const newErrors: { username?: string; email?: string } = {};
+    const newErrors: { username?: string } = {};
 
     if (!username.trim()) {
       newErrors.username = '用户名不能为空';
@@ -36,13 +39,6 @@ export function AccountPage() {
       newErrors.username = '用户名至少需要2个字符';
     } else if (username.length > 20) {
       newErrors.username = '用户名最多20个字符';
-    }
-
-    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-    if (!email.trim()) {
-      newErrors.email = '邮箱不能为空';
-    } else if (!emailRegex.test(email)) {
-      newErrors.email = '请输入有效的邮箱地址';
     }
 
     setErrors(newErrors);
@@ -77,10 +73,9 @@ export function AccountPage() {
           avatar
         });
       } else {
-        // 更新用户信息
+        // 更新用户信息（不包含邮箱，邮箱不可修改）
         updateUser({
           username: username.trim(),
-          email: email.trim(),
           avatar
         });
       }
@@ -88,21 +83,30 @@ export function AccountPage() {
     }
   };
 
-  // 暂时没有功能的登录注册处理函数
   const handleLogin = () => {
-    // 登录功能开发中
-    toast.info('登录功能开发中', {
-      description: '请稍后再试',
-      duration: 3000,
-    });
+    setLoginDialogOpen(true);
   };
 
   const handleRegister = () => {
-    // 注册功能开发中
-    toast.info('注册功能开发中', {
-      description: '请稍后再试',
-      duration: 3000,
-    });
+    setRegisterDialogOpen(true);
+  };
+
+  const handleGitHubLogin = () => {
+    // GitHub 登录逻辑
+    // 这里需要实现 OAuth 2.0 流程
+    // 1. 重定向到 GitHub 授权页面
+    // 2. GitHub 回调后获取 token
+    // 3. 调用后端 API 进行登录
+    window.location.href = '/api/auth/github';
+  };
+
+  const handleLogout = async () => {
+    try {
+      await logout();
+      toast.success('已成功登出');
+    } catch (err) {
+      toast.error('登出失败');
+    }
   };
 
   return (
@@ -210,17 +214,12 @@ export function AccountPage() {
                     id="email"
                     type="email"
                     value={email}
-                    onChange={(e) => {
-                      setEmail(e.target.value);
-                      if (errors.email) {
-                        setErrors({ ...errors, email: undefined });
-                      }
-                    }}
-                    className={`rounded-lg ${errors.email ? 'border-destructive' : ''}`}
+                    disabled
+                    className="rounded-lg bg-muted cursor-not-allowed opacity-60"
                   />
-                  {errors.email && (
-                    <p className="text-sm text-destructive">{errors.email}</p>
-                  )}
+                  <p className="text-xs text-muted-foreground">
+                    {user?.loginType === 'github' ? 'GitHub 登录不支持修改邮箱' : '邮箱不可修改'}
+                  </p>
                 </>
               ) : (
                 <p className="text-sm text-muted-foreground">{email}</p>
@@ -262,17 +261,42 @@ export function AccountPage() {
       <Card className="rounded-2xl shadow-ocean border-2 border-primary/10">
         <CardHeader>
           <CardTitle>认证选项</CardTitle>
-          <CardDescription>注册或登录账号</CardDescription>
+          <CardDescription>
+            {isAuthenticated ? '管理您的账户安全' : '注册或登录账号以获得完整功能体验'}
+          </CardDescription>
         </CardHeader>
         <CardContent className="space-y-3">
-          <div className="flex gap-3 w-48">
-            <Button onClick={handleRegister} className="flex-1 rounded-2xl bg-gradient-to-br from-primary to-secondary hover:opacity-90 shadow-ocean font-semibold">
-              注册账号
+          {isAuthenticated ? (
+            <Button 
+              onClick={handleLogout} 
+              className="w-full sm:w-48 rounded-2xl bg-gradient-to-br from-destructive to-destructive/80 hover:opacity-90 shadow-ocean font-semibold"
+            >
+              <LogOut className="w-4 h-4 mr-2" />
+              登出账号
             </Button>
-            <Button onClick={handleLogin} className="flex-1 rounded-2xl bg-gradient-to-br from-primary to-secondary hover:opacity-90 shadow-ocean font-semibold">
-              登录账号
-            </Button>
-          </div>
+          ) : (
+            <div className="flex flex-col sm:flex-row gap-6 w-full">
+              <div className="flex-1">
+                <Button onClick={handleRegister} className="w-full rounded-2xl bg-gradient-to-br from-primary to-secondary hover:opacity-90 shadow-ocean font-semibold">
+                  注册账号
+                </Button>
+              </div>
+              <div className="flex-1">
+                <Button onClick={handleLogin} className="w-full rounded-2xl bg-gradient-to-br from-primary to-secondary hover:opacity-90 shadow-ocean font-semibold">
+                  登录账号
+                </Button>
+              </div>
+              <div className="flex-1">
+                <Button 
+                  onClick={handleGitHubLogin} 
+                  className="w-full rounded-2xl bg-gradient-to-br from-primary to-secondary hover:opacity-90 shadow-ocean font-semibold"
+                >
+                  <Github className="w-4 h-4 mr-2" />
+                  GitHub 登录
+                </Button>
+              </div>
+            </div>
+          )}
         </CardContent>
       </Card>
 
@@ -288,6 +312,20 @@ export function AccountPage() {
           </Button>
         </CardContent>
       </Card>
+
+      {/* 登录对话框 */}
+      <LoginRegisterDialog
+        open={loginDialogOpen}
+        onOpenChange={setLoginDialogOpen}
+        mode="login"
+      />
+
+      {/* 注册对话框 */}
+      <LoginRegisterDialog
+        open={registerDialogOpen}
+        onOpenChange={setRegisterDialogOpen}
+        mode="register"
+      />
     </div>
   );
 }
