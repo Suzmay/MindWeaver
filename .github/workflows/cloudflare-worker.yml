@@ -36,15 +36,15 @@ jobs:
         with:
           apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
-          command: deploy --env production
+          command: deploy
           wranglerVersion: '4.81.1'
           workingDirectory: web
         env:
           ASSETS_KV: ${{ secrets.ASSETS_KV_ID }}
           WORKS_KV: ${{ secrets.WORKS_KV_ID }}
           USERS_KV: ${{ secrets.USERS_KV_ID }}
-          VERIFICATION_CODES_KV_ID: ${{ secrets.VERIFICATION_CODES_KV_ID }}
-          TOKEN_BLACKLIST_KV_ID: ${{ secrets.TOKEN_BLACKLIST_KV_ID }}
+          VERIFICATION_CODES_KV: ${{ secrets.VERIFICATION_CODES_KV_ID }}
+          TOKEN_BLACKLIST_KV: ${{ secrets.TOKEN_BLACKLIST_KV_ID }}
           TURNSTILE_SITE_KEY: ${{ secrets.TURNSTILE_SITE_KEY }}
           TURNSTILE_SECRET_KEY: ${{ secrets.TURNSTILE_SECRET_KEY }}
           EMAIL_FROM: ${{ secrets.EMAIL_FROM }}
