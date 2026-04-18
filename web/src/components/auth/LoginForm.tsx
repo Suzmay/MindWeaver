@@ -33,6 +33,7 @@ export const LoginForm: React.FC<LoginFormProps> = ({
   const [turnstileToken, setTurnstileToken] = useState<string | null>(null);
   const [isSendingCode, setIsSendingCode] = useState(false);
   const [codeSent, setCodeSent] = useState(false);
+  const [codeEmailInput, setCodeEmailInput] = useState('');
   const { loginPassword, loginCode, sendVerificationCode, isLoading, error, clearError } = useUser();
 
   const passwordForm = useForm<PasswordFormData>({
@@ -60,6 +61,7 @@ export const LoginForm: React.FC<LoginFormProps> = ({
       clearError();
       await loginCode({
         ...data,
+        email: codeEmailInput || data.email,
         turnstileToken: turnstileToken || undefined,
       });
       onSuccess();
@@ -69,7 +71,7 @@ export const LoginForm: React.FC<LoginFormProps> = ({
   };
 
   const handleSendCode = async () => {
-    const email = codeForm.getValues('email');
+    const email = codeEmailInput || codeForm.getValues('email');
     if (!email) {
       codeForm.setError('email', { message: '请输入邮箱' });
       return;
@@ -165,7 +167,13 @@ export const LoginForm: React.FC<LoginFormProps> = ({
                   id="code-email"
                   type="email"
                   placeholder="your@email.com"
-                  {...codeForm.register('email', { required: '请输入邮箱' })}
+                  value={codeEmailInput}
+                  onChange={(e) => {
+                    setCodeEmailInput(e.target.value);
+                    if (codeForm.formState.errors.email) {
+                      codeForm.clearErrors('email');
+                    }
+                  }}
                 />
                 <Button
                   type="button"

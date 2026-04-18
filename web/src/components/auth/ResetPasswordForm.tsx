@@ -30,6 +30,7 @@ export const ResetPasswordForm: React.FC<ResetPasswordFormProps> = ({
 }) => {
   const [step, setStep] = useState<Step>('request');
   const [email, setEmail] = useState('');
+  const [requestEmailInput, setRequestEmailInput] = useState('');
   const [turnstileToken, setTurnstileToken] = useState<string | null>(null);
   const [isSendingCode, setIsSendingCode] = useState(false);
   const { sendVerificationCode, resetPassword, isLoading, error, clearError } = useUser();
@@ -41,12 +42,18 @@ export const ResetPasswordForm: React.FC<ResetPasswordFormProps> = ({
     mode: 'onChange'
   });
 
-  const handleRequestSubmit = async (data: RequestFormData) => {
+  const handleRequestSubmit = async () => {
+    const emailValue = requestEmailInput || requestForm.getValues('email');
+    if (!emailValue) {
+      requestForm.setError('email', { message: '请输入邮箱' });
+      return;
+    }
+
     try {
       clearError();
       setIsSendingCode(true);
-      await sendVerificationCode(data.email, 'reset_password');
-      setEmail(data.email);
+      await sendVerificationCode(emailValue, 'reset_password');
+      setEmail(emailValue);
       setStep('reset');
     } catch (err) {
       console.error('Send code failed:', err);
@@ -78,14 +85,20 @@ export const ResetPasswordForm: React.FC<ResetPasswordFormProps> = ({
   return (
     <div className="space-y-4">
       {step === 'request' ? (
-        <form onSubmit={requestForm.handleSubmit(handleRequestSubmit)} className="space-y-4">
+        <div className="space-y-4">
           <div className="space-y-2">
             <Label htmlFor="reset-email">邮箱</Label>
             <Input
               id="reset-email"
               type="email"
               placeholder="your@email.com"
-              {...requestForm.register('email', { required: '请输入邮箱' })}
+              value={requestEmailInput}
+              onChange={(e) => {
+                setRequestEmailInput(e.target.value);
+                if (requestForm.formState.errors.email) {
+                  requestForm.clearErrors('email');
+                }
+              }}
             />
             {requestForm.formState.errors.email && (
               <p className="text-sm text-red-500">{requestForm.formState.errors.email.message}</p>
@@ -103,7 +116,7 @@ export const ResetPasswordForm: React.FC<ResetPasswordFormProps> = ({
           {error && <p className="text-sm text-red-500">{error}</p>}
 
           <div className="space-y-2">
-            <Button type="submit" className="w-full rounded-2xl bg-gradient-to-br from-primary to-secondary hover:opacity-90 shadow-ocean font-semibold" disabled={isLoading || isSendingCode}>
+            <Button type="button" className="w-full rounded-2xl bg-gradient-to-br from-primary to-secondary hover:opacity-90 shadow-ocean font-semibold" disabled={isLoading || isSendingCode} onClick={handleRequestSubmit}>
               {isSendingCode ? (
                 <>
                   <Loader2 className="mr-2 h-4 w-4 animate-spin" />
@@ -117,7 +130,7 @@ export const ResetPasswordForm: React.FC<ResetPasswordFormProps> = ({
               返回登录
             </Button>
           </div>
-        </form>
+        </div>
       ) : (
         <form onSubmit={resetForm.handleSubmit(handleResetSubmit)} className="space-y-4">
           <div className="space-y-2">

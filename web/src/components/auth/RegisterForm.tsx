@@ -23,6 +23,7 @@ export const RegisterForm: React.FC<RegisterFormProps> = ({ onSuccess }) => {
   const [turnstileToken, setTurnstileToken] = useState<string | null>(null);
   const [isSendingCode, setIsSendingCode] = useState(false);
   const [codeSent, setCodeSent] = useState(false);
+  const [emailInput, setEmailInput] = useState('');
   const { register: registerUser, sendVerificationCode, isLoading, error, clearError } = useUser();
 
   const form = useForm<RegisterFormData>({
@@ -38,7 +39,7 @@ export const RegisterForm: React.FC<RegisterFormProps> = ({ onSuccess }) => {
     try {
       clearError();
       await registerUser({
-        email: data.email,
+        email: emailInput || data.email,
         username: data.username,
         password: data.password,
         code: data.code,
@@ -51,7 +52,7 @@ export const RegisterForm: React.FC<RegisterFormProps> = ({ onSuccess }) => {
   };
 
   const handleSendCode = async () => {
-    const email = form.getValues('email');
+    const email = emailInput || form.getValues('email');
     if (!email) {
       form.setError('email', { message: '请输入邮箱' });
       return;
@@ -73,19 +74,25 @@ export const RegisterForm: React.FC<RegisterFormProps> = ({ onSuccess }) => {
     <form onSubmit={form.handleSubmit(handleSubmit)} className="space-y-4">
       <div className="space-y-2">
         <Label htmlFor="reg-email">邮箱</Label>
-        <div className="flex gap-2">
-          <Input
-            id="reg-email"
-            type="email"
-            placeholder="your@email.com"
-            {...form.register('email', { required: '请输入邮箱' })}
-          />
-          <Button
-            type="button"
-            className="rounded-2xl bg-gradient-to-br from-primary to-secondary hover:opacity-90 shadow-ocean font-semibold"
-            onClick={handleSendCode}
-            disabled={isSendingCode || codeSent}
-          >
+            <div className="flex gap-2">
+              <Input
+                id="reg-email"
+                type="email"
+                placeholder="your@email.com"
+                value={emailInput}
+                onChange={(e) => {
+                  setEmailInput(e.target.value);
+                  if (form.formState.errors.email) {
+                    form.clearErrors('email');
+                  }
+                }}
+              />
+              <Button
+                type="button"
+                className="rounded-2xl bg-gradient-to-br from-primary to-secondary hover:opacity-90 shadow-ocean font-semibold"
+                onClick={handleSendCode}
+                disabled={isSendingCode || codeSent}
+              >
             {isSendingCode ? (
               <Loader2 className="h-4 w-4 animate-spin" />
             ) : codeSent ? (
