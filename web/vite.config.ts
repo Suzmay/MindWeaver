@@ -1,7 +1,7 @@
 import { defineConfig } from 'vite'
 import react from '@vitejs/plugin-react'
 
-const workerUrl = process.env.VITE_WORKER_URL || 'https://mindweaver-auth-production.2295665424.workers.dev'
+const workerUrl = process.env.VITE_WORKER_URL || 'https://mindweaver-auth.2295665424.workers.dev'
 
 // https://vitejs.dev/config/
 export default defineConfig({
