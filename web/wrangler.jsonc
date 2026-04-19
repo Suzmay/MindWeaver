@@ -42,13 +42,13 @@
     }
   ],
   "vars": {
-    "TURNSTILE_SITE_KEY": "",
-    "TURNSTILE_SECRET_KEY": "",
-    "EMAIL_FROM": "",
-    "EMAIL_FROM_NAME": "",
-    "JWT_SECRET": "",
-    "GH_CLIENT_ID": "",
-    "GH_CLIENT_SECRET": ""
+    "TURNSTILE_SITE_KEY": "${TURNSTILE_SITE_KEY}",
+    "TURNSTILE_SECRET_KEY": "${TURNSTILE_SECRET_KEY}",
+    "EMAIL_FROM": "${EMAIL_FROM}",
+    "EMAIL_FROM_NAME": "${EMAIL_FROM_NAME}",
+    "JWT_SECRET": "${JWT_SECRET}",
+    "GH_CLIENT_ID": "${GH_CLIENT_ID}",
+    "GH_CLIENT_SECRET": "${GH_CLIENT_SECRET}"
   },
   "env": {
     "production": {
