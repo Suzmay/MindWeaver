@@ -31,6 +31,17 @@ jobs:
         run: npm run build
         working-directory: web
 
+      - name: Set Secrets for Cloudflare Worker
+        working-directory: web
+        env:
+          TURNSTILE_SECRET_KEY: ${{ secrets.TURNSTILE_SECRET_KEY }}
+          JWT_SECRET: ${{ secrets.JWT_SECRET }}
+          GH_CLIENT_SECRET: ${{ secrets.GH_CLIENT_SECRET }}
+        run: |
+          echo "$TURNSTILE_SECRET_KEY" | npx wrangler secret put TURNSTILE_SECRET_KEY
+          echo "$JWT_SECRET" | npx wrangler secret put JWT_SECRET
+          echo "$GH_CLIENT_SECRET" | npx wrangler secret put GH_CLIENT_SECRET
+
       - name: Deploy to Cloudflare Workers
         uses: cloudflare/wrangler-action@v3
         with:
@@ -46,9 +57,7 @@ jobs:
           VERIFICATION_CODES_KV: ${{ secrets.VERIFICATION_CODES_KV_ID }}
           TOKEN_BLACKLIST_KV: ${{ secrets.TOKEN_BLACKLIST_KV_ID }}
           TURNSTILE_SITE_KEY: ${{ secrets.TURNSTILE_SITE_KEY }}
-          TURNSTILE_SECRET_KEY: ${{ secrets.TURNSTILE_SECRET_KEY }}
           EMAIL_FROM: ${{ secrets.EMAIL_FROM }}
           EMAIL_FROM_NAME: ${{ secrets.EMAIL_FROM_NAME }}
           JWT_SECRET: ${{ secrets.JWT_SECRET }}
           GH_CLIENT_ID: ${{ secrets.GH_CLIENT_ID }}
-          GH_CLIENT_SECRET: ${{ secrets.GH_CLIENT_SECRET }}
