@@ -54,3 +54,6 @@ jobs:
           USERS_KV: ${{ secrets.USERS_KV_ID }}
           VERIFICATION_CODES_KV: ${{ secrets.VERIFICATION_CODES_KV_ID }}
           TOKEN_BLACKLIST_KV: ${{ secrets.TOKEN_BLACKLIST_KV_ID }}
+          TURNSTILE_SECRET_KEY: ${{ secrets.TURNSTILE_SECRET_KEY }}
+          JWT_SECRET: ${{ secrets.JWT_SECRET }}
+          GH_CLIENT_SECRET: ${{ secrets.GH_CLIENT_SECRET }}
