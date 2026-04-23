@@ -39,22 +39,20 @@ jobs:
           command: deploy
           wranglerVersion: '4.81.1'
           workingDirectory: web
-          vars: |
-            TURNSTILE_SITE_KEY=TURNSTILE_SITE_KEY
-            EMAIL_FROM=EMAIL_FROM
-            EMAIL_FROM_NAME=EMAIL_FROM_NAME
-            GH_CLIENT_ID=GH_CLIENT_ID
           secrets: |
+            TURNSTILE_SITE_KEY
             TURNSTILE_SECRET_KEY
+            EMAIL_FROM
+            EMAIL_FROM_NAME
             JWT_SECRET
+            GH_CLIENT_ID
             GH_CLIENT_SECRET
         env:
-          # 为 vars 提供环境变量
+          # 为 secrets 提供环境变量
           TURNSTILE_SITE_KEY: ${{ secrets.TURNSTILE_SITE_KEY }}
+          TURNSTILE_SECRET_KEY: ${{ secrets.TURNSTILE_SECRET_KEY }}
           EMAIL_FROM: ${{ secrets.EMAIL_FROM }}
           EMAIL_FROM_NAME: ${{ secrets.EMAIL_FROM_NAME }}
-          GH_CLIENT_ID: ${{ secrets.GH_CLIENT_ID }}
-          # 为 secrets 提供环境变量
-          TURNSTILE_SECRET_KEY: ${{ secrets.TURNSTILE_SECRET_KEY }}
           JWT_SECRET: ${{ secrets.JWT_SECRET }}
+          GH_CLIENT_ID: ${{ secrets.GH_CLIENT_ID }}
           GH_CLIENT_SECRET: ${{ secrets.GH_CLIENT_SECRET }}
