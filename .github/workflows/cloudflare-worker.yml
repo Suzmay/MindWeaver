@@ -40,20 +40,21 @@ jobs:
           wranglerVersion: '4.81.1'
           workingDirectory: web
           vars: |
-            TURNSTILE_SITE_KEY=${{ secrets.TURNSTILE_SITE_KEY }}
-            EMAIL_FROM=${{ secrets.EMAIL_FROM }}
-            EMAIL_FROM_NAME=${{ secrets.EMAIL_FROM_NAME }}
-            GH_CLIENT_ID=${{ secrets.GH_CLIENT_ID }}
+            TURNSTILE_SITE_KEY=${TURNSTILE_SITE_KEY}
+            EMAIL_FROM=${EMAIL_FROM}
+            EMAIL_FROM_NAME=${EMAIL_FROM_NAME}
+            GH_CLIENT_ID=${GH_CLIENT_ID}
           secrets: |
             TURNSTILE_SECRET_KEY
             JWT_SECRET
             GH_CLIENT_SECRET
         env:
-          ASSETS_KV: ${{ secrets.ASSETS_KV_ID }}
-          WORKS_KV: ${{ secrets.WORKS_KV_ID }}
-          USERS_KV: ${{ secrets.USERS_KV_ID }}
-          VERIFICATION_CODES_KV: ${{ secrets.VERIFICATION_CODES_KV_ID }}
-          TOKEN_BLACKLIST_KV: ${{ secrets.TOKEN_BLACKLIST_KV_ID }}
+          # 为 vars 提供环境变量
+          TURNSTILE_SITE_KEY: ${{ secrets.TURNSTILE_SITE_KEY }}
+          EMAIL_FROM: ${{ secrets.EMAIL_FROM }}
+          EMAIL_FROM_NAME: ${{ secrets.EMAIL_FROM_NAME }}
+          GH_CLIENT_ID: ${{ secrets.GH_CLIENT_ID }}
+          # 为 secrets 提供环境变量
           TURNSTILE_SECRET_KEY: ${{ secrets.TURNSTILE_SECRET_KEY }}
           JWT_SECRET: ${{ secrets.JWT_SECRET }}
           GH_CLIENT_SECRET: ${{ secrets.GH_CLIENT_SECRET }}
