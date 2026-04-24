@@ -27,10 +27,6 @@ jobs:
         run: npm ci
         working-directory: web
 
-      - name: Build frontend
-        run: npm run build
-        working-directory: web
-
       - name: Deploy to Cloudflare Workers
         uses: cloudflare/wrangler-action@v3
         with:
@@ -39,3 +35,19 @@ jobs:
           command: deploy
           wranglerVersion: '4.81.1'
           workingDirectory: web
+          secrets: |
+            TURNSTILE_SITE_KEY
+            TURNSTILE_SECRET_KEY
+            EMAIL_FROM
+            EMAIL_FROM_NAME
+            JWT_SECRET
+            GH_CLIENT_ID
+            GH_CLIENT_SECRET
+        env:
+          TURNSTILE_SITE_KEY: ${{ secrets.TURNSTILE_SITE_KEY }}
+          TURNSTILE_SECRET_KEY: ${{ secrets.TURNSTILE_SECRET_KEY }}
+          EMAIL_FROM: ${{ secrets.EMAIL_FROM }}
+          EMAIL_FROM_NAME: ${{ secrets.EMAIL_FROM_NAME }}
+          JWT_SECRET: ${{ secrets.JWT_SECRET }}
+          GH_CLIENT_ID: ${{ secrets.GH_CLIENT_ID }}
+          GH_CLIENT_SECRET: ${{ secrets.GH_CLIENT_SECRET }}
