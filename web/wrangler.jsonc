@@ -2,11 +2,6 @@
   "name": "mindweaver-auth",
   "compatibility_date": "2026-02-04",
   "main": "worker.ts",
-  "assets": {
-    "directory": "./dist",
-    "binding": "ASSETS",
-    "not_found_handling": "404-page"
-  },
   "kv_namespaces": [
     {
       "binding": "ASSETS_KV",

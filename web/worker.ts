@@ -16,14 +16,8 @@ import {
   handleGitHubCallback,
 } from './src/worker/auth';
 
-// 定义 Fetcher 接口
-interface Fetcher {
-  fetch: (request: Request) => Promise<Response>;
-}
-
 // Worker 环境接口
 interface Env {
-  ASSETS: Fetcher;
   ASSETS_KV: KVNamespace;
   WORKS_KV: KVNamespace;
   ASSETS_R2: R2Bucket;
@@ -565,9 +559,14 @@ export default {
       return handleApiRequest(request, env);
     }
 
-    // 其他请求都交给静态资源处理
-    // Workers 会自动处理缓存、压缩等优化
-    return env.ASSETS.fetch(request);
+    // 返回 404 - 静态资源将通过 Pages 单独部署
+    return new Response(JSON.stringify({ 
+      error: "Worker API only - visit frontend for UI",
+      status: 404 
+    }), {
+      status: 404,
+      headers: { "Content-Type": "application/json" }
+    });
   },
 } satisfies ExportedHandler<Env>;
 
