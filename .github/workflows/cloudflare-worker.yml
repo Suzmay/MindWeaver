@@ -35,3 +35,21 @@ jobs:
           command: deploy
           wranglerVersion: '4.81.1'
           workingDirectory: web
+          secrets: |
+            TURNSTILE_SECRET_KEY
+            JWT_SECRET
+            GH_CLIENT_SECRET
+        env:
+          ASSETS_KV_ID: ${{ vars.ASSETS_KV_ID }}
+          WORKS_KV_ID: ${{ vars.WORKS_KV_ID }}
+          USERS_KV_ID: ${{ vars.USERS_KV_ID }}
+          VERIFICATION_CODES_KV_ID: ${{ vars.VERIFICATION_CODES_KV_ID }}
+          TOKEN_BLACKLIST_KV_ID: ${{ vars.TOKEN_BLACKLIST_KV_ID }}
+          ASSETS_R2_BUCKET: ${{ vars.ASSETS_R2_BUCKET }}
+          TURNSTILE_SITE_KEY: ${{ vars.TURNSTILE_SITE_KEY }}
+          EMAIL_FROM: ${{ vars.EMAIL_FROM }}
+          EMAIL_FROM_NAME: ${{ vars.EMAIL_FROM_NAME }}
+          GH_CLIENT_ID: ${{ vars.GH_CLIENT_ID }}
+          TURNSTILE_SECRET_KEY: ${{ secrets.TURNSTILE_SECRET_KEY }}
+          JWT_SECRET: ${{ secrets.JWT_SECRET }}
+          GH_CLIENT_SECRET: ${{ secrets.GH_CLIENT_SECRET }}
