@@ -40,11 +40,6 @@ jobs:
             JWT_SECRET
             GH_CLIENT_SECRET
         env:
-          ASSETS_KV_ID: ${{ vars.ASSETS_KV_ID }}
-          WORKS_KV_ID: ${{ vars.WORKS_KV_ID }}
-          USERS_KV_ID: ${{ vars.USERS_KV_ID }}
-          VERIFICATION_CODES_KV_ID: ${{ vars.VERIFICATION_CODES_KV_ID }}
-          TOKEN_BLACKLIST_KV_ID: ${{ vars.TOKEN_BLACKLIST_KV_ID }}
           TURNSTILE_SITE_KEY: ${{ vars.TURNSTILE_SITE_KEY }}
           EMAIL_FROM: ${{ vars.EMAIL_FROM }}
           EMAIL_FROM_NAME: ${{ vars.EMAIL_FROM_NAME }}
