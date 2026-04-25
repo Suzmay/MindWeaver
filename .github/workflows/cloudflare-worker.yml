@@ -45,7 +45,6 @@ jobs:
           USERS_KV_ID: ${{ vars.USERS_KV_ID }}
           VERIFICATION_CODES_KV_ID: ${{ vars.VERIFICATION_CODES_KV_ID }}
           TOKEN_BLACKLIST_KV_ID: ${{ vars.TOKEN_BLACKLIST_KV_ID }}
-          ASSETS_R2_BUCKET: ${{ vars.ASSETS_R2_BUCKET }}
           TURNSTILE_SITE_KEY: ${{ vars.TURNSTILE_SITE_KEY }}
           EMAIL_FROM: ${{ vars.EMAIL_FROM }}
           EMAIL_FROM_NAME: ${{ vars.EMAIL_FROM_NAME }}

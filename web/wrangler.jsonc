@@ -27,7 +27,7 @@
   "r2_buckets": [
     {
       "binding": "ASSETS_R2",
-      "bucket_name": "${ASSETS_R2_BUCKET}"
+      "bucket_name": "mindweaver-assets"
     }
   ],
   "vars": {
@@ -36,11 +36,6 @@
     "EMAIL_FROM_NAME": "${EMAIL_FROM_NAME}",
     "GH_CLIENT_ID": "${GH_CLIENT_ID}"
   },
-  "secrets": [
-    "TURNSTILE_SECRET_KEY",
-    "JWT_SECRET",
-    "GH_CLIENT_SECRET"
-  ],
   "observability": {
     "logs": {
       "enabled": true,
