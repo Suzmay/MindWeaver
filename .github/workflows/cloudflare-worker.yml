@@ -40,10 +40,6 @@ jobs:
             JWT_SECRET
             GH_CLIENT_SECRET
         env:
-          TURNSTILE_SITE_KEY: ${{ vars.TURNSTILE_SITE_KEY }}
-          EMAIL_FROM: ${{ vars.EMAIL_FROM }}
-          EMAIL_FROM_NAME: ${{ vars.EMAIL_FROM_NAME }}
-          GH_CLIENT_ID: ${{ vars.GH_CLIENT_ID }}
           TURNSTILE_SECRET_KEY: ${{ secrets.TURNSTILE_SECRET_KEY }}
           JWT_SECRET: ${{ secrets.JWT_SECRET }}
           GH_CLIENT_SECRET: ${{ secrets.GH_CLIENT_SECRET }}

@@ -30,6 +30,12 @@
       "bucket_name": "mindweaver-assets"
     }
   ],
+  "vars": {
+    "TURNSTILE_SITE_KEY": "0x4AAAAAAC99C3qDh87-npLk",
+    "EMAIL_FROM": "noreply@mindweaver.com",
+    "EMAIL_FROM_NAME": "MindWeaver",
+    "GH_CLIENT_ID": "Ov23lio5rnejdO1RdyaM"
+  },
   "observability": {
     "logs": {
       "enabled": true,
