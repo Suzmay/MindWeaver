@@ -32,6 +32,7 @@ interface Env {
   JWT_SECRET: string;
   GH_CLIENT_ID: string;
   GH_CLIENT_SECRET: string;
+  RESEND_API_KEY?: string;
 }
 
 function generateRandomCode(length: number = 6): string {
@@ -69,6 +70,96 @@ async function verifyTurnstile(token: string, secretKey: string): Promise<boolea
     console.error('Turnstile verification error:', error);
     return false;
   }
+}
+
+async function sendEmail(
+  to: string,
+  subject: string,
+  htmlContent: string,
+  env: Env
+): Promise<boolean> {
+  const from = env.EMAIL_FROM || 'noreply@mindweaver.com';
+  const fromName = env.EMAIL_FROM_NAME || 'MindWeaver';
+
+  try {
+    if (!env.RESEND_API_KEY) {
+      console.warn(`No Resend API key configured, logging code instead. To: ${to}, Subject: ${subject}`);
+      return false;
+    }
+
+    const response = await fetch('https://api.resend.com/emails', {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${env.RESEND_API_KEY}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        from: `${fromName} <${from}>`,
+        to: [to],
+        subject,
+        html: htmlContent,
+      }),
+    });
+
+    if (response.ok) {
+      console.log(`Email sent to ${to} via Resend`);
+      return true;
+    }
+
+    console.error('Resend error:', await response.text());
+    return false;
+  } catch (error) {
+    console.error('Send email error:', error);
+    return false;
+  }
+}
+
+function getEmailTemplate(type: string, code: string): { subject: string; html: string } {
+  const subjects: Record<string, string> = {
+    register: '欢迎注册 MindWeaver - 您的验证码',
+    login: 'MindWeaver 登录验证码',
+    reset_password: 'MindWeaver 密码重置验证码',
+  };
+
+  const subject = subjects[type] || 'MindWeaver 验证码';
+
+  const html = `
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8">
+  <style>
+    body { font-family: Arial, sans-serif; line-height: 1.6; color: #333; }
+    .container { max-width: 600px; margin: 0 auto; padding: 20px; }
+    .code { 
+      font-size: 32px; 
+      font-weight: bold; 
+      letter-spacing: 8px; 
+      color: #2563eb; 
+      text-align: center; 
+      padding: 20px; 
+      background: #f0f9ff; 
+      border-radius: 8px; 
+      margin: 20px 0;
+    }
+    .footer { margin-top: 30px; padding-top: 20px; border-top: 1px solid #eee; font-size: 12px; color: #666; }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <h2>您好！</h2>
+    <p>这是您的 MindWeaver 验证码：</p>
+    <div class="code">${code}</div>
+    <p>验证码有效期为 10 分钟，请尽快使用。</p>
+    <p>如果这不是您本人的操作，请忽略此邮件。</p>
+    <div class="footer">
+      <p>此邮件由 MindWeaver 自动发送，请勿回复。</p>
+    </div>
+  </div>
+</body>
+</html>`;
+
+  return { subject, html };
 }
 
 export async function handleSendVerificationCode(request: Request, env: Env): Promise<Response> {
@@ -116,7 +207,13 @@ export async function handleSendVerificationCode(request: Request, env: Env): Pr
       expirationTtl: 10 * 60,
     });
 
+    const { subject, html } = getEmailTemplate(type, code);
+    const emailSent = await sendEmail(email, subject, html, env);
+    
     console.log(`Verification code for ${email} (${type}): ${code}`);
+    if (!emailSent) {
+      console.warn('Email not sent, but verification code stored in KV');
+    }
 
     return new Response(JSON.stringify({ success: true, message: '验证码已发送' }), {
       headers: { 'Content-Type': 'application/json' },
@@ -500,7 +597,13 @@ export async function handleResetPasswordRequest(request: Request, env: Env): Pr
       expirationTtl: 10 * 60,
     });
 
+    const { subject, html } = getEmailTemplate('reset_password', code);
+    const emailSent = await sendEmail(email, subject, html, env);
+    
     console.log(`Reset password code for ${email}: ${code}`);
+    if (!emailSent) {
+      console.warn('Email not sent, but verification code stored in KV');
+    }
 
     return new Response(JSON.stringify({ success: true, message: '如果该邮箱已注册，您将收到验证码' }), {
       headers: { 'Content-Type': 'application/json' },
