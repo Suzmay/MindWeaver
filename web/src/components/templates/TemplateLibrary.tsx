@@ -120,6 +120,20 @@ const mockTemplates: Template[] = [
     createdAt: '2024-01-06',
     isDefault: false,
   },
+  {
+    id: '7',
+    name: 'SWOT分析',
+    description: '适合企业战略分析和竞争优势评估的模板',
+    category: '商业',
+    tags: ['商业', '战略', '分析'],
+    preview: 'swot',
+    layout: 'mindmap',
+    style: 'professional',
+    starred: false,
+    usageCount: 12,
+    createdAt: '2024-01-07',
+    isDefault: false,
+  },
 ];
 
 export function TemplateLibrary() {
