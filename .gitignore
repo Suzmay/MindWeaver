@@ -1,8 +1,5 @@
 # 文档文件（不上传到 GitHub）
 docs/MindWeaver-毕业论文.md
-docs/阶段一-基础框架与本地存储实现计划.md
-docs/阶段二-核心编辑功能实现计划.md
-docs/阶段三-素材与模板系统实现计划.md
 
 # 依赖包
 node_modules/

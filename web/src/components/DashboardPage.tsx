@@ -9,7 +9,7 @@ import {
   Star, 
   Clock, 
   Calendar,
-  Layout
+  LayoutPanelLeft
 } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle } from './ui/card';
 import { useUser } from '../context/UserContext';
@@ -47,10 +47,14 @@ interface DashboardStats {
 export function DashboardPage() {
   const { isGuest } = useUser();
   const { initialized, listWorks } = useStorage();
-  const [stats, setStats] = useState<DashboardStats | null>(null);
+  const [stats, setStats] = useState<DashboardStats | null>(() => {
+    // 从 localStorage 读取缓存的统计数据
+    const cached = localStorage.getItem('dashboardStats');
+    return cached ? JSON.parse(cached) : null;
+  });
   const [recentWorks, setRecentWorks] = useState<Work[]>([]);
 
-  // 统一获取所有数据
+  // 统一获取所有数据（带缓存优化）
   useEffect(() => {
     if (!initialized) return;
 
@@ -122,7 +126,7 @@ export function DashboardPage() {
           }
         });
 
-        setStats({
+        const newStats: DashboardStats = {
           totalWorks: countResult.total,
           starredWorks: activeWorks.filter((w: Work) => w.starred).length,
           totalNodes: activeWorks.reduce((sum: number, work: Work) => sum + (work.nodes || 0), 0),
@@ -130,13 +134,24 @@ export function DashboardPage() {
           categoryDistribution,
           creationTrend: trendData,
           layoutDistribution
-        });
+        };
+
+        setStats(newStats);
+        // 缓存统计数据到 localStorage
+        localStorage.setItem('dashboardStats', JSON.stringify(newStats));
       } catch (error) {
         console.error('获取仪表盘数据失败:', error);
       }
     };
 
-    fetchData();
+    // 如果有缓存数据，先显示缓存，然后后台刷新
+    if (stats) {
+      // 延迟刷新，让页面先渲染
+      setTimeout(fetchData, 500);
+    } else {
+      // 没有缓存，立即获取数据
+      fetchData();
+    }
   }, [initialized, listWorks]);
 
   if (!initialized) {
@@ -333,7 +348,7 @@ export function DashboardPage() {
         <Card className="lg:col-span-1">
           <CardHeader>
             <CardTitle className="flex items-center gap-2">
-              <Layout className="w-5 h-5" />
+              <LayoutPanelLeft className="w-5 h-5" />
               布局偏好
             </CardTitle>
           </CardHeader>

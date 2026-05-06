@@ -3,6 +3,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } f
 import { Button } from '../ui/button';
 import { Input } from '../ui/input';
 import { Label } from '../ui/label';
+import { Textarea } from '../ui/textarea';
 
 import { Badge } from '../ui/badge';
 import { X, Trash2, Edit, Plus } from 'lucide-react';
@@ -210,11 +211,12 @@ export function AssetManagementDialog({
                     
                     <div className="space-y-2">
                       <Label htmlFor="edit-description">描述（可选）</Label>
-                      <Input
+                      <Textarea
                         id="edit-description"
                         value={description}
                         onChange={(e) => setDescription(e.target.value)}
                         placeholder="输入素材描述"
+                        rows={6}
                       />
                     </div>
                     
@@ -276,11 +278,11 @@ export function AssetManagementDialog({
                       
                       <div className="space-y-2">
                         <div className="flex items-center gap-1">
-                          <span className="text-sm font-medium">分类:</span>
+                          <span className="text-sm font-medium">分类：</span>
                           <span className="text-sm">{selectedAsset.category}</span>
                         </div>
                         <div className="flex items-start gap-1">
-                          <span className="text-sm font-medium">标签:</span>
+                          <span className="text-sm font-medium">标签：</span>
                           <div className="flex flex-wrap gap-2">
                             {selectedAsset.tags.map((tag, index) => (
                               <Badge key={index} variant="outline">
@@ -290,13 +292,13 @@ export function AssetManagementDialog({
                           </div>
                         </div>
                         <div className="flex items-center gap-1">
-                          <span className="text-sm font-medium">上传者:</span>
+                          <span className="text-sm font-medium">上传者：</span>
                           <span className="text-sm">{selectedAsset.uploader}</span>
                         </div>
                         {selectedAsset.description && (
                           <div className="flex items-start gap-1">
-                            <span className="text-sm font-medium">描述:</span>
-                            <span className="text-sm">{selectedAsset.description}</span>
+                            <span className="text-sm font-medium shrink-0">描述：</span>
+                            <span className="text-sm whitespace-pre-wrap break-words max-h-24 overflow-y-auto">{selectedAsset.description}</span>
                           </div>
                         )}
                       </div>

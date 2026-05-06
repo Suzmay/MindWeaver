@@ -8,7 +8,7 @@ import {
   Share2,
   Undo,
   Redo,
-  Layout,
+  LayoutPanelLeft,
   Layers,
   RefreshCw,
   Eye,
@@ -1278,7 +1278,7 @@ export function MindMapEditor({ workId, onBack, onPreview }: MindMapEditorProps)
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
               <Button variant="outline" size="sm" className="rounded-lg">
-                <Layout className="w-4 h-4 mr-2" />
+                <LayoutPanelLeft className="w-4 h-4 mr-2" />
                 布局
               </Button>
             </DropdownMenuTrigger>
