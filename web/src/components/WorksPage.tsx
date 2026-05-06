@@ -180,18 +180,27 @@ export function WorksPage({ onEditWork }: WorksPageProps) {
       let counter = 1;
       let title = `${baseTitle}(${counter})`;
       
+      // 获取所有作品以检查标题是否存在
+      const allWorksResult = await storage.listWorks({
+        page: 1,
+        pageSize: 1000,
+        deletedOnly: false
+      });
+      const allWorks = allWorksResult.works;
+      
       // 检查是否已存在同名作品
-      while (works.some(work => work.title === title)) {
+      while (allWorks.some(work => work.title === title)) {
         counter++;
         title = `${baseTitle}(${counter})`;
       }
       
       // 构建 WorkCreateDTO 对象
+      // 新建的思维导图默认有 4 个节点（1个根节点 + 3个默认子节点）
       const workCreateDTO = {
         title: title,
         category: layout.category,
         tags: [],
-        nodes: 0,
+        nodes: 4,
         layout: {
           mode: layout.mode,
           direction: layout.direction

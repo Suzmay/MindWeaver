@@ -47,6 +47,5 @@
       "enabled": true,
       "invocation_logs": true
     }
-  },
-  "preview_urls": true
+  }
 }

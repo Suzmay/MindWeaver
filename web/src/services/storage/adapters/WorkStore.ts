@@ -111,6 +111,7 @@ export class WorkStore implements WorkRepository {
       tags: dto.tags !== undefined ? dto.tags : work.tags,
       layout: dto.layout !== undefined ? dto.layout : work.layout,
       starred: dto.starred !== undefined ? dto.starred : work.starred,
+      nodes: dto.nodes !== undefined ? dto.nodes : work.nodes,
       lastModified: now
     };
     
@@ -264,6 +265,11 @@ export class WorkStore implements WorkRepository {
     let sortedWorks = [...filteredWorks];
     if (options.sortBy) {
       sortedWorks.sort((a, b) => {
+        // 收藏的作品优先排序
+        if (a.starred !== b.starred) {
+          return a.starred ? -1 : 1;
+        }
+        
         switch (options.sortBy) {
           case 'title':
             return a.title.localeCompare(b.title) * (options.sortOrder === 'desc' ? -1 : 1);
@@ -280,8 +286,14 @@ export class WorkStore implements WorkRepository {
         }
       });
     } else {
-      // 默认按最后修改时间排序
-      sortedWorks.sort((a, b) => new Date(b.lastModified).getTime() - new Date(a.lastModified).getTime());
+      // 默认按最后修改时间排序，同时收藏的作品优先
+      sortedWorks.sort((a, b) => {
+        // 收藏的作品优先
+        if (a.starred !== b.starred) {
+          return a.starred ? -1 : 1;
+        }
+        return new Date(b.lastModified).getTime() - new Date(a.lastModified).getTime();
+      });
     }
     
     // 分页

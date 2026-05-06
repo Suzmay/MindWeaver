@@ -47,6 +47,7 @@ export interface WorkUpdateDTO {
     direction: string;
   };
   encryptedData?: string;
+  nodes?: number;
   isDefault?: boolean;
   isReadonly?: boolean;
 }

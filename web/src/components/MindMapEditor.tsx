@@ -453,10 +453,11 @@ export function MindMapEditor({ workId, onBack, onPreview }: MindMapEditorProps)
         // 加密作品数据
         const encryptedData = await encryptionService.encrypt(workData, key);
         
-        // 保存作品数据
+        // 保存作品数据，同时更新节点数
         await storage.updateWork(work.id, {
           encryptedData,
-          layout: currentLayout
+          layout: currentLayout,
+          nodes: nodes.length
         });
         
         // 重置未保存更改标志
@@ -778,11 +779,13 @@ export function MindMapEditor({ workId, onBack, onPreview }: MindMapEditorProps)
           
           await storage.updateWork(work.id, {
             encryptedData,
-            layout: currentLayout
+            layout: currentLayout,
+            nodes: nodes.length
           });
         } else {
           await storage.updateWork(work.id, {
-            layout: currentLayout
+            layout: currentLayout,
+            nodes: nodes.length
           });
         }
       }
