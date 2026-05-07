@@ -1,10 +1,11 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { useLocation } from 'react-router-dom';
-import { Plus, Grid3x3, List, MoreVertical, Trash2, Download, FileText, Search, Filter, Star, Clock, Folder, Tag, FileEdit, Lock, Check, CheckSquare, Square, AlertTriangle, X, ArrowLeft, RotateCcw } from 'lucide-react';
+import { Plus, Grid3x3, List, MoreVertical, Trash2, Download, FileText, Search, Filter, Star, Clock, Folder, Tag, FileEdit, Lock, Check, CheckSquare, Square, AlertTriangle, X, ArrowLeft, RotateCcw, FileJson, File, FileSpreadsheet } from 'lucide-react';
 import { Button } from './ui/button';
 import { Card, CardContent } from './ui/card';
 import { Input } from './ui/input';
 import { Badge } from './ui/badge';
+import { toast } from 'sonner';
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -32,6 +33,10 @@ import { LayoutSelectionDialog } from './editor/LayoutSelectionDialog';
 import { Work } from '../models/Work';
 import { useStorage } from '../context/StorageContext';
 import { useUser } from '../context/UserContext';
+import { ExportDialog } from './export/ExportDialog';
+import { ExportService } from '../services/export/ExportService';
+import { EncryptionService } from '../services/storage/encryption/EncryptionService';
+import { KeyManager } from '../services/storage/encryption/KeyManager';
 
 interface WorksPageProps {
   onEditWork: (workId: string) => void;
@@ -80,11 +85,22 @@ export function WorksPage({ onEditWork }: WorksPageProps) {
   const [saveMessage, setSaveMessage] = useState<string>('');
   // 错误状态
   const [error, setError] = useState<string | null>(null);
-  
+
+  // 导出对话框状态
+  const [isExportDialogOpen, setIsExportDialogOpen] = useState(false);
+  const [currentExportWork, setCurrentExportWork] = useState<{ workId: string; title: string; nodes: any[] } | null>(null);
+
+  // 批量导出对话框状态
+  const [isBatchExportDialogOpen, setIsBatchExportDialogOpen] = useState(false);
+  const [batchExportFormat, setBatchExportFormat] = useState<'mmw' | 'json' | 'markdown'>('mmw');
+  const [isBatchExporting, setIsBatchExporting] = useState(false);
+
   const storage = useStorage();
   const [works, setWorks] = useState<Work[]>([]);
   const mountedRef = useRef(false);
   const location = useLocation();
+  const encryptionService = EncryptionService.getInstance();
+  const keyManager = KeyManager.getInstance();
 
   // 使用 useCallback 包装 loadWorks 函数，减少不必要的重新渲染
   const loadWorks = useCallback(async () => {
@@ -576,8 +592,84 @@ export function WorksPage({ onEditWork }: WorksPageProps) {
   };
 
   const handleBatchExport = () => {
-    // 批量导出功能实现
-    clearSelection();
+    // 打开批量导出对话框
+    setIsBatchExportDialogOpen(true);
+  };
+
+  const handleBatchExportConfirm = async () => {
+    if (selectedWorks.length === 0) return;
+
+    setIsBatchExporting(true);
+
+    try {
+      for (const workId of selectedWorks) {
+        const work = await storage.getWork(workId);
+        if (!work) continue;
+
+        let nodes: any[] = [];
+        let layout: any = undefined;
+        let canvasBackground: string | undefined = undefined;
+
+        if (work.encryptedData && keyManager.getKey()) {
+          const data = await encryptionService.decrypt(work.encryptedData, keyManager.getKey()!);
+          if (data) {
+            nodes = data.nodes || [];
+            layout = data.layout;
+            canvasBackground = data.canvasBackground;
+          }
+        }
+
+        const safeTitle = work.title.replace(/[<>:"/\\|?*]/g, '_');
+        let blob: Blob;
+
+        switch (batchExportFormat) {
+          case 'json':
+            blob = ExportService.exportToJson(nodes, work.title, layout, canvasBackground);
+            break;
+          case 'markdown':
+            blob = ExportService.exportToMarkdown(nodes, work.title);
+            break;
+          case 'mmw':
+          default:
+            blob = ExportService.exportToMMW(nodes, work.title, layout, canvasBackground);
+            break;
+        }
+
+        ExportService.downloadFile(blob, `${safeTitle}.${batchExportFormat === 'mmw' ? 'mmw' : batchExportFormat}`);
+      }
+
+      toast.success(`已成功导出 ${selectedWorks.length} 个作品`);
+      setIsBatchExportDialogOpen(false);
+      clearSelection();
+    } catch (error) {
+      console.error('批量导出失败:', error);
+      toast.error('批量导出失败，请重试');
+    } finally {
+      setIsBatchExporting(false);
+    }
+  };
+
+  const handleExportWork = async (workId: string, workTitle: string, e: React.MouseEvent) => {
+    e.stopPropagation();
+    try {
+      const work = await storage.getWork(workId);
+      if (!work) {
+        return;
+      }
+
+      let nodes: any[] = [];
+      if (work.encryptedData && keyManager.getKey()) {
+        const data = await encryptionService.decrypt(work.encryptedData, keyManager.getKey()!);
+        if (data) {
+          nodes = data.nodes || [];
+        }
+      }
+
+      setCurrentExportWork({ workId, title: workTitle, nodes });
+      setIsExportDialogOpen(true);
+    } catch (error) {
+      console.error('导出作品失败:', error);
+    }
   };
 
   const handleCopyWork = async (workId: string, e: React.MouseEvent) => {
@@ -1233,7 +1325,10 @@ export function WorksPage({ onEditWork }: WorksPageProps) {
                                     <DropdownMenuSeparator />
                                   </>
                                 )}
-                                <DropdownMenuItem onClick={(e) => e.stopPropagation()} className="rounded-lg">
+                                <DropdownMenuItem
+                                  onClick={(e) => handleExportWork(work.id, work.title, e)}
+                                  className="rounded-lg"
+                                >
                                   <Download className="w-4 h-4 mr-2" />
                                   导出
                                 </DropdownMenuItem>
@@ -1430,7 +1525,10 @@ export function WorksPage({ onEditWork }: WorksPageProps) {
                               <DropdownMenuSeparator />
                             </>
                           )}
-                          <DropdownMenuItem onClick={(e) => e.stopPropagation()} className="rounded-lg">
+                          <DropdownMenuItem
+                            onClick={(e) => handleExportWork(work.id, work.title, e)}
+                            className="rounded-lg"
+                          >
                             <Download className="w-4 h-4 mr-2" />
                             导出
                           </DropdownMenuItem>
@@ -1649,6 +1747,91 @@ export function WorksPage({ onEditWork }: WorksPageProps) {
         onClose={() => setShowLayoutDialog(false)}
         onSelect={handleLayoutSelect}
       />
+
+      {/* 导出对话框 */}
+      <ExportDialog
+        open={isExportDialogOpen}
+        onOpenChange={(open) => {
+          setIsExportDialogOpen(open);
+          if (!open) {
+            setCurrentExportWork(null);
+          }
+        }}
+        title={currentExportWork?.title || ''}
+        nodes={currentExportWork?.nodes || []}
+      />
+
+      {/* 批量导出对话框 */}
+      <Dialog open={isBatchExportDialogOpen} onOpenChange={setIsBatchExportDialogOpen}>
+        <DialogContent className="sm:max-w-[550px]">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Download className="w-5 h-5" />
+              批量导出作品
+            </DialogTitle>
+            <DialogDescription>
+              已选择 {selectedWorks.length} 个作品，请选择导出格式
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4 pt-4">
+            <div className="grid grid-cols-2 gap-3">
+              {(['mmw', 'json', 'markdown'] as const).map((format) => {
+                const isSelected = batchExportFormat === format;
+                return (
+                  <button
+                    key={format}
+                    onClick={() => setBatchExportFormat(format)}
+                    className={`p-4 border-2 rounded-xl text-left transition-all ${
+                      isSelected
+                        ? 'border-primary bg-primary/5'
+                        : 'border-border hover:border-primary/50'
+                    }`}
+                  >
+                    <div className="flex items-center gap-3">
+                      {format === 'mmw' && <File className="w-5 h-5 text-primary" />}
+                      {format === 'json' && <FileJson className="w-5 h-5 text-primary" />}
+                      {format === 'markdown' && <FileSpreadsheet className="w-5 h-5 text-primary" />}
+                      <div className="flex-1">
+                        <div className="font-medium text-sm">
+                          {format === 'mmw' ? 'MindWeaver' : format === 'json' ? 'JSON' : 'Markdown'}
+                        </div>
+                        <div className="text-xs text-muted-foreground mt-1">
+                          {format === 'mmw' && 'MindWeaver 专用格式'}
+                          {format === 'json' && '通用数据格式'}
+                          {format === 'markdown' && '文档格式'}
+                        </div>
+                      </div>
+                      {isSelected && (
+                        <div className="w-5 h-5 rounded-full bg-primary flex items-center justify-center">
+                          <Check className="w-3 h-3 text-white" />
+                        </div>
+                      )}
+                    </div>
+                  </button>
+                );
+              })}
+            </div>
+
+            <Button
+              className="w-full gap-2"
+              onClick={handleBatchExportConfirm}
+              disabled={isBatchExporting || selectedWorks.length === 0}
+            >
+              {isBatchExporting ? (
+                <>
+                  <div className="w-4 h-4 border-2 border-current border-t-transparent rounded-full animate-spin" />
+                  导出中...
+                </>
+              ) : (
+                <>
+                  <Download className="w-4 h-4" />
+                  导出 {selectedWorks.length} 个作品
+                </>
+              )}
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

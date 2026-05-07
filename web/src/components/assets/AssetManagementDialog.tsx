@@ -129,7 +129,7 @@ export function AssetManagementDialog({
                 userAssets.map((asset) => (
                   <div
                     key={asset.id}
-                    className={`p-3 rounded-lg cursor-pointer transition-colors ${selectedAsset?.id === asset.id ? 'bg-primary/10 border border-primary/30' : 'hover:bg-muted'}`}
+                    className={`p-3 rounded-lg cursor-pointer transition-colors ${selectedAsset?.id === asset.id ? 'bg-primary/10 border border-primary/30' : 'hover:bg-primary/10 hover:border hover:border-primary/20'}`}
                     onClick={() => handleSelectAsset(asset)}
                   >
                     <div className="flex items-center gap-2">

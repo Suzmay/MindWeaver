@@ -172,7 +172,7 @@ interface CanvasRendererProps {
   isAnimationPaused?: boolean; // 动画是否暂停
 }
 
-export const CanvasRenderer: React.FC<CanvasRendererProps> = ({
+export const CanvasRenderer = React.forwardRef<HTMLCanvasElement, CanvasRendererProps>(({
   nodes,
   zoom,
   pan,
@@ -197,8 +197,11 @@ export const CanvasRenderer: React.FC<CanvasRendererProps> = ({
   currentAssetAnimation,
   animationVersion,
   isAnimationPaused,
-}) => {
+}, ref) => {
   const canvasRef = useRef<HTMLCanvasElement>(null);
+  
+  // 将内部 ref 转发给父组件
+  React.useImperativeHandle(ref, () => canvasRef.current as HTMLCanvasElement);
   const webglCanvasRef = useRef<HTMLCanvasElement>(null);
   const [isWebGLAvailable, setIsWebGLAvailable] = useState(false);
   const [isDragging, setIsDragging] = useState(false);
@@ -2751,4 +2754,6 @@ export const CanvasRenderer: React.FC<CanvasRendererProps> = ({
       )}
     </div>
   );
-};
+});
+
+CanvasRenderer.displayName = 'CanvasRenderer';

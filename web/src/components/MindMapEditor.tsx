@@ -47,6 +47,8 @@ import { useStorage } from '../context/StorageContext';
 import { UserPreferencesService } from '../services/storage/UserPreferencesService';
 import { EncryptionService } from '../services/storage/encryption/EncryptionService';
 import { KeyManager } from '../services/storage/encryption/KeyManager';
+import { ExportDialog } from './export/ExportDialog';
+import { ShareDialog } from './export/ShareDialog';
 
 interface MindMapEditorProps {
   workId: string;
@@ -166,10 +168,17 @@ export function MindMapEditor({ workId, onBack, onPreview }: MindMapEditorProps)
   const [currentColorSchemeAsset, setCurrentColorSchemeAsset] = useState<Asset | null>(null); // 当前选定的配色方案
   const [customColorNodes, setCustomColorNodes] = useState<MindMapNode[]>([]); // 存储用户自定义的颜色状态
 
+  // 导出对话框状态
+  const [isExportDialogOpen, setIsExportDialogOpen] = useState(false);
+  
+  // 分享对话框状态
+  const [isShareDialogOpen, setIsShareDialogOpen] = useState(false);
+
   // 引用
   const autoSaveTimerRef = useRef<NodeJS.Timeout | null>(null);
   const nodesRef = useRef<MindMapNode[]>(nodes);
   const connectionsRef = useRef<any[]>(connections);
+  const canvasRef = useRef<HTMLCanvasElement>(null);
   
   // 同步 nodes 和 connections 到 ref
   useEffect(() => {
@@ -1402,11 +1411,11 @@ export function MindMapEditor({ workId, onBack, onPreview }: MindMapEditorProps)
             <Eye className="w-4 h-4 mr-2" />
             预览
           </Button>
-          <Button variant="outline" size="sm" className="rounded-2xl">
+          <Button variant="outline" size="sm" className="rounded-2xl" onClick={() => setIsShareDialogOpen(true)}>
             <Share2 className="w-4 h-4 mr-2" />
             分享
           </Button>
-          <Button variant="outline" size="sm" className="rounded-2xl">
+          <Button variant="outline" size="sm" className="rounded-2xl" onClick={() => setIsExportDialogOpen(true)}>
             <Download className="w-4 h-4 mr-2" />
             导出
           </Button>
@@ -1419,6 +1428,7 @@ export function MindMapEditor({ workId, onBack, onPreview }: MindMapEditorProps)
         className="flex-1 relative overflow-hidden bg-background"
       >
         <CanvasRenderer
+          ref={canvasRef}
           nodes={nodes}
           zoom={zoom}
           pan={pan}
@@ -1605,6 +1615,24 @@ export function MindMapEditor({ workId, onBack, onPreview }: MindMapEditorProps)
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      {/* 导出对话框 */}
+      <ExportDialog
+        open={isExportDialogOpen}
+        onOpenChange={setIsExportDialogOpen}
+        title={work?.title || '思维导图'}
+        nodes={nodes}
+        canvasRef={canvasRef}
+      />
+
+      {/* 分享对话框 */}
+      <ShareDialog
+        open={isShareDialogOpen}
+        onOpenChange={setIsShareDialogOpen}
+        title={work?.title || '思维导图'}
+        nodes={nodes}
+        layout={currentLayout}
+      />
 
     </div>
   );

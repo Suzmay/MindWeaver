@@ -39,6 +39,8 @@ import { useStorage } from '../context/StorageContext';
 import { EncryptionService } from '../services/storage/encryption/EncryptionService';
 import { KeyManager } from '../services/storage/encryption/KeyManager';
 import { LayoutManager, LayoutMode, LayoutDirection } from './editor/LayoutManager';
+import { ExportDialog } from './export/ExportDialog';
+import { ShareDialog } from './export/ShareDialog';
 
 
 
@@ -326,6 +328,14 @@ export function MindMapPreview({ workId, onBack, onEdit }: MindMapPreviewProps) 
   const [savePurpose, setSavePurpose] = useState<'edit' | 'back' | null>(null); // 保存的目的：编辑或返回
   const [previewBackground, setPreviewBackground] = useState<string | null>(null); // 预览时的背景颜色
 
+  // 导出对话框状态
+  const [isExportDialogOpen, setIsExportDialogOpen] = useState(false);
+
+  // 分享对话框状态
+  const [isShareDialogOpen, setIsShareDialogOpen] = useState(false);
+  const [currentLayout, setCurrentLayout] = useState<{ mode: LayoutMode; direction: LayoutDirection } | null>(null);
+  const canvasRef = useRef<HTMLCanvasElement>(null);
+
   // 素材选择弹窗状态
   const [isAssetDialogOpen, setIsAssetDialogOpen] = useState(false);
   const [previewAsset, setPreviewAsset] = useState<Asset | null>(null); // 当前预览的素材
@@ -507,11 +517,17 @@ export function MindMapPreview({ workId, onBack, onEdit }: MindMapPreviewProps) 
           
           // 如果没有数据（新建的思维导图），使用默认节点并根据预设布局应用位置
           if (finalNodes.length === 0 && workDetails.layout) {
-            const layout = { 
-              mode: workDetails.layout.mode as LayoutMode, 
-              direction: workDetails.layout.direction as LayoutDirection 
+            const layout = {
+              mode: workDetails.layout.mode as LayoutMode,
+              direction: workDetails.layout.direction as LayoutDirection
             };
             finalNodes = getDefaultNodes(layout);
+            setCurrentLayout(layout);
+          } else if (workDetails.layout) {
+            setCurrentLayout({
+              mode: workDetails.layout.mode as LayoutMode,
+              direction: workDetails.layout.direction as LayoutDirection
+            });
           }
           
           const nodesWithLevels = calculateNodeLevels(finalNodes);
@@ -657,11 +673,11 @@ export function MindMapPreview({ workId, onBack, onEdit }: MindMapPreviewProps) 
   }, []);
 
   const handleShare = () => {
-    alert('分享功能开发中，敬请期待！');
+    setIsShareDialogOpen(true);
   };
 
   const handleExport = () => {
-    alert('导出功能开发中，敬请期待！');
+    setIsExportDialogOpen(true);
   };
 
   // 保存背景颜色到作品数据
@@ -1298,6 +1314,7 @@ export function MindMapPreview({ workId, onBack, onEdit }: MindMapPreviewProps) 
         }}
       >
         <CanvasRenderer
+          ref={canvasRef}
           nodes={nodes}
           zoom={focusState.isFocusMode ? focusState.focusZoomLevel : zoom}
           pan={focusState.isFocusMode ? focusState.focusPan : pan}
@@ -1417,6 +1434,100 @@ export function MindMapPreview({ workId, onBack, onEdit }: MindMapPreviewProps) 
           currentAssetBackground={currentAssetBackground}
           currentAssetAnimation={currentAssetAnimation}
         />
+
+        {/* 导出对话框 */}
+      <ExportDialog
+        open={isExportDialogOpen}
+        onOpenChange={setIsExportDialogOpen}
+        title={work?.title || '思维导图'}
+        nodes={nodes}
+        canvasRef={canvasRef}
+        canvasBackground={(() => {
+          if (previewAsset?.data?.type === 'solid' && previewAsset?.data?.color) {
+            return previewAsset.data.color;
+          }
+          if (isUsingAssetBackground && currentAssetBackground?.data?.type === 'solid' && currentAssetBackground?.data?.color) {
+            return currentAssetBackground.data.color;
+          }
+          if (previewAsset?.data?.type === 'grid' && previewAsset?.data?.backgroundColor) {
+            return previewAsset.data.backgroundColor;
+          }
+          if (isUsingAssetBackground && currentAssetBackground?.data?.type === 'grid' && currentAssetBackground?.data?.backgroundColor) {
+            return currentAssetBackground.data.backgroundColor;
+          }
+          return previewBackground || canvasBackground;
+        })()}
+        canvasBackgroundImage={(() => {
+          if (previewAsset?.data?.content) {
+            return previewAsset.data.content;
+          }
+          if (isUsingAssetBackground && currentAssetBackground?.data?.content) {
+            return currentAssetBackground.data.content;
+          }
+          return undefined;
+        })()}
+        canvasBackgroundType={(() => {
+          if (previewAsset?.data?.content) {
+            return 'image';
+          }
+          if (previewAsset?.data?.type === 'gradient') {
+            return 'gradient';
+          }
+          if (previewAsset?.data?.type === 'grid') {
+            return 'grid';
+          }
+          if (isUsingAssetBackground && currentAssetBackground?.data?.content) {
+            return 'image';
+          }
+          if (isUsingAssetBackground && currentAssetBackground?.data?.type === 'gradient') {
+            return 'gradient';
+          }
+          if (isUsingAssetBackground && currentAssetBackground?.data?.type === 'grid') {
+            return 'grid';
+          }
+          if (previewAsset?.data?.type === 'solid' || (isUsingAssetBackground && currentAssetBackground?.data?.type === 'solid')) {
+            return 'solid';
+          }
+          return undefined;
+        })()}
+        canvasBackgroundSize={(() => {
+          if (previewAsset?.data?.type === 'grid' && previewAsset?.data?.size) {
+            return String(previewAsset.data.size);
+          }
+          if (isUsingAssetBackground && currentAssetBackground?.data?.type === 'grid' && currentAssetBackground?.data?.size) {
+            return String(currentAssetBackground.data.size);
+          }
+          return undefined;
+        })()}
+        canvasBackgroundGradientColors={(() => {
+          if (previewAsset?.data?.type === 'gradient' && previewAsset?.data?.colors) {
+            return previewAsset.data.colors;
+          }
+          if (isUsingAssetBackground && currentAssetBackground?.data?.type === 'gradient' && currentAssetBackground?.data?.colors) {
+            return currentAssetBackground.data.colors;
+          }
+          return undefined;
+        })()}
+        canvasBackgroundGridColor={(() => {
+          if (previewAsset?.data?.type === 'grid' && previewAsset?.data?.color) {
+            return previewAsset.data.color;
+          }
+          if (isUsingAssetBackground && currentAssetBackground?.data?.type === 'grid' && currentAssetBackground?.data?.color) {
+            return currentAssetBackground.data.color;
+          }
+          return undefined;
+        })()}
+      />
+
+        {/* 分享对话框 */}
+      <ShareDialog
+        open={isShareDialogOpen}
+        onOpenChange={setIsShareDialogOpen}
+        title={work?.title || '思维导图'}
+        nodes={nodes}
+        layout={currentLayout || undefined}
+        canvasBackground={canvasBackground}
+      />
       </div>
     </div>
   );
