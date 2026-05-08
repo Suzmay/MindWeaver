@@ -6,6 +6,19 @@
     "worker.ts",
     "src/worker/**/*"
   ],
+  "exclude": [
+    "node_modules/",
+    "dist/",
+    "src/",
+    "public/",
+    "tests/",
+    "*.md",
+    "*.json",
+    "*.config.*",
+    ".git/",
+    ".github/",
+    ".dev.vars"
+  ],
   "kv_namespaces": [
     {
       "binding": "ASSETS_KV",
