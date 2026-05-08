@@ -1,6 +1,23 @@
-# 排除所有内容
-*
-
-# 但包含必要的文件
-!worker.ts
-!src/worker/**/*
+node_modules/
+dist/
+src/components/
+src/context/
+src/fonts/
+src/models/
+src/services/
+src/styles/
+src/App.tsx
+src/main.tsx
+src/routes.tsx
+src/vite-env.d.ts
+index.html
+vite.config.ts
+tsconfig.json
+tsconfig.node.json
+postcss.config.js
+tailwind.config.js
+package-lock.json
+.dev.vars
+*.md
+.git/
+.github/
