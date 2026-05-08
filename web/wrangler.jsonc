@@ -2,6 +2,10 @@
   "name": "mindweaver-auth",
   "compatibility_date": "2026-02-04",
   "main": "worker.ts",
+  "include": [
+    "worker.ts",
+    "src/worker/**/*"
+  ],
   "kv_namespaces": [
     {
       "binding": "ASSETS_KV",
