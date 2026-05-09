@@ -809,6 +809,23 @@ const builtInAssets: Asset[] = [...iconAssets, ...shapeAssets, ...connectorAsset
 // 导入API服务
 import { apiService } from '../api/ApiService';
 
+// 素材包文件格式
+export interface MindWeaverAssetsFile {
+  version: string;
+  exportedAt: string;
+  exportedBy?: string;
+  assets: Asset[];
+  metadata?: {
+    name: string;
+    description?: string;
+    assetCount: number;
+    assetTypes: string[];
+  };
+}
+
+// 冲突处理策略
+export type ConflictStrategy = 'skip' | 'overwrite' | 'rename';
+
 // 素材服务类
 class AssetService {
   private STORAGE_KEY = 'mindweaver_favorite_assets';
@@ -1192,6 +1209,221 @@ class AssetService {
     });
     
     return result;
+  }
+
+  // 导出素材为 Blob
+  exportAssets(assets: Asset[], options?: { name?: string; description?: string }): Blob {
+    const assetTypes = [...new Set(assets.map(a => a.type))];
+    const file: MindWeaverAssetsFile = {
+      version: '1.0',
+      exportedAt: new Date().toISOString(),
+      assets: assets.map(asset => ({
+        ...asset,
+        // 确保缩略图为 base64 格式
+        thumbnail: asset.thumbnail
+      })),
+      metadata: {
+        name: options?.name || 'MindWeaver 素材包',
+        description: options?.description,
+        assetCount: assets.length,
+        assetTypes
+      }
+    };
+    const content = JSON.stringify(file, null, 2);
+    return new Blob([content], { type: 'application/json' });
+  }
+
+  // 下载素材包文件
+  downloadAssetsFile(assets: Asset[], filename?: string): void {
+    const blob = this.exportAssets(assets);
+    const safeName = filename || 'mindweaver-assets';
+    const safeFilename = safeName.replace(/[<>:"/\\|?*]/g, '_');
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `${safeFilename}.mwassets`;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+  }
+
+  // 从 Blob 导入素材包
+  async importFromAssetsFile(file: Blob): Promise<MindWeaverAssetsFile> {
+    const text = await file.text();
+    const data = JSON.parse(text);
+
+    if (!data.assets || !Array.isArray(data.assets)) {
+      throw new Error('无效的素材包文件格式');
+    }
+
+    return data as MindWeaverAssetsFile;
+  }
+
+  // 处理素材冲突
+  resolveConflicts(
+    existingAssets: Asset[],
+    importingAssets: Asset[],
+    strategy: ConflictStrategy
+  ): { toAdd: Asset[]; toUpdate: Asset[]; skipped: Asset[] } {
+    const result = {
+      toAdd: [] as Asset[],
+      toUpdate: [] as Asset[],
+      skipped: [] as Asset[]
+    };
+
+    const existingMap = new Map(existingAssets.map(a => [a.id, a]));
+
+    for (const importingAsset of importingAssets) {
+      const existing = existingMap.get(importingAsset.id);
+
+      if (!existing) {
+        // 不存在，直接添加
+        result.toAdd.push(importingAsset);
+      } else if (strategy === 'skip') {
+        // 跳过
+        result.skipped.push(importingAsset);
+      } else if (strategy === 'overwrite') {
+        // 覆盖，更新现有素材
+        result.toUpdate.push({ ...importingAsset, id: existing.id });
+      } else if (strategy === 'rename') {
+        // 重命名，给导入的素材生成新ID
+        result.toAdd.push({
+          ...importingAsset,
+          id: `${importingAsset.id}_imported_${Date.now()}`
+        });
+      }
+    }
+
+    return result;
+  }
+
+  // 导入素材到用户素材库
+  async importAssets(
+    file: Blob,
+    strategy: ConflictStrategy = 'skip'
+  ): Promise<{ imported: number; skipped: number; errors: string[] }> {
+    const result = { imported: 0, skipped: 0, errors: [] as string[] };
+
+    try {
+      const assetFile = await this.importFromAssetsFile(file);
+      const resolution = this.resolveConflicts(
+        this.userAssets,
+        assetFile.assets,
+        strategy
+      );
+
+      // 添加新素材
+      for (const asset of resolution.toAdd) {
+        this.userAssets.push(asset);
+        result.imported++;
+      }
+
+      // 更新现有素材
+      for (const asset of resolution.toUpdate) {
+        const index = this.userAssets.findIndex(a => a.id === asset.id);
+        if (index !== -1) {
+          this.userAssets[index] = asset;
+          result.imported++;
+        }
+      }
+
+      result.skipped = resolution.skipped.length;
+
+      // 保存到本地
+      await this.saveUserAssets(this.userAssets);
+
+      // 如果API可用，尝试同步到服务器
+      if (this.apiAvailable) {
+        try {
+          for (const asset of resolution.toAdd) {
+            if (asset.data && asset.thumbnail) {
+              // 如果有文件数据，创建 FormData 上传
+              const fileData = this.assetToFile(asset);
+              if (fileData) {
+                await this.uploadAsset(fileData, asset.name, asset.type, asset.tags);
+              }
+            }
+          }
+        } catch (e) {
+          console.error('同步到服务器失败:', e);
+        }
+      }
+    } catch (error) {
+      result.errors.push(error instanceof Error ? error.message : '未知错误');
+    }
+
+    return result;
+  }
+
+  // 将素材转换为可上传的文件
+  private assetToFile(asset: Asset): File | null {
+    if (!asset.thumbnail || !asset.thumbnail.startsWith('data:')) {
+      return null;
+    }
+
+    try {
+      const base64Data = asset.thumbnail.split(',')[1];
+      const mimeType = asset.thumbnail.split(';')[0].replace('data:', '');
+      const byteCharacters = atob(base64Data);
+      const byteNumbers = new Array(byteCharacters.length);
+
+      for (let i = 0; i < byteCharacters.length; i++) {
+        byteNumbers[i] = byteCharacters.charCodeAt(i);
+      }
+
+      const byteArray = new Uint8Array(byteNumbers);
+      const blob = new Blob([byteArray], { type: mimeType });
+      return new File([blob], `${asset.name}.png`, { type: mimeType });
+    } catch {
+      return null;
+    }
+  }
+
+  // 生成素材分享链接
+  generateShareLink(assets: Asset[]): string {
+    const data: MindWeaverAssetsFile = {
+      version: '1.0',
+      exportedAt: new Date().toISOString(),
+      assets: assets.map(asset => ({
+        ...asset,
+        thumbnail: asset.thumbnail
+      })),
+      metadata: {
+        name: '分享的素材',
+        assetCount: assets.length,
+        assetTypes: [...new Set(assets.map(a => a.type))]
+      }
+    };
+
+    const json = JSON.stringify(data);
+    const encoded = btoa(encodeURIComponent(json));
+    const baseUrl = window.location.origin;
+    return `${baseUrl}/import?data=${encoded}&type=assets`;
+  }
+
+  // 从分享链接解析素材数据
+  parseShareLink(url: string): MindWeaverAssetsFile | null {
+    try {
+      const urlObj = new URL(url);
+      const encoded = urlObj.searchParams.get('data');
+      const type = urlObj.searchParams.get('type');
+
+      if (!encoded || type !== 'assets') {
+        return null;
+      }
+
+      const json = decodeURIComponent(atob(encoded));
+      const data = JSON.parse(json);
+
+      if (!data.version || !data.assets || !Array.isArray(data.assets)) {
+        return null;
+      }
+
+      return data as MindWeaverAssetsFile;
+    } catch {
+      return null;
+    }
   }
 }
 

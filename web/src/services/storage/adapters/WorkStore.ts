@@ -46,9 +46,64 @@ export class WorkStore implements WorkRepository {
       key = await this.keyManager.generateKey();
     }
     
+    // 将模板节点转换为编辑器期望的MindMapNode结构
+    const transformTemplateNodes = (templateNodes: any[]): any[] => {
+      if (!templateNodes || templateNodes.length === 0) {
+        return [];
+      }
+
+      // 查找根节点
+      const rootNode = templateNodes.find(node => node.isRoot || node.id === 'root');
+      if (!rootNode) {
+        return [];
+      }
+
+      // 定义默认样式（不设置x和y坐标，让编辑器自动应用布局）
+      const defaultStyles = {
+        type: 'concept' as const,
+        shape: 'rounded',
+        color: '#14B8A6',
+        fontSize: 16,
+        connectionType: 'curved',
+        expanded: true,
+        level: 0
+      };
+
+      // 递归转换节点
+      const transformNode = (node: any, level: number = 0): any => {
+        return {
+          id: node.id,
+          title: node.title,
+          children: node.children || [],
+          ...defaultStyles,
+          // 为不同层级设置不同颜色
+          color: level === 0 ? '#14B8A6' : level === 1 ? '#0EA5E9' : '#8B5CF6',
+          fontSize: level === 0 ? 16 : level === 1 ? 14 : 12,
+          level
+        };
+      };
+
+      // 转换所有节点
+      return templateNodes.map(node => {
+        // 计算节点层级
+        let level = 0;
+        let currentNode = node;
+        while (currentNode.parentId && currentNode.parentId !== 'root') {
+          level++;
+          const parent = templateNodes.find(n => n.id === currentNode.parentId);
+          if (!parent) break;
+          currentNode = parent;
+        }
+        if (node.parentId === 'root') level = 1;
+        if (node.id === 'root') level = 0;
+
+        return transformNode(node, level);
+      });
+    };
+
     const workData = {
       title: work.title,
-      nodes: work.nodes,
+      nodes: transformTemplateNodes(dto.nodesData || []), // 提供默认空数组
       category: work.category,
       tags: work.tags
     };

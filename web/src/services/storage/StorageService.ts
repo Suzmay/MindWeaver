@@ -769,6 +769,28 @@ export class StorageService {
     }
   }
 
+  async deleteTemplate(templateId: string): Promise<void> {
+    this.ensureInitialized();
+    
+    try {
+      // 先获取模板以获取标题用于事件
+      const template = await this.getTemplate(templateId);
+      
+      await this.templateStore.deleteTemplate(templateId);
+      this.templateCache.delete(templateId);
+      
+      this.emitEvent(EventType.TEMPLATE_DELETED, {
+        templateId,
+        data: {
+          message: `模板删除成功: ${template?.title}`
+        }
+      });
+    } catch (error) {
+      this.handleError('删除模板', error);
+      throw error;
+    }
+  }
+
   async getTemplate(templateId: string): Promise<Template | null> {
     this.ensureInitialized();
     

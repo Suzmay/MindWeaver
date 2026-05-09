@@ -4,10 +4,13 @@ import { Button } from '../ui/button';
 import { Input } from '../ui/input';
 import { Label } from '../ui/label';
 import { Textarea } from '../ui/textarea';
+import { Checkbox } from '../ui/checkbox';
 
 import { Badge } from '../ui/badge';
-import { X, Trash2, Edit, Plus } from 'lucide-react';
-import { Asset } from '../../services/assets/AssetService';
+import { X, Trash2, Edit, Plus, Download, Share2, CheckSquare, Square } from 'lucide-react';
+import { Asset, assetService } from '../../services/assets/AssetService';
+import { AssetExportDialog } from './AssetExportDialog';
+import { toast } from 'sonner';
 
 interface AssetManagementDialogProps {
   open: boolean;
@@ -15,33 +18,81 @@ interface AssetManagementDialogProps {
   assets: Asset[];
   onUpdate: (asset: Asset) => void;
   onDelete: (assetId: string) => void;
+  onRefresh?: () => void;
 }
 
-export function AssetManagementDialog({ 
-  open, 
-  onOpenChange, 
-  assets, 
-  onUpdate, 
-  onDelete
+export function AssetManagementDialog({
+  open,
+  onOpenChange,
+  assets,
+  onUpdate,
+  onDelete,
+  onRefresh
 }: AssetManagementDialogProps) {
   // 状态管理
   const [selectedAsset, setSelectedAsset] = useState<Asset | null>(null);
+  const [selectedAssetIds, setSelectedAssetIds] = useState<Set<string>>(new Set());
   const [editMode, setEditMode] = useState(false);
   const [name, setName] = useState('');
   const [description, setDescription] = useState('');
   const [tags, setTags] = useState<string[]>([]);
   const [tagInput, setTagInput] = useState('');
   const [error, setError] = useState('');
+  const [showExportDialog, setShowExportDialog] = useState(false);
   
   // 重置表单
   const resetForm = () => {
     setSelectedAsset(null);
+    setSelectedAssetIds(new Set());
     setEditMode(false);
     setName('');
     setDescription('');
     setTags([]);
     setTagInput('');
     setError('');
+  };
+
+  // 切换素材选中状态
+  const toggleAssetSelection = (assetId: string, e: React.MouseEvent) => {
+    e.stopPropagation();
+    const newSelected = new Set(selectedAssetIds);
+    if (newSelected.has(assetId)) {
+      newSelected.delete(assetId);
+    } else {
+      newSelected.add(assetId);
+    }
+    setSelectedAssetIds(newSelected);
+  };
+
+  // 全选/取消全选
+  const toggleSelectAll = () => {
+    if (selectedAssetIds.size === userAssets.length) {
+      setSelectedAssetIds(new Set());
+    } else {
+      setSelectedAssetIds(new Set(userAssets.map(a => a.id)));
+    }
+  };
+
+  // 获取选中的素材
+  const getSelectedAssets = () => {
+    return userAssets.filter(asset => selectedAssetIds.has(asset.id));
+  };
+
+  // 分享选中的素材
+  const handleShare = async () => {
+    const selectedAssets = getSelectedAssets();
+    if (selectedAssets.length === 0) return;
+
+    try {
+      const shareLink = assetService.generateShareLink(selectedAssets);
+      
+      // 复制到剪贴板
+      await navigator.clipboard.writeText(shareLink);
+      toast.success('分享链接已复制到剪贴板！');
+    } catch (error) {
+      console.error('分享失败:', error);
+      toast.error('分享失败，请重试');
+    }
   };
 
   // 选择素材
@@ -112,16 +163,57 @@ export function AssetManagementDialog({
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="sm:max-w-[700px] rounded-2xl">
         <DialogHeader>
-          <DialogTitle className="text-xl font-semibold">素材管理</DialogTitle>
-          <DialogDescription>
-            管理您上传的素材
-          </DialogDescription>
+          <div className="flex items-center justify-between pr-8">
+            <div>
+              <DialogTitle className="text-xl font-semibold">素材管理</DialogTitle>
+              <DialogDescription>
+                管理您上传的素材
+              </DialogDescription>
+            </div>
+            <div className="flex gap-2">
+              <Button
+                size="sm"
+                variant="outline"
+                onClick={() => handleShare()}
+                disabled={selectedAssetIds.size === 0}
+              >
+                <Share2 className="w-4 h-4 mr-1" />
+                分享{selectedAssetIds.size > 0 && ` (${selectedAssetIds.size})`}
+              </Button>
+              <Button
+                size="sm"
+                variant="outline"
+                onClick={() => setShowExportDialog(true)}
+                disabled={selectedAssetIds.size === 0}
+              >
+                <Download className="w-4 h-4 mr-1" />
+                导出{selectedAssetIds.size > 0 && ` (${selectedAssetIds.size})`}
+              </Button>
+            </div>
+          </div>
         </DialogHeader>
         
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
           {/* 素材列表 */}
           <div className="md:col-span-1">
-            <h3 className="text-sm font-medium mb-2">素材列表</h3>
+            <div className="flex items-center justify-between mb-2">
+              <h3 className="text-sm font-medium">素材列表</h3>
+              {userAssets.length > 0 && (
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={toggleSelectAll}
+                  className="h-7 px-2 text-xs"
+                >
+                  {selectedAssetIds.size === userAssets.length ? (
+                    <CheckSquare className="w-3.5 h-3.5 mr-1" />
+                  ) : (
+                    <Square className="w-3.5 h-3.5 mr-1" />
+                  )}
+                  {selectedAssetIds.size === userAssets.length ? '取消全选' : '全选'}
+                </Button>
+              )}
+            </div>
             <div className="space-y-2 max-h-[400px] overflow-y-auto">
               {userAssets.length === 0 ? (
                 <p className="text-sm text-muted-foreground">暂无素材</p>
@@ -133,10 +225,29 @@ export function AssetManagementDialog({
                     onClick={() => handleSelectAsset(asset)}
                   >
                     <div className="flex items-center gap-2">
+                      <div
+                        onClick={(e) => toggleAssetSelection(asset.id, e)}
+                        className="flex-shrink-0"
+                      >
+                        <Checkbox
+                          checked={selectedAssetIds.has(asset.id)}
+                          onCheckedChange={(checked) => {
+                            if (checked) {
+                              const newSelected = new Set(selectedAssetIds);
+                              newSelected.add(asset.id);
+                              setSelectedAssetIds(newSelected);
+                            } else {
+                              const newSelected = new Set(selectedAssetIds);
+                              newSelected.delete(asset.id);
+                              setSelectedAssetIds(newSelected);
+                            }
+                          }}
+                        />
+                      </div>
                       <div className="w-8 h-8 rounded bg-muted flex items-center justify-center">
-                        <img 
-                          src={asset.thumbnail} 
-                          alt={asset.name} 
+                        <img
+                          src={asset.thumbnail}
+                          alt={asset.name}
                           className="w-6 h-6 object-contain"
                         />
                       </div>
@@ -315,7 +426,14 @@ export function AssetManagementDialog({
 
           </div>
         </div>
-        
+
+        <AssetExportDialog
+          open={showExportDialog}
+          onOpenChange={setShowExportDialog}
+          assets={getSelectedAssets()}
+          onExport={onRefresh}
+        />
+
       </DialogContent>
     </Dialog>
   );

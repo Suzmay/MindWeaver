@@ -5,27 +5,17 @@ interface UserPreferences {
   // 工作区设置
   autoSaveInterval: number; // 自动保存间隔（分钟）
   enableVersionHistory: boolean; // 开启版本历史
-  
+
   // 外观设置
   theme: 'light' | 'dark' | 'auto'; // 主题
   sidebarWidth: number; // 侧边栏宽度（像素）
-  defaultWindowSize: string; // 默认窗口大小
-  
-  // 其他设置
-  enableAnalytics: boolean; // 匿名使用分析
-  enableAutoBackup: boolean; // 自动备份
-  enableAutoUpdate: boolean; // 自动更新
 }
 
 const DEFAULT_PREFERENCES: UserPreferences = {
   autoSaveInterval: 10,
   enableVersionHistory: true,
   theme: 'auto',
-  sidebarWidth: 280,
-  defaultWindowSize: 'fullscreen',
-  enableAnalytics: false,
-  enableAutoBackup: true,
-  enableAutoUpdate: true
+  sidebarWidth: 280
 };
 
 const STORAGE_KEY = 'mindweaver_user_preferences';

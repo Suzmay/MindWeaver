@@ -1,10 +1,11 @@
 import React, { useState, useEffect } from 'react';
-import { Upload, FolderOpen, Layout, Package, FileText, Clock, ExternalLink, Folder } from 'lucide-react';
+import { Upload, FolderOpen, Layout, Package, FileText, Clock, ExternalLink, Folder, CheckCircle } from 'lucide-react';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from './ui/select';
 import { Card, CardContent } from './ui/card';
 import { Button } from './ui/button';
 import { Input } from './ui/input';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from './ui/tabs';
+import { Badge } from './ui/badge';
 
 import { ExportService, MindWeaverFile } from '../services/export/ExportService';
 import { Work } from '../models/Work';
@@ -12,6 +13,7 @@ import { useStorage } from '../context/StorageContext';
 import { EncryptionService } from '../services/storage/encryption/EncryptionService';
 import { KeyManager } from '../services/storage/encryption/KeyManager';
 import { toast } from 'sonner';
+import { assetService, MindWeaverAssetsFile } from '../services/assets/AssetService';
 
 export function MarketPage() {
   const storage = useStorage();
@@ -35,6 +37,7 @@ export function MarketPage() {
   const [assetFileInputRef] = useState(React.createRef<HTMLInputElement>());
   const [assetImportUrl, setAssetImportUrl] = useState('');
   const [isParsingAssetUrl, setIsParsingAssetUrl] = useState(false);
+  const [sharedAssets, setSharedAssets] = useState<{ file: string; data: MindWeaverAssetsFile }[]>([]);
 
   // 分享链接导入的作品列表
   const [sharedWorks, setSharedWorks] = useState<{ url: string; data: MindWeaverFile; category: string }[]>([]);
@@ -268,41 +271,53 @@ export function MarketPage() {
     try {
       const text = await file.text();
       const data = JSON.parse(text);
-      
-      if (!data.version || !data.data?.nodes) {
-        toast.error('无效的文件格式');
+
+      // 检查是否是素材文件格式
+      if (!data.version || !data.assets || !Array.isArray(data.assets)) {
+        toast.error('无效的素材文件格式');
         return;
       }
 
-      const title = data.title || '导入的素材';
-      await storage.createTemplate({
-        title,
-        templateType: 'personal',
-        isDefault: false,
-        themeConfig: {
-          primaryColor: '#3b82f6',
-          secondaryColor: '#10b981',
-          backgroundColor: '#ffffff',
-          nodeShape: 'rounded',
-          edgeStyle: 'curved',
-          fontFamily: 'sans-serif',
-          animationEnabled: true
-        },
-        layoutConfig: {
-          layoutType: 'mindmap',
-          direction: 'horizontal',
-          levelSpacing: 80,
-          nodeSpacing: 40
-        }
-      });
+      const assetsFile: MindWeaverAssetsFile = data;
 
-      toast.success('素材导入成功！');
+      const existingAsset = sharedAssets.find(a => a.file === file.name);
+      if (!existingAsset) {
+        setSharedAssets(prev => [...prev, { file: file.name, data: assetsFile }]);
+      }
+
+      toast.success('已解析素材文件');
+    } catch (error) {
+      console.error('素材文件解析失败:', error);
+      toast.error('素材文件解析失败，请重试');
+    }
+  };
+
+  // 导入素材到用户素材库
+  const importSharedAssets = async (sharedAsset: { file: string; data: MindWeaverAssetsFile }) => {
+    try {
+      const blob = new Blob([JSON.stringify(sharedAsset.data)], { type: 'application/json' });
+      const result = await assetService.importAssets(blob, 'skip');
+
+      if (result.errors.length > 0) {
+        toast.warning(`部分素材导入失败: ${result.errors.join(', ')}`);
+      } else {
+        toast.success(`成功导入 ${result.imported} 个素材${result.skipped > 0 ? `，跳过 ${result.skipped} 个重复素材` : ''}`);
+      }
+
+      // 从预览列表中移除
+      setSharedAssets(prev => prev.filter(a => a.file !== sharedAsset.file));
     } catch (error) {
       console.error('素材导入失败:', error);
       toast.error('素材导入失败，请重试');
     }
   };
 
+  // 移除素材预览
+  const removeSharedAsset = (fileName: string) => {
+    setSharedAssets(prev => prev.filter(a => a.file !== fileName));
+  };
+
+  // 素材拖拽处理
   const handleAssetDragOver = (e: React.DragEvent) => {
     e.preventDefault();
     setIsAssetDragActive(true);
@@ -313,70 +328,30 @@ export function MarketPage() {
     setIsAssetDragActive(false);
   };
 
-  const handleAssetDrop = (e: React.DragEvent) => {
-    e.preventDefault();
-    setIsAssetDragActive(false);
-    
-    const files = Array.from(e.dataTransfer.files);
-    if (files.length > 0) {
-      const file = files[0];
-      if (file.name.endsWith('.mmw') || file.name.endsWith('.json')) {
-        handleAssetFileSelect(file);
-      } else {
-        toast.error('请选择 .mmw 或 .json 格式的文件');
-      }
-    }
-  };
-
-  const handleAssetFileInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const files = e.target.files;
-    if (files && files.length > 0) {
-      handleAssetFileSelect(files[0]);
-    }
-  };
-
   const handleAssetUrlImport = async () => {
     if (!assetImportUrl.trim()) {
       toast.error('请输入分享链接');
       return;
     }
 
-    setIsParsingAssetUrl(true);
-    setAssetImportUrl('');
-
     try {
-      const data = ExportService.parseShareLink(assetImportUrl);
+      setIsParsingAssetUrl(true);
+      const data = assetService.parseShareLink(assetImportUrl);
       if (!data) {
-        toast.error('无法解析链接，请确保这是有效的分享链接');
+        toast.error('无法解析链接，请确保这是有效的素材分享链接');
         return;
       }
 
-      const title = data.title || '导入的素材';
-      await storage.createTemplate({
-        title,
-        templateType: 'personal',
-        isDefault: false,
-        themeConfig: {
-          primaryColor: '#3b82f6',
-          secondaryColor: '#10b981',
-          backgroundColor: '#ffffff',
-          nodeShape: 'rounded',
-          edgeStyle: 'curved',
-          fontFamily: 'sans-serif',
-          animationEnabled: true
-        },
-        layoutConfig: {
-          layoutType: 'mindmap',
-          direction: 'horizontal',
-          levelSpacing: 80,
-          nodeSpacing: 40
-        }
-      });
+      const existingAsset = sharedAssets.find(a => a.file === '分享链接');
+      if (!existingAsset) {
+        setSharedAssets(prev => [...prev, { file: '分享链接', data }]);
+      }
 
-      toast.success('素材导入成功！');
+      setAssetImportUrl('');
+      toast.success('已解析分享链接');
     } catch (error) {
-      console.error('素材导入失败:', error);
-      toast.error('素材导入失败，请重试');
+      console.error('解析素材链接失败:', error);
+      toast.error('解析素材链接失败，请重试');
     } finally {
       setIsParsingAssetUrl(false);
     }
@@ -387,8 +362,8 @@ export function MarketPage() {
       {/* 顶部标题栏 */}
       <div className="flex items-center p-6 border-b">
         <div>
-          <h1 className="text-3xl font-bold mb-1">市场</h1>
-          <p className="text-muted-foreground">
+          <h1 className="text-2xl font-bold">市场</h1>
+          <p className="text-muted-foreground mt-1">
             分享和发现思维导图作品、模板和素材
           </p>
         </div>
@@ -558,7 +533,7 @@ export function MarketPage() {
                                 className="w-full gap-2 rounded-xl"
                                 onClick={() => importSharedWork(sharedWork)}
                               >
-                                <Upload className="w-4 h-4" />
+                                <CheckCircle className="w-4 h-4" />
                                 导入作品
                               </Button>
                             </div>
@@ -648,7 +623,7 @@ export function MarketPage() {
                           {isParsingTemplateUrl ? (
                             <div className="w-4 h-4 border-2 border-current border-t-transparent rounded-full animate-spin" />
                           ) : (
-                            '导入'
+                            '解析'
                           )}
                         </Button>
                       </div>
@@ -677,14 +652,23 @@ export function MarketPage() {
                     <div className="flex-1 text-center md:text-left">
                       <h3 className="font-semibold text-lg mb-1">导入素材</h3>
                       <p className="text-sm text-muted-foreground">
-                        从分享链接或 .mmw 文件导入素材资源
+                        从 .mwassets 或 .json 文件导入素材资源
                       </p>
                     </div>
                     <div className="flex-1 space-y-3">
                       <div
                         onDragOver={handleAssetDragOver}
                         onDragLeave={handleAssetDragLeave}
-                        onDrop={handleAssetDrop}
+                        onDrop={(e) => {
+                          e.preventDefault();
+                          setIsAssetDragActive(false);
+                          const files = Array.from(e.dataTransfer.files);
+                          if (files.length > 0 && (files[0].name.endsWith('.mwassets') || files[0].name.endsWith('.json'))) {
+                            handleAssetFileSelect(files[0]);
+                          } else {
+                            toast.error('请选择 .mwassets 或 .json 格式的文件');
+                          }
+                        }}
                         onClick={() => assetFileInputRef.current?.click()}
                         className={`p-4 border-2 border-dashed rounded-xl text-center cursor-pointer transition-all ${
                           isAssetDragActive
@@ -695,8 +679,12 @@ export function MarketPage() {
                         <input
                           ref={assetFileInputRef}
                           type="file"
-                          accept=".mmw,.json"
-                          onChange={handleAssetFileInputChange}
+                          accept=".mwassets,.json"
+                          onChange={(e) => {
+                            if (e.target.files && e.target.files[0]) {
+                              handleAssetFileSelect(e.target.files[0]);
+                            }
+                          }}
                           className="hidden"
                           aria-label="选择素材文件"
                         />
@@ -720,7 +708,7 @@ export function MarketPage() {
                           {isParsingAssetUrl ? (
                             <div className="w-4 h-4 border-2 border-current border-t-transparent rounded-full animate-spin" />
                           ) : (
-                            '导入'
+                            '解析'
                           )}
                         </Button>
                       </div>
@@ -729,11 +717,82 @@ export function MarketPage() {
                 </CardContent>
               </Card>
 
-              <div className="text-center py-12 text-muted-foreground">
-                <Package className="w-12 h-12 mx-auto mb-4 text-muted-foreground/50" />
-                <p className="text-lg font-medium mb-2">素材商店</p>
-                <p>获取精美的背景、图标和动画等素材</p>
-              </div>
+              {/* 素材预览列表 */}
+              {sharedAssets.length > 0 && (
+                <div>
+                  <h3 className="font-semibold text-lg mb-4 flex items-center gap-2">
+                    <Package className="w-5 h-5 text-primary" />
+                    待导入素材
+                  </h3>
+                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                    {sharedAssets.map((sharedAsset) => (
+                      <Card
+                        key={sharedAsset.file}
+                        className={`
+                          rounded-2xl shadow-sm hover:shadow-lg transition-all duration-200 cursor-pointer group
+                          border-2 border-primary/10 hover:border-primary/30 bg-card
+                          hover:scale-[1.03]
+                        `}
+                      >
+                        <CardContent className="p-0">
+                          <div className="flex items-center justify-center relative overflow-hidden h-40 rounded-t-2xl" style={{ backgroundColor: 'hsl(200 75% 85% / 0.2)' }}>
+                            <div className="absolute inset-0 bg-gradient-to-t from-black/5 to-transparent" />
+                            <Package className="w-16 h-16 text-primary/60" />
+                            <button
+                              onClick={() => removeSharedAsset(sharedAsset.file)}
+                              className="absolute top-3 right-3 w-8 h-8 rounded-full flex items-center justify-center bg-slate-200 hover:bg-slate-300 dark:bg-slate-700/90 hover:bg-slate-600 transition-all"
+                            >
+                              <span className="text-muted-foreground text-sm">×</span>
+                            </button>
+                          </div>
+                          <div className="p-5">
+                            <h4 className="truncate mb-2 font-medium">{sharedAsset.data.metadata?.name || sharedAsset.file}</h4>
+                            <div className="flex items-center gap-2 text-xs text-muted-foreground mb-3">
+                              <span className="flex items-center gap-1">
+                                <Clock className="w-3 h-3" />
+                                {new Date(sharedAsset.data.exportedAt).toLocaleDateString('zh-CN')}
+                              </span>
+                              <span className="text-muted-foreground/50">•</span>
+                              <span>{sharedAsset.data.assets.length} 个素材</span>
+                            </div>
+                            {sharedAsset.data.metadata?.assetTypes && (
+                              <div className="flex flex-wrap gap-1 mb-3">
+                                {sharedAsset.data.metadata.assetTypes.map((type, i) => (
+                                  <Badge key={i} variant="outline" className="text-xs">
+                                    {type}
+                                  </Badge>
+                                ))}
+                              </div>
+                            )}
+                            {sharedAsset.data.metadata?.description && (
+                              <p className="text-xs text-muted-foreground mb-3 line-clamp-2">
+                                {sharedAsset.data.metadata.description}
+                              </p>
+                            )}
+                            <div className="mt-3">
+                              <Button
+                                className="w-full gap-2 rounded-xl"
+                                onClick={() => importSharedAssets(sharedAsset)}
+                              >
+                                <CheckCircle className="w-4 h-4" />
+                                导入素材
+                              </Button>
+                            </div>
+                          </div>
+                        </CardContent>
+                      </Card>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {sharedAssets.length === 0 && (
+                <div className="text-center py-12 text-muted-foreground">
+                  <Package className="w-12 h-12 mx-auto mb-4 text-muted-foreground/50" />
+                  <p className="text-lg font-medium mb-2">素材商店</p>
+                  <p>获取精美的背景、图标和动画等素材</p>
+                </div>
+              )}
             </div>
           </TabsContent>
         </Tabs>

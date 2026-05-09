@@ -35,6 +35,7 @@ export interface WorkCreateDTO {
   };
   isDefault?: boolean;
   isReadonly?: boolean;
+  nodesData?: any[];
 }
 
 export interface WorkUpdateDTO {

@@ -23,6 +23,9 @@ export interface Template extends Work {
   themeConfig: ThemeConfig;
   layoutConfig: LayoutConfig;
   usageCount: number;
+  nodesData?: any[];
+  uploader?: string;
+  description?: string;
 }
 
 export interface TemplateCreateDTO {
@@ -31,11 +34,16 @@ export interface TemplateCreateDTO {
   isDefault?: boolean;
   themeConfig: ThemeConfig;
   layoutConfig: LayoutConfig;
+  tags?: string[];
+  nodesData?: any[];
+  uploader?: string;
 }
 
 export interface TemplateUpdateDTO {
   title?: string;
+  description?: string;
   templateType?: 'basic' | 'business' | 'education' | 'personal';
   themeConfig?: Partial<ThemeConfig>;
   layoutConfig?: Partial<LayoutConfig>;
+  tags?: string[];
 }

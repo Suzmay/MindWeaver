@@ -22,10 +22,6 @@ export function SettingsPage() {
   const [autoSaveInterval, setAutoSaveInterval] = useState<number>(5);
   const [enableVersionHistory, setEnableVersionHistory] = useState<boolean>(true);
   const [sidebarWidth, setSidebarWidth] = useState<number>(280);
-  const [defaultWindowSize, setDefaultWindowSize] = useState<string>('fullscreen');
-  const [enableAnalytics, setEnableAnalytics] = useState<boolean>(false);
-  const [enableAutoBackup, setEnableAutoBackup] = useState<boolean>(true);
-  const [enableAutoUpdate, setEnableAutoUpdate] = useState<boolean>(true);
   
   const preferencesService = UserPreferencesService.getInstance();
   
@@ -37,10 +33,6 @@ export function SettingsPage() {
       setAutoSaveInterval(preferences.autoSaveInterval);
       setEnableVersionHistory(preferences.enableVersionHistory);
       setSidebarWidth(preferences.sidebarWidth);
-      setDefaultWindowSize(preferences.defaultWindowSize);
-      setEnableAnalytics(preferences.enableAnalytics);
-      setEnableAutoBackup(preferences.enableAutoBackup);
-      setEnableAutoUpdate(preferences.enableAutoUpdate);
     };
     
     initSettings();
@@ -68,30 +60,6 @@ export function SettingsPage() {
   const handleVersionHistoryChange = async (checked: boolean) => {
     setEnableVersionHistory(checked);
     await handleSettingChange('enableVersionHistory', checked);
-  };
-  
-  // 处理默认窗口大小更改
-  const handleWindowSizeChange = async (value: string) => {
-    setDefaultWindowSize(value);
-    await handleSettingChange('defaultWindowSize', value);
-  };
-  
-  // 处理分析开关更改
-  const handleAnalyticsChange = async (checked: boolean) => {
-    setEnableAnalytics(checked);
-    await handleSettingChange('enableAnalytics', checked);
-  };
-  
-  // 处理自动备份开关更改
-  const handleAutoBackupChange = async (checked: boolean) => {
-    setEnableAutoBackup(checked);
-    await handleSettingChange('enableAutoBackup', checked);
-  };
-  
-  // 处理自动更新开关更改
-  const handleAutoUpdateChange = async (checked: boolean) => {
-    setEnableAutoUpdate(checked);
-    await handleSettingChange('enableAutoUpdate', checked);
   };
   
   // 恢复默认设置
@@ -250,25 +218,6 @@ export function SettingsPage() {
               </Button>
             </div>
           </div>
-
-          <div className="space-y-3">
-            <Label htmlFor="window-size">默认窗口大小</Label>
-            <Select 
-              value={defaultWindowSize} 
-              onValueChange={handleWindowSizeChange}
-            >
-              <SelectTrigger id="window-size" className="rounded-xl">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent className="rounded-xl">
-                <SelectItem value="small">小屏（1024×768）</SelectItem>
-                <SelectItem value="medium">中屏（1280×720）</SelectItem>
-                <SelectItem value="large">大屏（1920×1080）</SelectItem>
-                <SelectItem value="xlarge">超大屏（2560×1440）</SelectItem>
-                <SelectItem value="fullscreen">全屏</SelectItem>
-              </SelectContent>
-            </Select>
-          </div>
         </CardContent>
       </Card>
 
@@ -279,54 +228,6 @@ export function SettingsPage() {
           <CardDescription>更多偏好选项</CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
-          <div className="flex items-center justify-between">
-            <div className="space-y-1">
-              <Label htmlFor="analytics">匿名使用分析</Label>
-              <p className="text-sm text-muted-foreground">
-                通过匿名数据帮助我们持续改进 MindWeaver
-              </p>
-            </div>
-            <Switch 
-              id="analytics" 
-              checked={enableAnalytics}
-              onCheckedChange={handleAnalyticsChange}
-            />
-          </div>
-
-          <Separator />
-
-          <div className="flex items-center justify-between">
-            <div className="space-y-1">
-              <Label htmlFor="auto-backup">自动备份</Label>
-              <p className="text-sm text-muted-foreground">
-                定期将作品备份到本地存储
-              </p>
-            </div>
-            <Switch 
-              id="auto-backup" 
-              checked={enableAutoBackup}
-              onCheckedChange={handleAutoBackupChange}
-            />
-          </div>
-
-          <Separator />
-
-          <div className="flex items-center justify-between">
-            <div className="space-y-1">
-              <Label htmlFor="auto-update">自动更新</Label>
-              <p className="text-sm text-muted-foreground">
-                自动下载并安装新版
-              </p>
-            </div>
-            <Switch 
-              id="auto-update" 
-              checked={enableAutoUpdate}
-              onCheckedChange={handleAutoUpdateChange}
-            />
-          </div>
-
-          <Separator />
-
           <div className="flex items-center justify-between">
             <div className="space-y-1">
               <Label>重置数据库</Label>
@@ -379,7 +280,7 @@ export function SettingsPage() {
               type="button"
               variant="outline"
               onClick={() => setResetDialogOpen(false)}
-              className="rounded-xl hover:text-foreground bg-white dark:bg-transparent"
+              className="rounded-xl"
             >
               取消
             </Button>
@@ -423,7 +324,7 @@ export function SettingsPage() {
               type="button"
               variant="outline"
               onClick={() => setRestoreDefaultsDialogOpen(false)}
-              className="rounded-xl hover:text-foreground bg-white dark:bg-transparent"
+              className="rounded-xl"
             >
               取消
             </Button>

@@ -102,25 +102,83 @@ export class TemplateStore extends WorkStore implements TemplateRepository {
     const now = new Date().toISOString();
     const id = Date.now().toString();
     
+    // 检查模板名称是否重复，如果重复则自动添加后缀
+    const existingTemplates = await dbAdapter.executeTransaction('templates', 'readonly', async (transaction: IDBTransaction) => {
+      const store = transaction.objectStore('templates');
+      const templates: Template[] = [];
+      const cursor = store.openCursor();
+      
+      await new Promise<void>((resolve) => {
+        cursor.onsuccess = (event: Event) => {
+          const cursor = (event.target as IDBRequest).result;
+          if (cursor) {
+            templates.push(cursor.value as Template);
+            cursor.continue();
+          } else {
+            resolve();
+          }
+        };
+        
+        cursor.onerror = () => {
+          resolve();
+        };
+      });
+      
+      return templates;
+    });
+    
+    // 检查是否存在同名模板
+    let templateTitle = dto.title;
+    const existingTemplate = existingTemplates.find((t: Template) => t.title === templateTitle && !t.isDeleted);
+    
+    // 如果存在同名模板，自动添加后缀
+    if (existingTemplate) {
+      // 提取基础名称（去掉已有的数字后缀）
+      const baseName = templateTitle.replace(/\(\d+\)$/, '').trim();
+      
+      // 找到所有以基础名称开头的模板
+      const similarTemplates = existingTemplates.filter((t: Template) => 
+        t.title.startsWith(baseName) && 
+        !t.isDeleted && 
+        (t.title === baseName || t.title.match(new RegExp(`^${baseName}\(\d+\)$`))) 
+      );
+      
+      // 找到最大的数字后缀
+      let maxNumber = 0;
+      for (const t of similarTemplates) {
+        const match = t.title.match(new RegExp(`^${baseName}\((\d+)\)$`));
+        if (match && match[1]) {
+          const number = parseInt(match[1], 10);
+          if (number > maxNumber) {
+            maxNumber = number;
+          }
+        }
+      }
+      
+      // 生成新的模板名称
+      templateTitle = `${baseName}(${maxNumber + 1})`;
+    }
+    
     // 准备模板数据
     const template: Template = {
       id,
-      title: dto.title,
+      title: templateTitle,
       lastModified: now,
       createdAt: now,
       isDeleted: false,
       dataVersion: 1,
       checksum: '',
       encryptedData: '',
-      category: '模板',
-      tags: [],
-      nodes: 0,
+      tags: dto.tags || [],
+      nodes: dto.nodesData?.length || 0,
       starred: false,
       templateType: dto.templateType,
       isDefault: dto.isDefault || false,
       themeConfig: dto.themeConfig,
       layoutConfig: dto.layoutConfig,
-      usageCount: 0
+      usageCount: 0,
+      uploader: dto.uploader || '官方',
+      nodesData: dto.nodesData
     };
     
     // 加密数据
@@ -135,7 +193,8 @@ export class TemplateStore extends WorkStore implements TemplateRepository {
       title: template.title,
       templateType: template.templateType,
       themeConfig: template.themeConfig,
-      layoutConfig: template.layoutConfig
+      layoutConfig: template.layoutConfig,
+      nodesData: template.nodesData
     };
     
     template.encryptedData = await encryptionService.encrypt(templateData, key);
@@ -320,6 +379,20 @@ export class TemplateStore extends WorkStore implements TemplateRepository {
           resolve(null);
         };
       });
+    });
+  }
+  
+  // 删除模板
+  async deleteTemplate(templateId: string): Promise<void> {
+    const dbAdapter = (this as any).dbAdapter;
+    const template = await this.readTemplate(templateId);
+    if (!template) {
+      throw new Error('模板未找到');
+    }
+    
+    await dbAdapter.executeTransaction('templates', 'readwrite', async (transaction: IDBTransaction) => {
+      const store = transaction.objectStore('templates');
+      store.delete(templateId);
     });
   }
 }

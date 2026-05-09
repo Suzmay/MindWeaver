@@ -6,6 +6,7 @@ export enum EventType {
   WORK_SYNCED = 'work_synced',
   TEMPLATE_CREATED = 'template_created',
   TEMPLATE_UPDATED = 'template_updated',
+  TEMPLATE_DELETED = 'template_deleted',
   VERSION_CREATED = 'version_created',
   STORAGE_FULL = 'storage_full',
   DATA_CORRUPTED = 'data_corrupted',

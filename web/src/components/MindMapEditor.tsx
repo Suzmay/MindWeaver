@@ -245,7 +245,8 @@ export function MindMapEditor({ workId, onBack, onPreview }: MindMapEditorProps)
                 
                 if (decryptedData.nodes) {
                   finalNodes = decryptedData.nodes; // 使用解密后的节点
-                  hasSavedNodePositions = true;
+                  // 只有当至少有一个节点有x和y坐标时，才认为位置已保存
+                  hasSavedNodePositions = finalNodes.some(node => node.x !== undefined && node.y !== undefined);
                 }
                 
                 // 读取自定义颜色
