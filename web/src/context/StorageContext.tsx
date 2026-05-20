@@ -38,6 +38,8 @@ interface StorageContextType {
   // 导出/导入
   exportWork: (workId: string, format: 'mm' | 'xmind' | 'json') => Promise<Blob>;
   importWork: (file: Blob, format: 'mm' | 'xmind' | 'json') => Promise<Work>;
+  exportTemplate: (templateId: string) => Promise<Blob>;
+  importTemplate: (file: Blob) => Promise<Template>;
   
   // 工具方法
   initialize: () => Promise<void>;
@@ -54,6 +56,9 @@ interface StorageContextType {
   
   // 数据库管理
   resetDatabase: () => Promise<void>;
+  resetWorks: () => Promise<void>;
+  resetTemplates: () => Promise<void>;
+  resetAssets: () => Promise<void>;
 }
 
 const StorageContext = createContext<StorageContextType | undefined>(undefined);
@@ -684,6 +689,24 @@ export const StorageProvider: React.FC<{ children: ReactNode }> = ({ children })
     return work;
   };
   
+  const exportTemplate = async (templateId: string): Promise<Blob> => {
+    if (!storageService) {
+      throw new Error('存储服务未初始化');
+    }
+    
+    return await storageService.exportTemplate(templateId);
+  };
+  
+  const importTemplate = async (file: Blob): Promise<Template> => {
+    if (!storageService) {
+      throw new Error('存储服务未初始化');
+    }
+    
+    const template = await storageService.importTemplate(file);
+    await refreshTemplates();
+    return template;
+  };
+  
   // 分片管理操作
   const saveShard = async (shard: any): Promise<void> => {
     if (!storageService) {
@@ -699,6 +722,29 @@ export const StorageProvider: React.FC<{ children: ReactNode }> = ({ children })
       await storageService.deleteDatabase();
       // 重新初始化服务
       await initializeServices();
+    }
+  };
+
+  // 重置作品（删除所有用户创建的作品）
+  const resetWorks = async (): Promise<void> => {
+    if (storageService) {
+      await storageService.deleteAllWorks();
+      await refreshWorks();
+    }
+  };
+
+  // 重置模板（删除所有用户创建的模板，保留官方模板）
+  const resetTemplates = async (): Promise<void> => {
+    if (storageService) {
+      await storageService.deleteAllUserTemplates();
+      await refreshTemplates();
+    }
+  };
+
+  // 重置素材（删除所有用户上传的素材）
+  const resetAssets = async (): Promise<void> => {
+    if (storageService) {
+      await storageService.deleteAllAssets();
     }
   };
   
@@ -811,6 +857,8 @@ export const StorageProvider: React.FC<{ children: ReactNode }> = ({ children })
     // 导出/导入
     exportWork,
     importWork,
+    exportTemplate,
+    importTemplate,
     
     // 工具方法
     initialize,
@@ -826,7 +874,10 @@ export const StorageProvider: React.FC<{ children: ReactNode }> = ({ children })
     deleteShardsByWorkId,
     
     // 数据库管理
-    resetDatabase
+    resetDatabase,
+    resetWorks,
+    resetTemplates,
+    resetAssets
   };
   
   return (

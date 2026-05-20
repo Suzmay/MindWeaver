@@ -22,6 +22,11 @@ export class WorkStore implements WorkRepository {
     const now = new Date().toISOString();
     const id = Date.now().toString();
     
+    // 计算节点数量：优先使用 dto.nodes，如果没有则从 nodesData 计算
+    const nodeCount = dto.nodes !== undefined 
+      ? dto.nodes 
+      : (dto.nodesData ? dto.nodesData.length : 0);
+    
     // 准备作品数据
     const work: Work = {
       id,
@@ -34,7 +39,7 @@ export class WorkStore implements WorkRepository {
       encryptedData: '',
       category: dto.category || '个人',
       tags: dto.tags || [],
-      nodes: dto.nodes || 0,
+      nodes: nodeCount,
       layout: dto.layout,
       starred: false
     };
@@ -52,12 +57,6 @@ export class WorkStore implements WorkRepository {
         return [];
       }
 
-      // 查找根节点
-      const rootNode = templateNodes.find(node => node.isRoot || node.id === 'root');
-      if (!rootNode) {
-        return [];
-      }
-
       // 定义默认样式（不设置x和y坐标，让编辑器自动应用布局）
       const defaultStyles = {
         type: 'concept' as const,
@@ -69,22 +68,14 @@ export class WorkStore implements WorkRepository {
         level: 0
       };
 
-      // 递归转换节点
-      const transformNode = (node: any, level: number = 0): any => {
-        return {
-          id: node.id,
-          title: node.title,
-          children: node.children || [],
-          ...defaultStyles,
-          // 为不同层级设置不同颜色
-          color: level === 0 ? '#14B8A6' : level === 1 ? '#0EA5E9' : '#8B5CF6',
-          fontSize: level === 0 ? 16 : level === 1 ? 14 : 12,
-          level
-        };
-      };
+      // 创建一个映射表来快速查找节点
+      const nodeMap = new Map<string, { id: string; parentId: string | null }>();
+      templateNodes.forEach(node => {
+        nodeMap.set(node.id, { id: node.id, parentId: node.parentId || null });
+      });
 
       // 转换所有节点
-      return templateNodes.map(node => {
+      const transformedNodes: any[] = templateNodes.map(node => {
         // 计算节点层级
         let level = 0;
         let currentNode = node;
@@ -97,8 +88,23 @@ export class WorkStore implements WorkRepository {
         if (node.parentId === 'root') level = 1;
         if (node.id === 'root') level = 0;
 
-        return transformNode(node, level);
+        // 查找子节点ID
+        const childIds = templateNodes
+          .filter(n => n.parentId === node.id)
+          .map(n => n.id);
+
+        return {
+          id: node.id,
+          title: node.title,
+          children: childIds,  // 直接在这里设置子节点ID数组
+          ...defaultStyles,
+          color: level === 0 ? '#14B8A6' : level === 1 ? '#0EA5E9' : '#8B5CF6',
+          fontSize: level === 0 ? 16 : level === 1 ? 14 : 12,
+          level
+        };
       });
+
+      return transformedNodes;
     };
 
     const workData = {

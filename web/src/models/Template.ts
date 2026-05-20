@@ -30,6 +30,7 @@ export interface Template extends Work {
 
 export interface TemplateCreateDTO {
   title: string;
+  description?: string;
   templateType: 'basic' | 'business' | 'education' | 'personal';
   isDefault?: boolean;
   themeConfig: ThemeConfig;
@@ -46,4 +47,5 @@ export interface TemplateUpdateDTO {
   themeConfig?: Partial<ThemeConfig>;
   layoutConfig?: Partial<LayoutConfig>;
   tags?: string[];
+  nodesData?: any[];
 }

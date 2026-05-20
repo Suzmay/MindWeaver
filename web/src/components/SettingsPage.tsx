@@ -10,22 +10,27 @@ import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, D
 import { useTheme } from '../context/ThemeContext';
 import { useStorage } from '../context/StorageContext';
 import { UserPreferencesService } from '../services/storage/UserPreferencesService';
+import { EventType } from '../services/storage/interfaces/EventEmitter';
 
 export function SettingsPage() {
   const { theme, setTheme } = useTheme();
-  const { resetDatabase } = useStorage();
+  const { resetDatabase, resetWorks, resetTemplates, resetAssets } = useStorage();
   const [resetDialogOpen, setResetDialogOpen] = useState(false);
   const [restoreDefaultsDialogOpen, setRestoreDefaultsDialogOpen] = useState(false);
+  const [resetWorksDialogOpen, setResetWorksDialogOpen] = useState(false);
+  const [resetTemplatesDialogOpen, setResetTemplatesDialogOpen] = useState(false);
+  const [resetAssetsDialogOpen, setResetAssetsDialogOpen] = useState(false);
   const [isResetting, setIsResetting] = useState(false);
   
   // 设置状态
   const [autoSaveInterval, setAutoSaveInterval] = useState<number>(5);
   const [enableVersionHistory, setEnableVersionHistory] = useState<boolean>(true);
   const [sidebarWidth, setSidebarWidth] = useState<number>(280);
+  const [mindyVisible, setMindyVisible] = useState<boolean>(true);
   
   const preferencesService = UserPreferencesService.getInstance();
   
-  // 初始化设置
+  // 初始化设置和监听偏好变化
   useEffect(() => {
     const initSettings = async () => {
       await preferencesService.initialize();
@@ -33,9 +38,19 @@ export function SettingsPage() {
       setAutoSaveInterval(preferences.autoSaveInterval);
       setEnableVersionHistory(preferences.enableVersionHistory);
       setSidebarWidth(preferences.sidebarWidth);
+      setMindyVisible(preferences.mindyVisible);
     };
     
     initSettings();
+    
+    // 监听偏好设置变化，实时更新Mindy显隐状态
+    const unsubscribe = preferencesService.subscribe(EventType.PREFERENCE_CHANGED, (data: any) => {
+      if (data.data?.key === 'mindyVisible') {
+        setMindyVisible(data.data?.value);
+      }
+    });
+    
+    return unsubscribe;
   }, []);
   
   // 处理设置更改
@@ -62,6 +77,12 @@ export function SettingsPage() {
     await handleSettingChange('enableVersionHistory', checked);
   };
   
+  // 处理Mindy助手显隐更改
+  const handleMindyVisibleChange = async (checked: boolean) => {
+    setMindyVisible(checked);
+    await handleSettingChange('mindyVisible', checked);
+  };
+  
   // 恢复默认设置
   const handleRestoreDefaults = async () => {
     await preferencesService.resetPreferences();
@@ -83,6 +104,48 @@ export function SettingsPage() {
     } finally {
       setIsResetting(false);
       setResetDialogOpen(false);
+    }
+  };
+
+  // 重置作品
+  const handleResetWorks = async () => {
+    setIsResetting(true);
+    try {
+      await resetWorks();
+      alert('作品重置成功！所有用户创建的作品已删除。');
+    } catch (error) {
+      alert('作品重置失败：' + (error as Error).message);
+    } finally {
+      setIsResetting(false);
+      setResetWorksDialogOpen(false);
+    }
+  };
+
+  // 重置模板
+  const handleResetTemplates = async () => {
+    setIsResetting(true);
+    try {
+      await resetTemplates();
+      alert('模板重置成功！所有用户创建的模板已删除，官方模板已保留。');
+    } catch (error) {
+      alert('模板重置失败：' + (error as Error).message);
+    } finally {
+      setIsResetting(false);
+      setResetTemplatesDialogOpen(false);
+    }
+  };
+
+  // 重置素材
+  const handleResetAssets = async () => {
+    setIsResetting(true);
+    try {
+      await resetAssets();
+      alert('素材重置成功！所有用户上传的素材已删除。');
+    } catch (error) {
+      alert('素材重置失败：' + (error as Error).message);
+    } finally {
+      setIsResetting(false);
+      setResetAssetsDialogOpen(false);
     }
   };
   
@@ -191,6 +254,22 @@ export function SettingsPage() {
 
           <Separator />
 
+          <div className="flex items-center justify-between">
+            <div className="space-y-1">
+              <Label htmlFor="mindy-visible">显示Mindy助手</Label>
+              <p className="text-sm text-muted-foreground">
+                开启后将在页面右下角显示章鱼Mindy助手按钮
+              </p>
+            </div>
+            <Switch 
+              id="mindy-visible" 
+              checked={mindyVisible}
+              onCheckedChange={handleMindyVisibleChange}
+            />
+          </div>
+
+          <Separator />
+
           <div className="space-y-3">
             <div className="flex items-center justify-between">
               <Label htmlFor="sidebar-width">侧边栏宽度</Label>
@@ -239,6 +318,60 @@ export function SettingsPage() {
               type="button"
               variant="destructive"
               onClick={() => setResetDialogOpen(true)}
+              className="rounded-xl"
+            >
+              <Trash2 className="w-4 h-4 mr-1" />
+              重置
+            </Button>
+          </div>
+
+          <div className="flex items-center justify-between">
+            <div className="space-y-1">
+              <Label>重置作品</Label>
+              <p className="text-sm text-muted-foreground text-destructive">
+                删除所有用户创建的作品
+              </p>
+            </div>
+            <Button
+              type="button"
+              variant="destructive"
+              onClick={() => setResetWorksDialogOpen(true)}
+              className="rounded-xl"
+            >
+              <Trash2 className="w-4 h-4 mr-1" />
+              重置
+            </Button>
+          </div>
+
+          <div className="flex items-center justify-between">
+            <div className="space-y-1">
+              <Label>重置模板</Label>
+              <p className="text-sm text-muted-foreground text-destructive">
+                删除所有用户创建的模板
+              </p>
+            </div>
+            <Button
+              type="button"
+              variant="destructive"
+              onClick={() => setResetTemplatesDialogOpen(true)}
+              className="rounded-xl"
+            >
+              <Trash2 className="w-4 h-4 mr-1" />
+              重置
+            </Button>
+          </div>
+
+          <div className="flex items-center justify-between">
+            <div className="space-y-1">
+              <Label>重置素材</Label>
+              <p className="text-sm text-muted-foreground text-destructive">
+                删除所有用户上传的素材
+              </p>
+            </div>
+            <Button
+              type="button"
+              variant="destructive"
+              onClick={() => setResetAssetsDialogOpen(true)}
               className="rounded-xl"
             >
               <Trash2 className="w-4 h-4 mr-1" />
@@ -335,6 +468,138 @@ export function SettingsPage() {
               className="rounded-xl"
             >
               确认恢复
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* 重置作品对话框 */}
+      <Dialog open={resetWorksDialogOpen} onOpenChange={setResetWorksDialogOpen}>
+        <DialogContent className="w-[400px] max-w-[90vw] rounded-2xl">
+          <DialogHeader>
+            <DialogTitle className="text-lg font-semibold flex items-center gap-2">
+              <AlertTriangle className="w-5 h-5 text-destructive" />
+              确认重置作品
+            </DialogTitle>
+            <DialogDescription>
+              此操作将删除所有用户创建的作品。此操作不可撤销，确定要继续吗？
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter className="flex justify-between">
+            <Button
+              type="button"
+              variant="outline"
+              onClick={() => setResetWorksDialogOpen(false)}
+              className="rounded-xl"
+            >
+              取消
+            </Button>
+            <Button
+              type="button"
+              variant="destructive"
+              onClick={handleResetWorks}
+              disabled={isResetting}
+              className="rounded-xl"
+            >
+              {isResetting ? (
+                <>
+                  <Clock className="w-4 h-4 mr-1 animate-spin" />
+                  重置中...
+                </>
+              ) : (
+                <>
+                  <Trash2 className="w-4 h-4 mr-1" />
+                  确认重置
+                </>
+              )}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* 重置模板对话框 */}
+      <Dialog open={resetTemplatesDialogOpen} onOpenChange={setResetTemplatesDialogOpen}>
+        <DialogContent className="w-[400px] max-w-[90vw] rounded-2xl">
+          <DialogHeader>
+            <DialogTitle className="text-lg font-semibold flex items-center gap-2">
+              <AlertTriangle className="w-5 h-5 text-destructive" />
+              确认重置模板
+            </DialogTitle>
+            <DialogDescription>
+              此操作将删除所有用户创建的模板，官方模板将被保留。此操作不可撤销，确定要继续吗？
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter className="flex justify-between">
+            <Button
+              type="button"
+              variant="outline"
+              onClick={() => setResetTemplatesDialogOpen(false)}
+              className="rounded-xl"
+            >
+              取消
+            </Button>
+            <Button
+              type="button"
+              variant="destructive"
+              onClick={handleResetTemplates}
+              disabled={isResetting}
+              className="rounded-xl"
+            >
+              {isResetting ? (
+                <>
+                  <Clock className="w-4 h-4 mr-1 animate-spin" />
+                  重置中...
+                </>
+              ) : (
+                <>
+                  <Trash2 className="w-4 h-4 mr-1" />
+                  确认重置
+                </>
+              )}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* 重置素材对话框 */}
+      <Dialog open={resetAssetsDialogOpen} onOpenChange={setResetAssetsDialogOpen}>
+        <DialogContent className="w-[400px] max-w-[90vw] rounded-2xl">
+          <DialogHeader>
+            <DialogTitle className="text-lg font-semibold flex items-center gap-2">
+              <AlertTriangle className="w-5 h-5 text-destructive" />
+              确认重置素材
+            </DialogTitle>
+            <DialogDescription>
+              此操作将删除所有用户上传的素材。此操作不可撤销，确定要继续吗？
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter className="flex justify-between">
+            <Button
+              type="button"
+              variant="outline"
+              onClick={() => setResetAssetsDialogOpen(false)}
+              className="rounded-xl"
+            >
+              取消
+            </Button>
+            <Button
+              type="button"
+              variant="destructive"
+              onClick={handleResetAssets}
+              disabled={isResetting}
+              className="rounded-xl"
+            >
+              {isResetting ? (
+                <>
+                  <Clock className="w-4 h-4 mr-1 animate-spin" />
+                  重置中...
+                </>
+              ) : (
+                <>
+                  <Trash2 className="w-4 h-4 mr-1" />
+                  确认重置
+                </>
+              )}
             </Button>
           </DialogFooter>
         </DialogContent>

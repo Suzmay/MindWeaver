@@ -12,7 +12,9 @@ export enum EventType {
   DATA_CORRUPTED = 'data_corrupted',
   INITIALIZED = 'initialized',
   ERROR = 'error',
-  PREFERENCE_CHANGED = 'preference_changed'
+  PREFERENCE_CHANGED = 'preference_changed',
+  PREFERENCES_UPDATED = 'preferences_updated',
+  PREFERENCES_RESET = 'preferences_reset'
 }
 
 export interface EventData {

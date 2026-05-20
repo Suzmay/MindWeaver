@@ -927,11 +927,32 @@ class AssetService {
   // 根据关键词搜索素材
   searchAssets(keyword: string): Asset[] {
     const lowerKeyword = keyword.toLowerCase();
-    return this.getCombinedAssets().filter(asset => 
-      asset.name.toLowerCase().includes(lowerKeyword) ||
-      asset.tags.some(tag => tag.toLowerCase().includes(lowerKeyword)) ||
-      asset.category.toLowerCase().includes(lowerKeyword)
-    );
+    
+    // 类型关键词映射
+    const typeKeywords: Record<string, string[]> = {
+      'colorScheme': ['配色', '配色方案', 'color', '颜色'],
+      'icon': ['图标', 'icon'],
+      'shape': ['形状', 'shape'],
+      'connector': ['连线', 'connector'],
+      'iconSet': ['图标组合', 'iconset'],
+      'fontStyle': ['字体', 'font'],
+      'background': ['背景', 'background'],
+      'animation': ['动画', 'animation']
+    };
+    
+    return this.getCombinedAssets().filter(asset => {
+      // 基础搜索：名称、标签、分类
+      const basicMatch = 
+        asset.name.toLowerCase().includes(lowerKeyword) ||
+        asset.tags.some(tag => tag.toLowerCase().includes(lowerKeyword)) ||
+        asset.category.toLowerCase().includes(lowerKeyword);
+      
+      // 类型搜索：搜索类型关键词
+      const typeKeywordsForAsset = typeKeywords[asset.type] || [];
+      const typeMatch = typeKeywordsForAsset.some(key => lowerKeyword.includes(key));
+      
+      return basicMatch || typeMatch;
+    });
   }
 
   // 根据ID获取素材

@@ -1,10 +1,11 @@
 import { useState } from 'react';
-import { Star, FileText, Search, Filter, Settings, Plus, X, Edit, Trash2, Share2, Download } from 'lucide-react';
+import { Star, FileText, Search, Filter, Settings, Plus, X, Edit, Trash2, Share2, Download, Square, CheckSquare } from 'lucide-react';
 import { Button } from './ui/button';
 import { Card, CardContent } from './ui/card';
 import { Badge } from './ui/badge';
 import { Input } from './ui/input';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from './ui/dropdown-menu';
+import { Checkbox } from './ui/checkbox';
 import { useStorage } from '../context/StorageContext';
 import { useUser } from '../context/UserContext';
 import { toast } from 'sonner';
@@ -14,6 +15,76 @@ import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, D
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from './ui/select';
 import { Label } from './ui/label';
 import { Template, TemplateCreateDTO, TemplateUpdateDTO } from '../models/Template';
+
+// 模板类型中文映射
+const TEMPLATE_TYPE_MAP: Record<string, string> = {
+  basic: '基础',
+  business: '商务',
+  education: '教育',
+  personal: '个人'
+};
+
+// 获取模板类型中文名称
+const getTemplateTypeLabel = (type: string): string => {
+  return TEMPLATE_TYPE_MAP[type] || type;
+};
+
+// 将节点数据转换为文本格式
+const nodesToText = (nodes: any[]): string => {
+  console.log('--- nodesToText 开始生成 ---');
+  console.log('输入 nodes:', JSON.stringify(nodes, null, 2));
+  
+  if (!nodes || nodes.length === 0) {
+    const defaultText = '# 中心主题\n- 主要分支 1\n- 主要分支 2';
+    console.log('nodes 为空，返回默认:', JSON.stringify(defaultText, null, 2));
+    return defaultText;
+  }
+  
+  const rootNode = nodes.find(n => n.isRoot || n.id === 'root' || !n.parentId);
+  console.log('找到的根节点:', rootNode ? JSON.stringify(rootNode, null, 2) : 'null');
+  
+  if (!rootNode) {
+    const defaultText = '# 中心主题\n- 主要分支 1\n- 主要分支 2';
+    console.log('没有根节点，返回默认:', JSON.stringify(defaultText, null, 2));
+    return defaultText;
+  }
+  
+  const buildText = (node: any, level: number = 0): string => {
+    // 根节点使用 # 开头，其他节点使用 - 开头
+    // level=0: 根节点，格式: # 标题
+    // level=1: 一级子节点，格式: - 标题（无缩进）
+    // level>=2: 更深层级，格式: 缩进 + - 标题
+    let text = '';
+    
+    if (level === 0) {
+      text = `# ${node.title || '未命名节点'}\n`;
+      console.log(`  level=0: ${text.trim()}`);
+    } else {
+      // level=1: 无缩进
+      // level=2: 2个空格
+      // level=3: 4个空格，以此类推
+      const indentLevel = level - 1;
+      const indent = '  '.repeat(indentLevel);
+      text = `${indent}- ${node.title || '未命名节点'}\n`;
+      console.log(`  level=${level}: ${text.trim()}`);
+    }
+    
+    // 查找直接子节点
+    const children = nodes.filter(n => n.parentId === node.id);
+    console.log(`  node=${node.title}: children count=${children.length}`);
+    children.forEach(child => {
+      text += buildText(child, level + 1);
+    });
+    
+    return text;
+  };
+  
+  const result = buildText(rootNode).trim();
+  console.log('生成结果:', JSON.stringify(result, null, 2));
+  console.log('--- nodesToText 结束生成 ---');
+  
+  return result;
+};
 
 export function TemplatesPage() {
   const storage = useStorage();
@@ -51,6 +122,7 @@ export function TemplatesPage() {
   const [editTemplateTags, setEditTemplateTags] = useState<string[]>([]);
   const [editTemplateTagInput, setEditTemplateTagInput] = useState('');
   const [editTemplateError, setEditTemplateError] = useState('');
+  const [editTemplateNodes, setEditTemplateNodes] = useState<string>('');
 
 
 
@@ -172,31 +244,34 @@ export function TemplatesPage() {
 
     // 处理其他行
     for (let i = 1; i < lines.length; i++) {
-      const line = lines[i].trim();
-      if (!line) continue;
+      const line = lines[i];
+      if (!line.trim()) continue;
 
-      // 计算缩进级别
+      // 计算缩进级别（在 trim 之前！）
       const indentMatches = line.match(/^(\s+)/);
       const indent = indentMatches ? indentMatches[0].length : 0;
       const level = Math.floor(indent / 2); // 每2个空格为一个级别
 
-      // 提取标题
-      const title = line.replace(/^[-*+]\s*/, '').trim();
+      // 提取标题（先 trim 去掉首尾空格）
+      const title = line.trim().replace(/^[-*+]\s*/, '').trim();
       if (!title) continue;
+
+      // 先调整节点栈（弹出级别 >= 当前级别的节点）
+      while (nodeStack.length > 0 && nodeStack[nodeStack.length - 1].level >= level) {
+        nodeStack.pop();
+      }
+
+      // 从调整后的栈顶获取父节点ID
+      const parentId = nodeStack.length > 0 ? nodeStack[nodeStack.length - 1].node.id : 'root';
 
       // 创建新节点
       const newNode = {
         id: `node${nodeIdCounter++}`,
         title: title,
         children: [],
-        parentId: nodeStack[nodeStack.length - 1].node.id
+        parentId: parentId
       };
       nodes.push(newNode);
-
-      // 调整节点栈
-      while (nodeStack.length > 0 && nodeStack[nodeStack.length - 1].level >= level) {
-        nodeStack.pop();
-      }
 
       // 添加到父节点的children数组
       if (nodeStack.length > 0) {
@@ -252,12 +327,21 @@ export function TemplatesPage() {
     setIsCreating(true);
 
     try {
+      console.log('=== 调试：创建模板 ===');
+      console.log('原始 newTemplateNodes:', JSON.stringify(newTemplateNodes, null, 2));
+      
       // 解析节点文本
       const parsedNodes = parseNodesText(newTemplateNodes);
-
+      console.log('解析后的 parsedNodes:', JSON.stringify(parsedNodes, null, 2));
+      
+      // 测试再次生成文本
+      const testRegeneratedText = nodesToText(parsedNodes);
+      console.log('再次生成的 testRegeneratedText:', JSON.stringify(testRegeneratedText, null, 2));
+      
       // 创建模板DTO
       const templateDTO: TemplateCreateDTO = {
         title: newTemplateName.trim(),
+        description: newTemplateDescription.trim() || undefined,
         templateType: newTemplateType,
         isDefault: false,
         themeConfig: {
@@ -279,7 +363,10 @@ export function TemplatesPage() {
         nodesData: parsedNodes,
         uploader: isGuest ? '游客' : (user?.username || '未知')
       };
-
+      
+      console.log('最终 templateDTO.nodesData:', JSON.stringify(templateDTO.nodesData, null, 2));
+      console.log('===================');
+      
       // 调用存储服务创建模板
       await storage.createTemplate(templateDTO);
 
@@ -319,10 +406,19 @@ export function TemplatesPage() {
   };
 
   const handleSelectTemplate = (template: Template) => {
+    console.log('=== 调试：选择模板 ===');
+    console.log('模板对象:', JSON.stringify(template, null, 2));
+    console.log('模板 nodesData:', JSON.stringify(template.nodesData, null, 2));
+    
+    const generatedText = nodesToText(template.nodesData || []);
+    console.log('nodesToText 生成的文本:', JSON.stringify(generatedText, null, 2));
+    console.log('====================');
+    
     setSelectedManageTemplate(template);
     setEditTemplateName(template.title);
     setEditTemplateDescription(template.description || '');
     setEditTemplateTags([...(template.tags || [])]);
+    setEditTemplateNodes(generatedText);
     setEditMode(false);
     setEditTemplateError('');
   };
@@ -358,10 +454,14 @@ export function TemplatesPage() {
     }
 
     try {
+      // 解析节点文本
+      const parsedNodes = parseNodesText(editTemplateNodes);
+      
       const updateDTO: TemplateUpdateDTO = {
         title: editTemplateName,
         description: editTemplateDescription,
-        tags: editTemplateTags
+        tags: editTemplateTags,
+        nodesData: parsedNodes
       };
 
       await storage.updateTemplate(selectedManageTemplate.id, updateDTO);
@@ -384,6 +484,70 @@ export function TemplatesPage() {
     } catch (error) {
       console.error('删除模板失败:', error);
       toast.error('模板删除失败');
+    }
+  };
+
+  // 导出模板
+  const handleExportTemplates = async () => {
+    if (selectedTemplateIds.size === 0) return;
+
+    try {
+      for (const templateId of selectedTemplateIds) {
+        const template = templates.find(t => t.id === templateId);
+        if (!template) continue;
+
+        const blob = await storage.exportTemplate(templateId);
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = `${template.title}.json`;
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        URL.revokeObjectURL(url);
+      }
+
+      toast.success(`成功导出 ${selectedTemplateIds.size} 个模板`);
+    } catch (error) {
+      console.error('导出模板失败:', error);
+      toast.error('导出模板失败');
+    }
+  };
+
+  // 分享模板（生成分享链接）
+  const handleShareTemplates = async () => {
+    if (selectedTemplateIds.size === 0) return;
+
+    try {
+      const templateId = Array.from(selectedTemplateIds)[0];
+      const template = templates.find(t => t.id === templateId);
+      if (!template) return;
+
+      const blob = await storage.exportTemplate(templateId);
+      const text = await blob.text();
+      const data = JSON.parse(text);
+
+      const shareData = {
+        version: data.version,
+        title: data.title,
+        description: data.description,
+        templateType: data.templateType,
+        themeConfig: data.themeConfig,
+        layoutConfig: data.layoutConfig,
+        tags: data.tags,
+        nodesData: data.nodesData,
+        exportedAt: new Date().toISOString()
+      };
+
+      const json = JSON.stringify(shareData);
+      const encoded = btoa(encodeURIComponent(json));
+      const shareUrl = `${window.location.origin}/import?data=${encoded}&type=template`;
+
+      await navigator.clipboard.writeText(shareUrl);
+      toast.success('分享链接已复制到剪贴板');
+    } catch (error) {
+      console.error('生成分享链接失败:', error);
+      toast.error('生成分享链接失败');
     }
   };
 
@@ -638,7 +802,7 @@ export function TemplatesPage() {
 - 主要分支 2"
                 value={newTemplateNodes}
                 onChange={(e) => setNewTemplateNodes(e.target.value)}
-                className="min-h-[200px] p-3 border rounded-md text-sm"
+                className="w-full min-h-[200px] p-3 border rounded-md text-sm"
                 style={{ resize: 'vertical' }}
               />
               <p className="text-xs text-muted-foreground">
@@ -683,6 +847,7 @@ export function TemplatesPage() {
                   size="sm"
                   variant="outline"
                   disabled={selectedTemplateIds.size === 0}
+                  onClick={handleShareTemplates}
                 >
                   <Share2 className="w-4 h-4 mr-1" />
                   分享{selectedTemplateIds.size > 0 && ` (${selectedTemplateIds.size})`}
@@ -691,6 +856,7 @@ export function TemplatesPage() {
                   size="sm"
                   variant="outline"
                   disabled={selectedTemplateIds.size === 0}
+                  onClick={handleExportTemplates}
                 >
                   <Download className="w-4 h-4 mr-1" />
                   导出{selectedTemplateIds.size > 0 && ` (${selectedTemplateIds.size})`}
@@ -706,60 +872,102 @@ export function TemplatesPage() {
                 <h3 className="text-sm font-medium">模板列表</h3>
                 {userTemplates.length > 0 && (
                   <Button
-                    size="sm"
                     variant="ghost"
+                    size="sm"
                     onClick={toggleSelectAll}
+                    className="h-7 px-2 text-xs"
                   >
-                    {selectedTemplateIds.size === userTemplates.length ? '取消全选' : '全选'}
+                    {selectedTemplateIds.size === userTemplates.length ? (
+                      <CheckSquare className="w-3.5 h-3.5 mr-1" />
+                    ) : (
+                      <Square className="w-3.5 h-3.5 mr-1" />
+                    )}
+                    {selectedTemplateIds.size === userTemplates.length ? '取消全选' : `全选 (${userTemplates.length})`}
                   </Button>
                 )}
               </div>
               <div className="border rounded-lg max-h-[500px] overflow-y-auto">
-                {userTemplates.length === 0 ? (
+                {templates.length === 0 ? (
                   <div className="p-4 text-center text-muted-foreground">
-                    没有可管理的模板
+                    没有模板
                   </div>
                 ) : (
-                  userTemplates.map((template) => (
-                    <div
+                  [...templates].sort((a, b) => {
+                    // 个人模板优先显示
+                    const aIsOfficial = a.uploader === '官方';
+                    const bIsOfficial = b.uploader === '官方';
+                    if (aIsOfficial && !bIsOfficial) return 1;
+                    if (!aIsOfficial && bIsOfficial) return -1;
+                    return 0;
+                  }).map((template) => {
+                    const isOfficial = template.uploader === '官方';
+                    return (
+                      <div
                       key={template.id}
-                      className={`p-3 cursor-pointer transition-colors ${selectedManageTemplate?.id === template.id ? 'bg-primary/10 border-primary' : 'hover:bg-muted'}`}
+                      className={`p-3 rounded-lg cursor-pointer transition-colors ${selectedManageTemplate?.id === template.id ? 'bg-primary/10 border border-primary/30' : isOfficial ? 'opacity-70' : 'hover:bg-primary/10 hover:border hover:border-primary/20'}`}
                       onClick={() => handleSelectTemplate(template)}
                     >
-                      <div className="flex items-start justify-between">
-                        <div>
-                          <div className="font-medium truncate">{template.title}</div>
-                          <div className="text-xs text-muted-foreground mt-1">
-                            {template.tags?.map((tag) => (
-                              <Badge key={tag} variant="outline" className="mr-1 mb-1">
-                                {tag}
-                              </Badge>
-                            ))}
+                        <div className="flex items-center gap-2">
+                          {/* 官方模板不显示勾选框 */}
+                          {!isOfficial && (
+                            <div
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                const newSelected = new Set(selectedTemplateIds);
+                                if (newSelected.has(template.id)) {
+                                  newSelected.delete(template.id);
+                                } else {
+                                  newSelected.add(template.id);
+                                }
+                                setSelectedTemplateIds(newSelected);
+                              }}
+                              className="flex-shrink-0"
+                            >
+                              <Checkbox
+                                checked={selectedTemplateIds.has(template.id)}
+                                onCheckedChange={(checked) => {
+                                  if (checked) {
+                                    const newSelected = new Set(selectedTemplateIds);
+                                    newSelected.add(template.id);
+                                    setSelectedTemplateIds(newSelected);
+                                  } else {
+                                    const newSelected = new Set(selectedTemplateIds);
+                                    newSelected.delete(template.id);
+                                    setSelectedTemplateIds(newSelected);
+                                  }
+                                }}
+                              />
+                            </div>
+                          )}
+                          {/* 官方模板显示锁图标 */}
+                          {isOfficial && (
+                            <div className="flex-shrink-0 w-4" />
+                          )}
+                          <div className="flex-1 min-w-0">
+                            <div className="font-medium truncate flex items-center gap-2">
+                              {template.title}
+                              {isOfficial && (
+                                <Badge variant="outline" className="text-xs bg-primary/10 text-primary border-primary/30">
+                                  官方
+                                </Badge>
+                              )}
+                            </div>
+                            <div className="text-xs text-muted-foreground mt-1">
+                              {template.tags?.map((tag) => (
+                                <Badge key={tag} variant="outline" className="mr-1 mb-1">
+                                  {tag}
+                                </Badge>
+                              ))}
+                            </div>
+                            <div className="flex justify-between items-center mt-2 text-xs text-muted-foreground">
+                              <span>{getTemplateTypeLabel(template.templateType)}</span>
+                              <span>{new Date(template.createdAt).toLocaleDateString()}</span>
+                            </div>
                           </div>
                         </div>
-                        <div className="flex items-center gap-1">
-                          <input
-                            type="checkbox"
-                            checked={selectedTemplateIds.has(template.id)}
-                            onChange={() => {
-                              const newSelected = new Set(selectedTemplateIds);
-                              if (newSelected.has(template.id)) {
-                                newSelected.delete(template.id);
-                              } else {
-                                newSelected.add(template.id);
-                              }
-                              setSelectedTemplateIds(newSelected);
-                            }}
-                            className="mt-1"
-                          />
-                        </div>
                       </div>
-                      <div className="flex justify-between items-center mt-2 text-xs text-muted-foreground">
-                        <span>{template.templateType}</span>
-                        <span>{new Date(template.createdAt).toLocaleDateString()}</span>
-                      </div>
-                    </div>
-                  ))
+                    );
+                  })
                 )}
               </div>
             </div>
@@ -835,6 +1043,21 @@ export function TemplatesPage() {
                         </div>
                       </div>
                       
+                      <div className="space-y-2">
+                        <Label htmlFor="edit-template-nodes">模板节点（支持Markdown格式）</Label>
+                        <textarea
+                          id="edit-template-nodes"
+                          value={editTemplateNodes}
+                          onChange={(e) => setEditTemplateNodes(e.target.value)}
+                          placeholder="# 中心主题\n- 主要分支 1\n  - 子分支 1.1\n- 主要分支 2"
+                          className="w-full min-h-[200px] p-3 border rounded-md text-sm"
+                          style={{ resize: 'vertical' }}
+                        />
+                        <p className="text-xs text-muted-foreground">
+                          使用 Markdown 格式编辑节点结构，# 开头定义中心主题，- 开头定义分支，缩进表示层级
+                        </p>
+                      </div>
+                      
                       <div className="flex gap-2 justify-end">
                         <Button onClick={handleSaveTemplate}>
                           保存
@@ -849,16 +1072,22 @@ export function TemplatesPage() {
                     <div className="space-y-4">
                       <div className="flex items-center justify-between">
                         <h3 className="text-sm font-medium">模板详情</h3>
-                        <div className="flex gap-2">
-                          <Button size="sm" onClick={handleEditTemplate}>
-                            <Edit className="w-4 h-4 mr-1" />
-                            编辑
-                          </Button>
-                          <Button size="sm" variant="destructive" onClick={handleDeleteTemplate}>
-                            <Trash2 className="w-4 h-4 mr-1" />
-                            删除
-                          </Button>
-                        </div>
+                        {selectedManageTemplate.uploader !== '官方' ? (
+                          <div className="flex gap-2">
+                            <Button size="sm" onClick={handleEditTemplate}>
+                              <Edit className="w-4 h-4 mr-1" />
+                              编辑
+                            </Button>
+                            <Button size="sm" variant="destructive" onClick={handleDeleteTemplate}>
+                              <Trash2 className="w-4 h-4 mr-1" />
+                              删除
+                            </Button>
+                          </div>
+                        ) : (
+                          <Badge variant="outline" className="bg-primary/10 text-primary border-primary/30">
+                            官方模板，不可修改
+                          </Badge>
+                        )}
                       </div>
                       
                       <div className="space-y-3">
@@ -874,7 +1103,7 @@ export function TemplatesPage() {
                         
                         <div>
                           <h4 className="text-xs text-muted-foreground mb-1">类型</h4>
-                          <p>{selectedManageTemplate.templateType}</p>
+                          <p>{getTemplateTypeLabel(selectedManageTemplate.templateType)}</p>
                         </div>
                         
                         <div>
@@ -896,6 +1125,13 @@ export function TemplatesPage() {
                         <div>
                           <h4 className="text-xs text-muted-foreground mb-1">使用次数</h4>
                           <p>{selectedManageTemplate.usageCount}</p>
+                        </div>
+                        
+                        <div>
+                          <h4 className="text-xs text-muted-foreground mb-1">模板内容</h4>
+                          <div className="mt-2 p-3 bg-muted/50 rounded-lg">
+                            <pre className="text-sm whitespace-pre-wrap max-h-[200px] overflow-y-auto font-mono">{editTemplateNodes}</pre>
+                          </div>
                         </div>
                       </div>
                     </div>

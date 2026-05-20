@@ -182,6 +182,266 @@ class ApiService {
   isOnline(): boolean {
     return navigator.onLine;
   }
+
+  /**
+   * 获取版本历史列表
+   * @param workId 作品ID
+   */
+  async getVersions(workId: string): Promise<ApiResponse<HistoryVersion[]>> {
+    try {
+      const token = localStorage.getItem('token');
+      const response = await fetch(`${this.baseUrl}/api/versions?workId=${workId}`, {
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json'
+        }
+      });
+
+      if (!response.ok) {
+        throw new Error('获取版本列表失败');
+      }
+
+      const data = await response.json();
+      return {
+        success: data.success,
+        data: data.versions
+      };
+    } catch (error) {
+      console.error('获取版本列表失败:', error);
+      return {
+        success: false,
+        error: error instanceof Error ? error.message : '获取版本列表失败'
+      };
+    }
+  }
+
+  /**
+   * 创建版本快照
+   * @param workId 作品ID
+   * @param snapshotData 快照数据
+   * @param operationType 操作类型
+   * @param description 描述
+   */
+  async createVersion(
+    workId: string,
+    snapshotData: string,
+    operationType: 'auto_save' | 'manual_save' | 'undo' | 'redo',
+    description?: string
+  ): Promise<ApiResponse<HistoryVersion>> {
+    try {
+      const token = localStorage.getItem('token');
+      const response = await fetch(`${this.baseUrl}/api/versions`, {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+          workId,
+          snapshotData,
+          operationType,
+          description
+        })
+      });
+
+      if (!response.ok) {
+        throw new Error('创建版本失败');
+      }
+
+      const data = await response.json();
+      return {
+        success: data.success,
+        data: data.version
+      };
+    } catch (error) {
+      console.error('创建版本失败:', error);
+      return {
+        success: false,
+        error: error instanceof Error ? error.message : '创建版本失败'
+      };
+    }
+  }
+
+  /**
+   * 获取单个版本
+   * @param workId 作品ID
+   * @param versionId 版本ID
+   */
+  async getVersion(workId: string, versionId: string): Promise<ApiResponse<HistoryVersion>> {
+    try {
+      const token = localStorage.getItem('token');
+      const response = await fetch(`${this.baseUrl}/api/versions/detail?workId=${workId}&versionId=${versionId}`, {
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json'
+        }
+      });
+
+      if (!response.ok) {
+        throw new Error('获取版本失败');
+      }
+
+      const data = await response.json();
+      return {
+        success: data.success,
+        data: data.version
+      };
+    } catch (error) {
+      console.error('获取版本失败:', error);
+      return {
+        success: false,
+        error: error instanceof Error ? error.message : '获取版本失败'
+      };
+    }
+  }
+
+  /**
+   * 删除版本
+   * @param workId 作品ID
+   * @param versionId 版本ID
+   */
+  async deleteVersion(workId: string, versionId: string): Promise<ApiResponse<void>> {
+    try {
+      const token = localStorage.getItem('token');
+      const response = await fetch(`${this.baseUrl}/api/versions/delete?workId=${workId}&versionId=${versionId}`, {
+        method: 'DELETE',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json'
+        }
+      });
+
+      if (!response.ok) {
+        throw new Error('删除版本失败');
+      }
+
+      const data = await response.json();
+      return {
+        success: data.success
+      };
+    } catch (error) {
+      console.error('删除版本失败:', error);
+      return {
+        success: false,
+        error: error instanceof Error ? error.message : '删除版本失败'
+      };
+    }
+  }
+
+  /**
+   * 获取用户偏好设置
+   */
+  async getPreferences(): Promise<ApiResponse<UserPreferences>> {
+    try {
+      const token = localStorage.getItem('token');
+      const response = await fetch(`${this.baseUrl}/api/preferences`, {
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json'
+        }
+      });
+
+      if (!response.ok) {
+        throw new Error('获取偏好设置失败');
+      }
+
+      const data = await response.json();
+      return {
+        success: data.success,
+        data: data.preferences
+      };
+    } catch (error) {
+      console.error('获取偏好设置失败:', error);
+      return {
+        success: false,
+        error: error instanceof Error ? error.message : '获取偏好设置失败'
+      };
+    }
+  }
+
+  /**
+   * 更新用户偏好设置
+   * @param preferences 偏好设置对象
+   */
+  async updatePreferences(preferences: Partial<UserPreferences>): Promise<ApiResponse<UserPreferences>> {
+    try {
+      const token = localStorage.getItem('token');
+      const response = await fetch(`${this.baseUrl}/api/preferences`, {
+        method: 'PUT',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify(preferences)
+      });
+
+      if (!response.ok) {
+        throw new Error('更新偏好设置失败');
+      }
+
+      const data = await response.json();
+      return {
+        success: data.success,
+        data: data.preferences
+      };
+    } catch (error) {
+      console.error('更新偏好设置失败:', error);
+      return {
+        success: false,
+        error: error instanceof Error ? error.message : '更新偏好设置失败'
+      };
+    }
+  }
+
+  /**
+   * 删除用户偏好设置（重置为默认值）
+   */
+  async deletePreferences(): Promise<ApiResponse<void>> {
+    try {
+      const token = localStorage.getItem('token');
+      const response = await fetch(`${this.baseUrl}/api/preferences`, {
+        method: 'DELETE',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json'
+        }
+      });
+
+      if (!response.ok) {
+        throw new Error('重置偏好设置失败');
+      }
+
+      const data = await response.json();
+      return {
+        success: data.success
+      };
+    } catch (error) {
+      console.error('重置偏好设置失败:', error);
+      return {
+        success: false,
+        error: error instanceof Error ? error.message : '重置偏好设置失败'
+      };
+    }
+  }
+}
+
+export interface HistoryVersion {
+  id: string;
+  workId: string;
+  versionNumber: number;
+  snapshotData: string;
+  diffData?: any;
+  createdAt: string;
+  operationType: 'auto_save' | 'manual_save' | 'undo' | 'redo';
+  description?: string;
+}
+
+export interface UserPreferences {
+  autoSaveInterval: number;
+  enableVersionHistory: boolean;
+  theme: 'light' | 'dark' | 'auto';
+  sidebarWidth: number;
+  [key: string]: any;
 }
 
 export const apiService = new ApiService();

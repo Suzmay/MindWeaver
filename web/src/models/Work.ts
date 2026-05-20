@@ -70,7 +70,7 @@ export interface QueryOptions {
     startDate?: string;
     endDate?: string;
   };
-  sortBy?: 'title' | 'lastModified' | 'createdAt' | 'nodeCount' | 'category';
+  sortBy?: 'title' | 'lastModified' | 'createdAt' | 'nodeCount' | 'category' | 'usageCount';
   sortOrder?: 'asc' | 'desc';
   page?: number;
   pageSize?: number;

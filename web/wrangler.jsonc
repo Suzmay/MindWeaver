@@ -44,6 +44,16 @@
       "binding": "TOKEN_BLACKLIST_KV",
       "id": "ffa0e4664756479b96353896583b3cfd",
       "preview_id": "ffa0e4664756479b96353896583b3cfd"
+    },
+    {
+      "binding": "VERSIONS_KV",
+      "id": "c12a267889ae47e49d36df4c3d3ed76a",
+      "preview_id": "c12a267889ae47e49d36df4c3d3ed76a"
+    },
+    {
+      "binding": "PREFERENCES_KV",
+      "id": "95a37d38dbca4125b07cadb0f20c22e4",
+      "preview_id": "95a37d38dbca4125b07cadb0f20c22e4"
     }
   ],
   "r2_buckets": [

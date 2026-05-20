@@ -31,6 +31,9 @@ export function MarketPage() {
   const [templateFileInputRef] = useState(React.createRef<HTMLInputElement>());
   const [templateImportUrl, setTemplateImportUrl] = useState('');
   const [isParsingTemplateUrl, setIsParsingTemplateUrl] = useState(false);
+  
+  // 分享链接导入的模板列表
+  const [sharedTemplates, setSharedTemplates] = useState<{ url: string; data: any }[]>([]);
 
   // 素材上传相关状态
   const [isAssetDragActive, setIsAssetDragActive] = useState(false);
@@ -179,47 +182,30 @@ export function MarketPage() {
     }
   };
 
-  // 模板文件选择
+  // 模板文件选择（预览模式）
   const handleTemplateFileSelect = async (file: File) => {
     try {
       const text = await file.text();
       const data = JSON.parse(text);
       
-      if (!data.version || !data.data?.nodes) {
-        toast.error('无效的文件格式');
+      if (!data.version || (!data.nodesData && !data.data?.nodes)) {
+        toast.error('无效的模板文件格式');
         return;
       }
 
-      const title = data.title || '导入的模板';
-      await storage.createTemplate({
-        title,
-        templateType: 'personal',
-        isDefault: false,
-        themeConfig: {
-          primaryColor: '#3b82f6',
-          secondaryColor: '#10b981',
-          backgroundColor: '#ffffff',
-          nodeShape: 'rounded',
-          edgeStyle: 'curved',
-          fontFamily: 'sans-serif',
-          animationEnabled: true
-        },
-        layoutConfig: {
-          layoutType: 'mindmap',
-          direction: 'horizontal',
-          levelSpacing: 80,
-          nodeSpacing: 40
-        }
-      });
+      const existingTemplate = sharedTemplates.find(t => t.url === file.name);
+      if (!existingTemplate) {
+        setSharedTemplates(prev => [...prev, { url: file.name, data }]);
+      }
 
-      toast.success('模板导入成功！');
+      toast.success('已解析模板文件');
     } catch (error) {
-      console.error('模板导入失败:', error);
-      toast.error('模板导入失败，请重试');
+      console.error('模板文件解析失败:', error);
+      toast.error('模板文件解析失败，请重试');
     }
   };
 
-  // 模板链接导入
+  // 模板链接导入（预览模式）
   const handleTemplateUrlImport = async () => {
     if (!templateImportUrl.trim()) {
       toast.error('请输入分享链接');
@@ -227,44 +213,56 @@ export function MarketPage() {
     }
 
     setIsParsingTemplateUrl(true);
-    setTemplateImportUrl('');
 
     try {
-      const data = ExportService.parseShareLink(templateImportUrl);
-      if (!data) {
+      const urlObj = new URL(templateImportUrl);
+      const encoded = urlObj.searchParams.get('data');
+      
+      let data;
+      if (encoded) {
+        const json = decodeURIComponent(atob(encoded));
+        data = JSON.parse(json);
+      } else {
+        data = ExportService.parseShareLink(templateImportUrl);
+      }
+
+      if (!data || (!data.version && !data.nodesData)) {
         toast.error('无法解析链接，请确保这是有效的分享链接');
         return;
       }
 
-      const title = data.title || '导入的模板';
-      await storage.createTemplate({
-        title,
-        templateType: 'personal',
-        isDefault: false,
-        themeConfig: {
-          primaryColor: '#3b82f6',
-          secondaryColor: '#10b981',
-          backgroundColor: '#ffffff',
-          nodeShape: 'rounded',
-          edgeStyle: 'curved',
-          fontFamily: 'sans-serif',
-          animationEnabled: true
-        },
-        layoutConfig: {
-          layoutType: 'mindmap',
-          direction: 'horizontal',
-          levelSpacing: 80,
-          nodeSpacing: 40
-        }
-      });
+      const existingTemplate = sharedTemplates.find(t => t.url === templateImportUrl);
+      if (!existingTemplate) {
+        setSharedTemplates(prev => [...prev, { url: templateImportUrl, data }]);
+      }
 
+      toast.success('已解析分享链接');
+    } catch (error) {
+      console.error('解析模板链接失败:', error);
+      toast.error('解析模板链接失败，请重试');
+    } finally {
+      setIsParsingTemplateUrl(false);
+      setTemplateImportUrl('');
+    }
+  };
+
+  // 从分享链接导入模板到本地
+  const importSharedTemplate = async (sharedTemplate: { url: string; data: any }) => {
+    try {
+      const blob = new Blob([JSON.stringify(sharedTemplate.data)], { type: 'application/json' });
+      await storage.importTemplate(blob);
+
+      setSharedTemplates(prev => prev.filter(t => t.url !== sharedTemplate.url));
       toast.success('模板导入成功！');
     } catch (error) {
       console.error('模板导入失败:', error);
       toast.error('模板导入失败，请重试');
-    } finally {
-      setIsParsingTemplateUrl(false);
     }
+  };
+
+  // 移除模板预览
+  const removeSharedTemplate = (url: string) => {
+    setSharedTemplates(prev => prev.filter(t => t.url !== url));
   };
 
   const handleAssetFileSelect = async (file: File) => {
@@ -567,7 +565,7 @@ export function MarketPage() {
                     <div className="flex-1 text-center md:text-left">
                       <h3 className="font-semibold text-lg mb-1">导入模板</h3>
                       <p className="text-sm text-muted-foreground">
-                        从分享链接或 .mmw 文件导入思维导图模板
+                        从分享链接或 .json 文件导入思维导图模板
                       </p>
                     </div>
                     <div className="flex-1 space-y-3">
@@ -578,10 +576,10 @@ export function MarketPage() {
                           e.preventDefault();
                           setIsTemplateDragActive(false);
                           const files = Array.from(e.dataTransfer.files);
-                          if (files.length > 0 && (files[0].name.endsWith('.mmw') || files[0].name.endsWith('.json'))) {
+                          if (files.length > 0 && files[0].name.endsWith('.json')) {
                             handleTemplateFileSelect(files[0]);
                           } else {
-                            toast.error('请选择 .mmw 或 .json 格式的文件');
+                            toast.error('请选择 .json 格式的文件');
                           }
                         }}
                         onClick={() => templateFileInputRef.current?.click()}
@@ -594,7 +592,7 @@ export function MarketPage() {
                         <input
                           ref={templateFileInputRef}
                           type="file"
-                          accept=".mmw,.json"
+                          accept=".json"
                           onChange={(e) => {
                             if (e.target.files && e.target.files[0]) {
                               handleTemplateFileSelect(e.target.files[0]);
@@ -632,11 +630,81 @@ export function MarketPage() {
                 </CardContent>
               </Card>
 
-              <div className="text-center py-12 text-muted-foreground">
-                <Layout className="w-12 h-12 mx-auto mb-4 text-muted-foreground/50" />
-                <p className="text-lg font-medium mb-2">模板市场</p>
-                <p>使用预设模板快速创建思维导图</p>
-              </div>
+              {sharedTemplates.length > 0 && (
+                <div>
+                  <h3 className="font-semibold text-lg mb-4 flex items-center gap-2">
+                    <ExternalLink className="w-5 h-5 text-primary" />
+                    分享链接导入
+                  </h3>
+                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                    {sharedTemplates.map((sharedTemplate) => (
+                      <Card
+                        key={sharedTemplate.url}
+                        className={`
+                          rounded-2xl shadow-sm hover:shadow-lg transition-all duration-200 cursor-pointer group 
+                          border-2 border-primary/10 hover:border-primary/30 bg-card
+                          hover:scale-[1.03]
+                        `}
+                      >
+                        <CardContent className="p-0">
+                          <div className="flex items-center justify-center relative overflow-hidden h-40 rounded-t-2xl" style={{ backgroundColor: 'hsl(200 75% 85% / 0.2)' }}>
+                            <div className="absolute inset-0 bg-gradient-to-t from-black/5 to-transparent" />
+                            <Layout className="w-16 h-16 text-primary/60" />
+                            <button
+                              onClick={() => removeSharedTemplate(sharedTemplate.url)}
+                              className="absolute top-3 right-3 w-8 h-8 rounded-full flex items-center justify-center bg-slate-200 hover:bg-slate-300 dark:bg-slate-700/90 hover:bg-slate-600 transition-all"
+                            >
+                              <span className="text-muted-foreground text-sm">×</span>
+                            </button>
+                          </div>
+                          <div className="p-5">
+                            <h3 className="truncate mb-2">{sharedTemplate.data.title || '未命名模板'}</h3>
+                            <div className="flex items-center gap-2 text-xs text-muted-foreground mb-3">
+                              <span className="flex items-center gap-1">
+                                <Clock className="w-3 h-3" />
+                                {sharedTemplate.data.exportedAt ? new Date(sharedTemplate.data.exportedAt).toLocaleString('zh-CN', { year: 'numeric', month: '2-digit', day: '2-digit' }) : '未知时间'}
+                              </span>
+                              <span className="text-muted-foreground/50">•</span>
+                              <span>{sharedTemplate.data.nodesData?.length || 0} 个节点</span>
+                            </div>
+                            {sharedTemplate.data.tags && sharedTemplate.data.tags.length > 0 && (
+                              <div className="flex flex-wrap gap-2 mb-3">
+                                {sharedTemplate.data.tags.map((tag: string, i: number) => (
+                                  <span key={i} className="px-2 py-1 rounded-lg text-xs border-primary/30 bg-primary/5 text-primary">
+                                    {tag}
+                                  </span>
+                                ))}
+                              </div>
+                            )}
+                            {sharedTemplate.data.description && (
+                              <p className="text-xs text-muted-foreground mb-3 line-clamp-2">
+                                {sharedTemplate.data.description}
+                              </p>
+                            )}
+                            <div className="mt-3">
+                              <Button
+                                className="w-full gap-2 rounded-xl"
+                                onClick={() => importSharedTemplate(sharedTemplate)}
+                              >
+                                <CheckCircle className="w-4 h-4" />
+                                导入模板
+                              </Button>
+                            </div>
+                          </div>
+                        </CardContent>
+                      </Card>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {sharedTemplates.length === 0 && (
+                <div className="text-center py-12 text-muted-foreground">
+                  <Layout className="w-12 h-12 mx-auto mb-4 text-muted-foreground/50" />
+                  <p className="text-lg font-medium mb-2">模板市场</p>
+                  <p>使用预设模板快速创建思维导图</p>
+                </div>
+              )}
             </div>
           </TabsContent>
 
@@ -652,7 +720,7 @@ export function MarketPage() {
                     <div className="flex-1 text-center md:text-left">
                       <h3 className="font-semibold text-lg mb-1">导入素材</h3>
                       <p className="text-sm text-muted-foreground">
-                        从 .mwassets 或 .json 文件导入素材资源
+                        从分享链接或 .mwassets 文件导入素材资源
                       </p>
                     </div>
                     <div className="flex-1 space-y-3">

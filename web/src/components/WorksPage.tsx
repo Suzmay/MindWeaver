@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { useLocation } from 'react-router-dom';
-import { Plus, Grid3x3, List, MoreVertical, Trash2, Download, FileText, Search, Filter, Star, Clock, Folder, Tag, FileEdit, Lock, Check, CheckSquare, Square, AlertTriangle, X, ArrowLeft, RotateCcw, FileJson, File, FileSpreadsheet } from 'lucide-react';
+import { Plus, Grid3x3, List, MoreVertical, Trash2, Download, FileText, Search, Filter, Star, Clock, Folder, Tag, FileEdit, Lock, Check, CheckSquare, Square, AlertTriangle, X, ArrowLeft, RotateCcw, FileJson, File, FileSpreadsheet, Image } from 'lucide-react';
 import { Button } from './ui/button';
 import { Card, CardContent } from './ui/card';
 import { Input } from './ui/input';
@@ -220,7 +220,13 @@ export function WorksPage({ onEditWork }: WorksPageProps) {
         layout: {
           mode: layout.mode,
           direction: layout.direction
-        }
+        },
+        nodesData: [
+          { id: 'root', title: title, children: ['node1', 'node2', 'node3'], isRoot: true },
+          { id: 'node1', title: '主要分支', parentId: 'root' },
+          { id: 'node2', title: '次要分支', parentId: 'root' },
+          { id: 'node3', title: '辅助分支', parentId: 'root' },
+        ]
       };
       
       // 调用存储服务的 createWork 方法
@@ -1775,15 +1781,18 @@ export function WorksPage({ onEditWork }: WorksPageProps) {
           </DialogHeader>
           <div className="space-y-4 pt-4">
             <div className="grid grid-cols-2 gap-3">
-              {(['mmw', 'json', 'markdown'] as const).map((format) => {
+              {(['mmw', 'json', 'markdown', 'png'] as const).map((format) => {
+                const isDisabled = format === 'png'; // 批量导出不支持图片导出
                 const isSelected = batchExportFormat === format;
                 return (
                   <button
                     key={format}
-                    onClick={() => setBatchExportFormat(format)}
+                    onClick={() => !isDisabled && setBatchExportFormat(format)}
                     className={`p-4 border-2 rounded-xl text-left transition-all ${
                       isSelected
                         ? 'border-primary bg-primary/5'
+                        : isDisabled
+                        ? 'border-border opacity-50 cursor-not-allowed'
                         : 'border-border hover:border-primary/50'
                     }`}
                   >
@@ -1791,14 +1800,16 @@ export function WorksPage({ onEditWork }: WorksPageProps) {
                       {format === 'mmw' && <File className="w-5 h-5 text-primary" />}
                       {format === 'json' && <FileJson className="w-5 h-5 text-primary" />}
                       {format === 'markdown' && <FileSpreadsheet className="w-5 h-5 text-primary" />}
+                      {format === 'png' && <Image className="w-5 h-5 text-primary" />}
                       <div className="flex-1">
                         <div className="font-medium text-sm">
-                          {format === 'mmw' ? 'MindWeaver' : format === 'json' ? 'JSON' : 'Markdown'}
+                          {format === 'mmw' ? 'MindWeaver' : format === 'json' ? 'JSON' : format === 'markdown' ? 'Markdown' : 'PNG 图片'}
                         </div>
                         <div className="text-xs text-muted-foreground mt-1">
                           {format === 'mmw' && 'MindWeaver 专用格式'}
                           {format === 'json' && '通用数据格式'}
                           {format === 'markdown' && '文档格式'}
+                          {format === 'png' && '需打开思维导图才能使用'}
                         </div>
                       </div>
                       {isSelected && (

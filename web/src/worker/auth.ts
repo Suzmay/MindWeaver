@@ -19,12 +19,25 @@ interface KVNamespace {
   get(key: string): Promise<string | null>;
   put(key: string, value: string, options?: any): Promise<void>;
   delete(key: string): Promise<void>;
+  list(options?: { prefix?: string; limit?: number }): Promise<{ keys: { name: string }[] }>;
+}
+
+interface R2Bucket {
+  put(key: string, value: any, options?: any): Promise<any>;
+  get(key: string): Promise<any>;
+  delete(key: string): Promise<void>;
+  list(options?: any): Promise<any>;
 }
 
 interface Env {
   USERS_KV: KVNamespace;
+  WORKS_KV: KVNamespace;
+  ASSETS_KV: KVNamespace;
+  VERSIONS_KV: KVNamespace;
+  PREFERENCES_KV: KVNamespace;
   VERIFICATION_CODES_KV: KVNamespace;
   TOKEN_BLACKLIST_KV: KVNamespace;
+  ASSETS_R2: R2Bucket;
   TURNSTILE_SITE_KEY: string;
   TURNSTILE_SECRET_KEY: string;
   EMAIL_FROM: string;
@@ -969,6 +982,702 @@ export async function handleGitHubCallback(request: Request, env: Env): Promise<
   } catch (error) {
     console.error('GitHub callback error:', error);
     return new Response(JSON.stringify({ success: false, message: 'GitHub 登录失败' }), {
+      status: 500,
+      headers: { 'Content-Type': 'application/json' },
+    });
+  }
+}
+
+interface HistoryVersion {
+  id: string;
+  workId: string;
+  versionNumber: number;
+  snapshotData: string;
+  diffData?: any;
+  createdAt: string;
+  operationType: 'auto_save' | 'manual_save' | 'undo' | 'redo';
+  description?: string;
+}
+
+interface UserPreferences {
+  autoSaveInterval: number;
+  enableVersionHistory: boolean;
+  theme: 'light' | 'dark' | 'auto';
+  sidebarWidth: number;
+  [key: string]: any;
+}
+
+export async function handleGetVersions(request: Request, env: Env): Promise<Response> {
+  try {
+    const userId = await getUserIdFromToken(request, env);
+    if (!userId) {
+      return new Response(JSON.stringify({ success: false, message: '未授权' }), {
+        status: 401,
+        headers: { 'Content-Type': 'application/json' },
+      });
+    }
+
+    const url = new URL(request.url);
+    const workId = url.searchParams.get('workId');
+    
+    if (!workId) {
+      return new Response(JSON.stringify({ success: false, message: '缺少 workId 参数' }), {
+        status: 400,
+        headers: { 'Content-Type': 'application/json' },
+      });
+    }
+
+    const prefix = `${userId}_${workId}_`;
+    const listResult = await env.VERSIONS_KV.list({ prefix });
+    const versions: HistoryVersion[] = [];
+
+    for (const key of listResult.keys) {
+      const versionData = await env.VERSIONS_KV.get(key.name);
+      if (versionData) {
+        versions.push(JSON.parse(versionData));
+      }
+    }
+
+    versions.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+
+    return new Response(JSON.stringify({ success: true, versions }), {
+      headers: { 'Content-Type': 'application/json' },
+    });
+  } catch (error) {
+    console.error('Get versions error:', error);
+    return new Response(JSON.stringify({ success: false, message: '获取版本列表失败' }), {
+      status: 500,
+      headers: { 'Content-Type': 'application/json' },
+    });
+  }
+}
+
+export async function handleCreateVersion(request: Request, env: Env): Promise<Response> {
+  try {
+    const userId = await getUserIdFromToken(request, env);
+    if (!userId) {
+      return new Response(JSON.stringify({ success: false, message: '未授权' }), {
+        status: 401,
+        headers: { 'Content-Type': 'application/json' },
+      });
+    }
+
+    const { workId, snapshotData, diffData, operationType, description } = await request.json();
+
+    if (!workId || !snapshotData) {
+      return new Response(JSON.stringify({ success: false, message: '缺少必要参数' }), {
+        status: 400,
+        headers: { 'Content-Type': 'application/json' },
+      });
+    }
+
+    const prefix = `${userId}_${workId}_`;
+    const listResult = await env.VERSIONS_KV.list({ prefix });
+    const versionNumber = listResult.keys.length + 1;
+
+    const version: HistoryVersion = {
+      id: `version_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
+      workId,
+      versionNumber,
+      snapshotData,
+      diffData,
+      createdAt: new Date().toISOString(),
+      operationType: operationType || 'manual_save',
+      description,
+    };
+
+    const key = `${prefix}${version.id}`;
+    await env.VERSIONS_KV.put(key, JSON.stringify(version));
+
+    return new Response(JSON.stringify({ success: true, version }), {
+      headers: { 'Content-Type': 'application/json' },
+    });
+  } catch (error) {
+    console.error('Create version error:', error);
+    return new Response(JSON.stringify({ success: false, message: '创建版本失败' }), {
+      status: 500,
+      headers: { 'Content-Type': 'application/json' },
+    });
+  }
+}
+
+export async function handleGetVersion(request: Request, env: Env): Promise<Response> {
+  try {
+    const userId = await getUserIdFromToken(request, env);
+    if (!userId) {
+      return new Response(JSON.stringify({ success: false, message: '未授权' }), {
+        status: 401,
+        headers: { 'Content-Type': 'application/json' },
+      });
+    }
+
+    const url = new URL(request.url);
+    const workId = url.searchParams.get('workId');
+    const versionId = url.searchParams.get('versionId');
+
+    if (!workId || !versionId) {
+      return new Response(JSON.stringify({ success: false, message: '缺少必要参数' }), {
+        status: 400,
+        headers: { 'Content-Type': 'application/json' },
+      });
+    }
+
+    const key = `${userId}_${workId}_${versionId}`;
+    const versionData = await env.VERSIONS_KV.get(key);
+
+    if (!versionData) {
+      return new Response(JSON.stringify({ success: false, message: '版本不存在' }), {
+        status: 404,
+        headers: { 'Content-Type': 'application/json' },
+      });
+    }
+
+    return new Response(JSON.stringify({ success: true, version: JSON.parse(versionData) }), {
+      headers: { 'Content-Type': 'application/json' },
+    });
+  } catch (error) {
+    console.error('Get version error:', error);
+    return new Response(JSON.stringify({ success: false, message: '获取版本失败' }), {
+      status: 500,
+      headers: { 'Content-Type': 'application/json' },
+    });
+  }
+}
+
+export async function handleDeleteVersion(request: Request, env: Env): Promise<Response> {
+  try {
+    const userId = await getUserIdFromToken(request, env);
+    if (!userId) {
+      return new Response(JSON.stringify({ success: false, message: '未授权' }), {
+        status: 401,
+        headers: { 'Content-Type': 'application/json' },
+      });
+    }
+
+    const url = new URL(request.url);
+    const workId = url.searchParams.get('workId');
+    const versionId = url.searchParams.get('versionId');
+
+    if (!workId || !versionId) {
+      return new Response(JSON.stringify({ success: false, message: '缺少必要参数' }), {
+        status: 400,
+        headers: { 'Content-Type': 'application/json' },
+      });
+    }
+
+    const key = `${userId}_${workId}_${versionId}`;
+    await env.VERSIONS_KV.delete(key);
+
+    return new Response(JSON.stringify({ success: true, message: '删除成功' }), {
+      headers: { 'Content-Type': 'application/json' },
+    });
+  } catch (error) {
+    console.error('Delete version error:', error);
+    return new Response(JSON.stringify({ success: false, message: '删除版本失败' }), {
+      status: 500,
+      headers: { 'Content-Type': 'application/json' },
+    });
+  }
+}
+
+export async function handleGetPreferences(request: Request, env: Env): Promise<Response> {
+  try {
+    const userId = await getUserIdFromToken(request, env);
+    if (!userId) {
+      return new Response(JSON.stringify({ success: false, message: '未授权' }), {
+        status: 401,
+        headers: { 'Content-Type': 'application/json' },
+      });
+    }
+
+    const key = `user_${userId}_preferences`;
+    const preferencesData = await env.PREFERENCES_KV.get(key);
+
+    const defaultPreferences: UserPreferences = {
+      autoSaveInterval: 10,
+      enableVersionHistory: true,
+      theme: 'auto',
+      sidebarWidth: 280,
+    };
+
+    const preferences = preferencesData ? { ...defaultPreferences, ...JSON.parse(preferencesData) } : defaultPreferences;
+
+    return new Response(JSON.stringify({ success: true, preferences }), {
+      headers: { 'Content-Type': 'application/json' },
+    });
+  } catch (error) {
+    console.error('Get preferences error:', error);
+    return new Response(JSON.stringify({ success: false, message: '获取偏好设置失败' }), {
+      status: 500,
+      headers: { 'Content-Type': 'application/json' },
+    });
+  }
+}
+
+export async function handleUpdatePreferences(request: Request, env: Env): Promise<Response> {
+  try {
+    const userId = await getUserIdFromToken(request, env);
+    if (!userId) {
+      return new Response(JSON.stringify({ success: false, message: '未授权' }), {
+        status: 401,
+        headers: { 'Content-Type': 'application/json' },
+      });
+    }
+
+    const updates = await request.json();
+
+    const key = `user_${userId}_preferences`;
+    const existingData = await env.PREFERENCES_KV.get(key);
+
+    const defaultPreferences: UserPreferences = {
+      autoSaveInterval: 10,
+      enableVersionHistory: true,
+      theme: 'auto',
+      sidebarWidth: 280,
+    };
+
+    const existingPreferences = existingData ? JSON.parse(existingData) : {};
+    const updatedPreferences = { ...defaultPreferences, ...existingPreferences, ...updates };
+
+    await env.PREFERENCES_KV.put(key, JSON.stringify(updatedPreferences));
+
+    return new Response(JSON.stringify({ success: true, preferences: updatedPreferences }), {
+      headers: { 'Content-Type': 'application/json' },
+    });
+  } catch (error) {
+    console.error('Update preferences error:', error);
+    return new Response(JSON.stringify({ success: false, message: '更新偏好设置失败' }), {
+      status: 500,
+      headers: { 'Content-Type': 'application/json' },
+    });
+  }
+}
+
+export async function handleDeletePreferences(request: Request, env: Env): Promise<Response> {
+  try {
+    const userId = await getUserIdFromToken(request, env);
+    if (!userId) {
+      return new Response(JSON.stringify({ success: false, message: '未授权' }), {
+        status: 401,
+        headers: { 'Content-Type': 'application/json' },
+      });
+    }
+
+    const key = `user_${userId}_preferences`;
+    await env.PREFERENCES_KV.delete(key);
+
+    return new Response(JSON.stringify({ success: true, message: '偏好设置已重置' }), {
+      headers: { 'Content-Type': 'application/json' },
+    });
+  } catch (error) {
+    console.error('Delete preferences error:', error);
+    return new Response(JSON.stringify({ success: false, message: '重置偏好设置失败' }), {
+      status: 500,
+      headers: { 'Content-Type': 'application/json' },
+    });
+  }
+}
+
+// ==================== WORKS_KV 作品云端同步 ====================
+
+export async function handleUploadWork(request: Request, env: Env): Promise<Response> {
+  try {
+    const userId = await getUserIdFromToken(request, env);
+    if (!userId) {
+      return new Response(JSON.stringify({ success: false, message: '未授权' }), {
+        status: 401,
+        headers: { 'Content-Type': 'application/json' },
+      });
+    }
+
+    const { workId, workData } = await request.json();
+    
+    if (!workId || !workData) {
+      return new Response(JSON.stringify({ success: false, message: '缺少必要参数' }), {
+        status: 400,
+        headers: { 'Content-Type': 'application/json' },
+      });
+    }
+
+    const key = `user_${userId}_work_${workId}`;
+    await env.WORKS_KV.put(key, JSON.stringify(workData), {
+      expirationTtl: 30 * 24 * 60 * 60, // 30天过期
+    });
+
+    return new Response(JSON.stringify({ success: true, message: '作品上传成功' }), {
+      headers: { 'Content-Type': 'application/json' },
+    });
+  } catch (error) {
+    console.error('Upload work error:', error);
+    return new Response(JSON.stringify({ success: false, message: '作品上传失败' }), {
+      status: 500,
+      headers: { 'Content-Type': 'application/json' },
+    });
+  }
+}
+
+export async function handleDownloadWork(request: Request, env: Env): Promise<Response> {
+  try {
+    const userId = await getUserIdFromToken(request, env);
+    if (!userId) {
+      return new Response(JSON.stringify({ success: false, message: '未授权' }), {
+        status: 401,
+        headers: { 'Content-Type': 'application/json' },
+      });
+    }
+
+    const url = new URL(request.url);
+    const workId = url.searchParams.get('workId');
+    
+    if (!workId) {
+      return new Response(JSON.stringify({ success: false, message: '缺少作品ID' }), {
+        status: 400,
+        headers: { 'Content-Type': 'application/json' },
+      });
+    }
+
+    const key = `user_${userId}_work_${workId}`;
+    const workData = await env.WORKS_KV.get(key);
+
+    if (!workData) {
+      return new Response(JSON.stringify({ success: false, message: '作品不存在' }), {
+        status: 404,
+        headers: { 'Content-Type': 'application/json' },
+      });
+    }
+
+    return new Response(JSON.stringify({ success: true, workData: JSON.parse(workData) }), {
+      headers: { 'Content-Type': 'application/json' },
+    });
+  } catch (error) {
+    console.error('Download work error:', error);
+    return new Response(JSON.stringify({ success: false, message: '作品下载失败' }), {
+      status: 500,
+      headers: { 'Content-Type': 'application/json' },
+    });
+  }
+}
+
+export async function handleListWorks(request: Request, env: Env): Promise<Response> {
+  try {
+    const userId = await getUserIdFromToken(request, env);
+    if (!userId) {
+      return new Response(JSON.stringify({ success: false, message: '未授权' }), {
+        status: 401,
+        headers: { 'Content-Type': 'application/json' },
+      });
+    }
+
+    const prefix = `user_${userId}_work_`;
+    const listResult = await env.WORKS_KV.list({ prefix });
+    
+    const workIds = listResult.keys.map(key => key.name.replace(prefix, ''));
+
+    return new Response(JSON.stringify({ success: true, workIds }), {
+      headers: { 'Content-Type': 'application/json' },
+    });
+  } catch (error) {
+    console.error('List works error:', error);
+    return new Response(JSON.stringify({ success: false, message: '获取作品列表失败' }), {
+      status: 500,
+      headers: { 'Content-Type': 'application/json' },
+    });
+  }
+}
+
+export async function handleDeleteWork(request: Request, env: Env): Promise<Response> {
+  try {
+    const userId = await getUserIdFromToken(request, env);
+    if (!userId) {
+      return new Response(JSON.stringify({ success: false, message: '未授权' }), {
+        status: 401,
+        headers: { 'Content-Type': 'application/json' },
+      });
+    }
+
+    const { workId } = await request.json();
+    
+    if (!workId) {
+      return new Response(JSON.stringify({ success: false, message: '缺少作品ID' }), {
+        status: 400,
+        headers: { 'Content-Type': 'application/json' },
+      });
+    }
+
+    const key = `user_${userId}_work_${workId}`;
+    await env.WORKS_KV.delete(key);
+
+    return new Response(JSON.stringify({ success: true, message: '作品删除成功' }), {
+      headers: { 'Content-Type': 'application/json' },
+    });
+  } catch (error) {
+    console.error('Delete work error:', error);
+    return new Response(JSON.stringify({ success: false, message: '作品删除失败' }), {
+      status: 500,
+      headers: { 'Content-Type': 'application/json' },
+    });
+  }
+}
+
+// ==================== ASSETS_KV 素材元数据存储 ====================
+
+export async function handleUploadAssetMetadata(request: Request, env: Env): Promise<Response> {
+  try {
+    const userId = await getUserIdFromToken(request, env);
+    if (!userId) {
+      return new Response(JSON.stringify({ success: false, message: '未授权' }), {
+        status: 401,
+        headers: { 'Content-Type': 'application/json' },
+      });
+    }
+
+    const { assetId, metadata } = await request.json();
+    
+    if (!assetId || !metadata) {
+      return new Response(JSON.stringify({ success: false, message: '缺少必要参数' }), {
+        status: 400,
+        headers: { 'Content-Type': 'application/json' },
+      });
+    }
+
+    const key = `user_${userId}_asset_${assetId}`;
+    await env.ASSETS_KV.put(key, JSON.stringify(metadata));
+
+    return new Response(JSON.stringify({ success: true, message: '素材元数据上传成功' }), {
+      headers: { 'Content-Type': 'application/json' },
+    });
+  } catch (error) {
+    console.error('Upload asset metadata error:', error);
+    return new Response(JSON.stringify({ success: false, message: '素材元数据上传失败' }), {
+      status: 500,
+      headers: { 'Content-Type': 'application/json' },
+    });
+  }
+}
+
+export async function handleGetAssetMetadata(request: Request, env: Env): Promise<Response> {
+  try {
+    const userId = await getUserIdFromToken(request, env);
+    if (!userId) {
+      return new Response(JSON.stringify({ success: false, message: '未授权' }), {
+        status: 401,
+        headers: { 'Content-Type': 'application/json' },
+      });
+    }
+
+    const url = new URL(request.url);
+    const assetId = url.searchParams.get('assetId');
+    
+    if (!assetId) {
+      return new Response(JSON.stringify({ success: false, message: '缺少素材ID' }), {
+        status: 400,
+        headers: { 'Content-Type': 'application/json' },
+      });
+    }
+
+    const key = `user_${userId}_asset_${assetId}`;
+    const metadata = await env.ASSETS_KV.get(key);
+
+    if (!metadata) {
+      return new Response(JSON.stringify({ success: false, message: '素材不存在' }), {
+        status: 404,
+        headers: { 'Content-Type': 'application/json' },
+      });
+    }
+
+    return new Response(JSON.stringify({ success: true, metadata: JSON.parse(metadata) }), {
+      headers: { 'Content-Type': 'application/json' },
+    });
+  } catch (error) {
+    console.error('Get asset metadata error:', error);
+    return new Response(JSON.stringify({ success: false, message: '获取素材元数据失败' }), {
+      status: 500,
+      headers: { 'Content-Type': 'application/json' },
+    });
+  }
+}
+
+export async function handleListAssets(request: Request, env: Env): Promise<Response> {
+  try {
+    const userId = await getUserIdFromToken(request, env);
+    if (!userId) {
+      return new Response(JSON.stringify({ success: false, message: '未授权' }), {
+        status: 401,
+        headers: { 'Content-Type': 'application/json' },
+      });
+    }
+
+    const prefix = `user_${userId}_asset_`;
+    const listResult = await env.ASSETS_KV.list({ prefix });
+    
+    const assetIds = listResult.keys.map(key => key.name.replace(prefix, ''));
+
+    return new Response(JSON.stringify({ success: true, assetIds }), {
+      headers: { 'Content-Type': 'application/json' },
+    });
+  } catch (error) {
+    console.error('List assets error:', error);
+    return new Response(JSON.stringify({ success: false, message: '获取素材列表失败' }), {
+      status: 500,
+      headers: { 'Content-Type': 'application/json' },
+    });
+  }
+}
+
+export async function handleDeleteAssetMetadata(request: Request, env: Env): Promise<Response> {
+  try {
+    const userId = await getUserIdFromToken(request, env);
+    if (!userId) {
+      return new Response(JSON.stringify({ success: false, message: '未授权' }), {
+        status: 401,
+        headers: { 'Content-Type': 'application/json' },
+      });
+    }
+
+    const { assetId } = await request.json();
+    
+    if (!assetId) {
+      return new Response(JSON.stringify({ success: false, message: '缺少素材ID' }), {
+        status: 400,
+        headers: { 'Content-Type': 'application/json' },
+      });
+    }
+
+    const key = `user_${userId}_asset_${assetId}`;
+    await env.ASSETS_KV.delete(key);
+
+    return new Response(JSON.stringify({ success: true, message: '素材元数据删除成功' }), {
+      headers: { 'Content-Type': 'application/json' },
+    });
+  } catch (error) {
+    console.error('Delete asset metadata error:', error);
+    return new Response(JSON.stringify({ success: false, message: '素材元数据删除失败' }), {
+      status: 500,
+      headers: { 'Content-Type': 'application/json' },
+    });
+  }
+}
+
+// ==================== ASSETS_R2 素材文件存储 ====================
+
+export async function handleUploadAssetFile(request: Request, env: Env): Promise<Response> {
+  try {
+    const userId = await getUserIdFromToken(request, env);
+    if (!userId) {
+      return new Response(JSON.stringify({ success: false, message: '未授权' }), {
+        status: 401,
+        headers: { 'Content-Type': 'application/json' },
+      });
+    }
+
+    const formData = await request.formData();
+    const file = formData.get('file') as File;
+    const assetId = formData.get('assetId') as string;
+    
+    if (!file || !assetId) {
+      return new Response(JSON.stringify({ success: false, message: '缺少必要参数' }), {
+        status: 400,
+        headers: { 'Content-Type': 'application/json' },
+      });
+    }
+
+    const arrayBuffer = await file.arrayBuffer();
+    const key = `user_${userId}_asset_file_${assetId}`;
+    
+    await env.ASSETS_R2.put(key, arrayBuffer, {
+      httpMetadata: {
+        contentType: file.type,
+      },
+    });
+
+    return new Response(JSON.stringify({ success: true, message: '素材文件上传成功' }), {
+      headers: { 'Content-Type': 'application/json' },
+    });
+  } catch (error) {
+    console.error('Upload asset file error:', error);
+    return new Response(JSON.stringify({ success: false, message: '素材文件上传失败' }), {
+      status: 500,
+      headers: { 'Content-Type': 'application/json' },
+    });
+  }
+}
+
+export async function handleDownloadAssetFile(request: Request, env: Env): Promise<Response> {
+  try {
+    const userId = await getUserIdFromToken(request, env);
+    if (!userId) {
+      return new Response(JSON.stringify({ success: false, message: '未授权' }), {
+        status: 401,
+        headers: { 'Content-Type': 'application/json' },
+      });
+    }
+
+    const url = new URL(request.url);
+    const assetId = url.searchParams.get('assetId');
+    
+    if (!assetId) {
+      return new Response(JSON.stringify({ success: false, message: '缺少素材ID' }), {
+        status: 400,
+        headers: { 'Content-Type': 'application/json' },
+      });
+    }
+
+    const key = `user_${userId}_asset_file_${assetId}`;
+    const object = await env.ASSETS_R2.get(key);
+
+    if (!object) {
+      return new Response(JSON.stringify({ success: false, message: '素材文件不存在' }), {
+        status: 404,
+        headers: { 'Content-Type': 'application/json' },
+      });
+    }
+
+    const content = await object.arrayBuffer();
+    const contentType = object.httpMetadata?.contentType || 'application/octet-stream';
+
+    return new Response(content, {
+      headers: {
+        'Content-Type': contentType,
+        'Content-Length': content.byteLength.toString(),
+      },
+    });
+  } catch (error) {
+    console.error('Download asset file error:', error);
+    return new Response(JSON.stringify({ success: false, message: '素材文件下载失败' }), {
+      status: 500,
+      headers: { 'Content-Type': 'application/json' },
+    });
+  }
+}
+
+export async function handleDeleteAssetFile(request: Request, env: Env): Promise<Response> {
+  try {
+    const userId = await getUserIdFromToken(request, env);
+    if (!userId) {
+      return new Response(JSON.stringify({ success: false, message: '未授权' }), {
+        status: 401,
+        headers: { 'Content-Type': 'application/json' },
+      });
+    }
+
+    const { assetId } = await request.json();
+    
+    if (!assetId) {
+      return new Response(JSON.stringify({ success: false, message: '缺少素材ID' }), {
+        status: 400,
+        headers: { 'Content-Type': 'application/json' },
+      });
+    }
+
+    const key = `user_${userId}_asset_file_${assetId}`;
+    await env.ASSETS_R2.delete(key);
+
+    return new Response(JSON.stringify({ success: true, message: '素材文件删除成功' }), {
+      headers: { 'Content-Type': 'application/json' },
+    });
+  } catch (error) {
+    console.error('Delete asset file error:', error);
+    return new Response(JSON.stringify({ success: false, message: '素材文件删除失败' }), {
       status: 500,
       headers: { 'Content-Type': 'application/json' },
     });

@@ -14,12 +14,21 @@ import {
   handleLogout,
   handleGitHubLogin,
   handleGitHubCallback,
+  handleGetVersions,
+  handleCreateVersion,
+  handleGetVersion,
+  handleDeleteVersion,
+  handleGetPreferences,
+  handleUpdatePreferences,
+  handleDeletePreferences,
 } from './src/worker/auth';
 
 // Worker 环境接口
 interface Env {
   ASSETS_KV: KVNamespace;
   WORKS_KV: KVNamespace;
+  VERSIONS_KV: KVNamespace;
+  PREFERENCES_KV: KVNamespace;
   ASSETS_R2: R2Bucket;
   USERS_KV: KVNamespace;
   VERIFICATION_CODES_KV: KVNamespace;
@@ -202,6 +211,54 @@ async function handleApiRequest(request: Request, env: Env): Promise<Response> {
     if (!workPath.includes("/") && request.method === "DELETE") {
       const workId = workPath;
       const response = await handleWorkDelete(workId, env);
+      return addCorsHeaders(response);
+    }
+  }
+
+  // 版本历史 API
+  if (path.startsWith("/api/versions")) {
+    // 获取版本列表
+    if (path === "/api/versions" && request.method === "GET") {
+      const response = await handleGetVersions(request, env);
+      return addCorsHeaders(response);
+    }
+
+    // 创建版本
+    if (path === "/api/versions" && request.method === "POST") {
+      const response = await handleCreateVersion(request, env);
+      return addCorsHeaders(response);
+    }
+
+    // 获取单个版本详情
+    if (path === "/api/versions/detail" && request.method === "GET") {
+      const response = await handleGetVersion(request, env);
+      return addCorsHeaders(response);
+    }
+
+    // 删除版本
+    if (path === "/api/versions/delete" && request.method === "DELETE") {
+      const response = await handleDeleteVersion(request, env);
+      return addCorsHeaders(response);
+    }
+  }
+
+  // 用户偏好设置 API
+  if (path === "/api/preferences") {
+    // 获取偏好设置
+    if (request.method === "GET") {
+      const response = await handleGetPreferences(request, env);
+      return addCorsHeaders(response);
+    }
+
+    // 更新偏好设置
+    if (request.method === "PUT") {
+      const response = await handleUpdatePreferences(request, env);
+      return addCorsHeaders(response);
+    }
+
+    // 删除偏好设置（重置）
+    if (request.method === "DELETE") {
+      const response = await handleDeletePreferences(request, env);
       return addCorsHeaders(response);
     }
   }
@@ -578,12 +635,14 @@ interface ExportedHandler<Env> {
 // 扩展类型定义
 type KVNamespace = {
   get(key: string): Promise<string | null>;
-  put(key: string, value: string): Promise<void>;
+  put(key: string, value: string, options?: { expirationTtl?: number }): Promise<void>;
   delete(key: string): Promise<void>;
+  list(options?: { prefix?: string; limit?: number }): Promise<{ keys: { name: string }[] }>;
 };
 
 type R2Bucket = {
   put(key: string, value: any, options?: any): Promise<void>;
   get(key: string): Promise<any>;
   delete(key: string): Promise<void>;
+  list(options?: any): Promise<any>;
 };

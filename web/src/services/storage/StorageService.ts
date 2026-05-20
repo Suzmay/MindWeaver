@@ -10,7 +10,7 @@ import { Template, TemplateCreateDTO, TemplateUpdateDTO } from '../../models/Tem
 import { HistoryVersion, HistoryVersionCreateDTO } from '../../models/HistoryVersion';
 import { LRUCache } from './utils/LRUCache';
 import { ShardManager } from './utils/ShardManager';
-import { apiService } from '../api/ApiService';
+import { apiService, UserPreferences } from '../api/ApiService';
 
 export class StorageService {
   private static instance: StorageService;
@@ -646,12 +646,64 @@ export class StorageService {
     }
   }
 
+  // 模板导出导入
+  async exportTemplate(templateId: string): Promise<Blob> {
+    this.ensureInitialized();
+    
+    try {
+      return await this.templateStore.export(templateId);
+    } catch (error) {
+      this.handleError('导出模板', error);
+      throw error;
+    }
+  }
+
+  async importTemplate(file: Blob): Promise<Template> {
+    this.ensureInitialized();
+    
+    try {
+      const template = await this.templateStore.import(file);
+      this.templateCache.set(template.id, template);
+      
+      this.emitEvent(EventType.TEMPLATE_CREATED, {
+        data: {
+          message: `模板导入成功: ${template.title}`
+        }
+      });
+
+      return template;
+    } catch (error) {
+      this.handleError('导入模板', error);
+      throw error;
+    }
+  }
+
   // 历史版本操作
   async createVersion(dto: HistoryVersionCreateDTO): Promise<HistoryVersion> {
     this.ensureInitialized();
     
     try {
       const version = await this.historyStore.createVersion(dto);
+      
+      // 如果 API 可用，同步到服务端
+      if (this.apiAvailable) {
+        try {
+          const response = await apiService.createVersion(
+            dto.workId,
+            dto.snapshotData,
+            dto.operationType,
+            dto.description
+          );
+          
+          if (response.success && response.data) {
+            // 使用服务端返回的版本数据
+            Object.assign(version, response.data);
+          }
+        } catch (apiError) {
+          console.warn('同步版本到服务端失败:', apiError);
+          // 继续执行，不影响本地创建
+        }
+      }
       
       this.emitEvent(EventType.VERSION_CREATED, {
         workId: dto.workId,
@@ -672,6 +724,24 @@ export class StorageService {
     this.ensureInitialized();
     
     try {
+      // 如果 API 可用，优先从服务端获取
+      if (this.apiAvailable) {
+        try {
+          const response = await apiService.getVersions(workId);
+          
+          if (response.success && response.data) {
+            // 应用分页
+            const start = (page - 1) * pageSize;
+            const end = start + pageSize;
+            return response.data.slice(start, end);
+          }
+        } catch (apiError) {
+          console.warn('从服务端获取版本列表失败:', apiError);
+          // 继续执行，使用本地存储
+        }
+      }
+      
+      // 从本地存储获取
       const result = await this.historyStore.getVersions(workId, page, pageSize);
       return result.versions;
     } catch (error) {
@@ -731,7 +801,31 @@ export class StorageService {
     this.ensureInitialized();
     
     try {
-      const template = await this.templateStore.createTemplate(dto);
+      // 获取所有模板用于检查标题
+      const allTemplates = await this.templateStore.list({
+        page: 1,
+        pageSize: 10000
+      });
+      
+      // 生成唯一的标题
+      let baseTitle = dto.title;
+      // 如果标题已经包含 (数字) 后缀，先去掉
+      baseTitle = baseTitle.replace(/\(\d+\)$/, '').trim();
+      
+      let finalTitle = baseTitle;
+      let counter = 1;
+      
+      // 检查是否已存在同名模板
+      while (allTemplates.works.some(template => template.title === finalTitle)) {
+        finalTitle = `${baseTitle}(${counter})`;
+        counter++;
+      }
+      
+      // 创建带有唯一标题的模板
+      const template = await this.templateStore.createTemplate({
+        ...dto,
+        title: finalTitle
+      });
       this.templateCache.set(template.id, template);
       
       this.emitEvent(EventType.TEMPLATE_CREATED, {
@@ -1090,6 +1184,59 @@ export class StorageService {
     await this.dbAdapter.deleteDatabase();
   }
 
+  // 删除所有作品
+  async deleteAllWorks(): Promise<void> {
+    this.ensureInitialized();
+    const result = await this.workStore.list({});
+    for (const work of result.works) {
+      await this.workStore.delete(work.id, true);
+      this.workCache.delete(work.id);
+    }
+  }
+
+  // 删除所有用户创建的模板（保留官方模板）
+  async deleteAllUserTemplates(): Promise<void> {
+    this.ensureInitialized();
+    const result = await this.templateStore.list({});
+    for (const template of result.works as Template[]) {
+      if (!template.isDefault) {
+        await this.templateStore.deleteTemplate(template.id);
+        this.templateCache.delete(template.id);
+      }
+    }
+  }
+
+  // 删除所有用户上传的素材（保留官方素材）
+  async deleteAllAssets(): Promise<void> {
+    this.ensureInitialized();
+    await this.dbAdapter.executeTransaction('assets', 'readwrite', async (transaction) => {
+      const store = transaction.objectStore('assets');
+      const allAssets: any[] = [];
+      
+      // 先获取所有素材
+      const cursor = store.openCursor();
+      await new Promise<void>((resolve) => {
+        cursor.onsuccess = (event) => {
+          const cursor = (event.target as IDBRequest).result;
+          if (cursor) {
+            allAssets.push(cursor.value);
+            cursor.continue();
+          } else {
+            resolve();
+          }
+        };
+        cursor.onerror = () => resolve();
+      });
+      
+      // 只删除非官方素材（uploader !== '官方'）
+      for (const asset of allAssets) {
+        if (asset.uploader !== '官方') {
+          store.delete(asset.id);
+        }
+      }
+    });
+  }
+
   // 分片管理方法
   async saveShard(shard: any): Promise<void> {
     this.ensureInitialized();
@@ -1159,6 +1306,121 @@ export class StorageService {
     // 清除缓存
     this.shardManager.clearCache(workId);
     return deletedCount;
+  }
+
+  // 用户偏好设置
+  async getPreferences(): Promise<UserPreferences> {
+    this.ensureInitialized();
+    
+    try {
+      // 默认偏好设置
+      const defaultPreferences: UserPreferences = {
+        autoSaveInterval: 5,
+        enableVersionHistory: true,
+        theme: 'auto',
+        sidebarWidth: 280
+      };
+      
+      // 如果 API 可用，优先从服务端获取
+      if (this.apiAvailable) {
+        try {
+          const response = await apiService.getPreferences();
+          
+          if (response.success && response.data) {
+            // 合并默认值和服务端值
+            return { ...defaultPreferences, ...response.data };
+          }
+        } catch (apiError) {
+          console.warn('从服务端获取偏好设置失败:', apiError);
+          // 继续执行，使用本地存储
+        }
+      }
+      
+      // 从 localStorage 获取
+      const localPrefs = localStorage.getItem('mindweaver_preferences');
+      if (localPrefs) {
+        try {
+          return { ...defaultPreferences, ...JSON.parse(localPrefs) };
+        } catch (e) {
+          console.warn('解析本地偏好设置失败:', e);
+        }
+      }
+      
+      return defaultPreferences;
+    } catch (error) {
+      this.handleError('获取偏好设置', error);
+      throw error;
+    }
+  }
+
+  async savePreferences(preferences: Partial<UserPreferences>): Promise<UserPreferences> {
+    this.ensureInitialized();
+    
+    try {
+      // 获取当前偏好
+      const currentPrefs = await this.getPreferences();
+      
+      // 合并更新
+      const updatedPrefs = { ...currentPrefs, ...preferences };
+      
+      // 保存到本地
+      localStorage.setItem('mindweaver_preferences', JSON.stringify(updatedPrefs));
+      
+      // 如果 API 可用，同步到服务端
+      if (this.apiAvailable) {
+        try {
+          const response = await apiService.updatePreferences(updatedPrefs);
+          
+          if (response.success && response.data) {
+            // 使用服务端返回的偏好设置
+            return response.data;
+          }
+        } catch (apiError) {
+          console.warn('同步偏好设置到服务端失败:', apiError);
+          // 继续执行，不影响本地保存
+        }
+      }
+      
+      this.emitEvent(EventType.PREFERENCES_UPDATED, {
+        data: {
+          message: '偏好设置保存成功',
+          preferences: updatedPrefs
+        }
+      });
+
+      return updatedPrefs;
+    } catch (error) {
+      this.handleError('保存偏好设置', error);
+      throw error;
+    }
+  }
+
+  async resetPreferences(): Promise<void> {
+    this.ensureInitialized();
+    
+    try {
+      // 清除本地存储
+      localStorage.removeItem('mindweaver_preferences');
+      
+      // 如果 API 可用，重置服务端
+      if (this.apiAvailable) {
+        try {
+          await apiService.deletePreferences();
+        } catch (apiError) {
+          console.warn('重置服务端偏好设置失败:', apiError);
+          // 继续执行，不影响本地重置
+        }
+      }
+      
+      this.emitEvent(EventType.PREFERENCES_RESET, {
+        data: {
+          message: '偏好设置已重置'
+        }
+      });
+    } catch (error) {
+      this.handleError('重置偏好设置', error);
+      throw error;
+    }
   }
 
   // 内部方法

@@ -9,13 +9,17 @@ interface UserPreferences {
   // 外观设置
   theme: 'light' | 'dark' | 'auto'; // 主题
   sidebarWidth: number; // 侧边栏宽度（像素）
+  
+  // 助手设置
+  mindyVisible: boolean; // Mindy助手是否显示
 }
 
 const DEFAULT_PREFERENCES: UserPreferences = {
   autoSaveInterval: 10,
   enableVersionHistory: true,
   theme: 'auto',
-  sidebarWidth: 280
+  sidebarWidth: 280,
+  mindyVisible: true
 };
 
 const STORAGE_KEY = 'mindweaver_user_preferences';
