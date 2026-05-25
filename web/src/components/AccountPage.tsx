@@ -93,11 +93,9 @@ export function AccountPage() {
 
   const handleGitHubLogin = () => {
     // GitHub 登录逻辑
-    // 这里需要实现 OAuth 2.0 流程
-    // 1. 重定向到 GitHub 授权页面
-    // 2. GitHub 回调后获取 token
-    // 3. 调用后端 API 进行登录
-    window.location.href = '/api/auth/github';
+    // 使用绝对 URL 避免 React Router 拦截
+    const apiUrl = `${window.location.origin}/api/auth/github`;
+    window.location.href = apiUrl;
   };
 
   const handleLogout = async () => {
