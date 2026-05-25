@@ -30,6 +30,29 @@ export default function App() {
     }
   }, [location.pathname]);
 
+  // 处理 GitHub OAuth 回调
+  useEffect(() => {
+    const params = new URLSearchParams(location.search);
+    const token = params.get('token');
+    const userStr = params.get('user');
+    
+    if (token && userStr) {
+      try {
+        const userData = JSON.parse(decodeURIComponent(userStr));
+        // 存储 token 和用户信息（使用与 UserContext 一致的键名）
+        localStorage.setItem('mindweaver_token', token);
+        localStorage.setItem('mindweaver_user', JSON.stringify(userData));
+        localStorage.setItem('mindweaver_is_guest', 'false');
+        // 清除 URL 参数
+        window.history.replaceState({}, document.title, location.pathname);
+        // 刷新页面以应用登录状态
+        window.location.reload();
+      } catch (error) {
+        console.error('处理 OAuth 回调失败:', error);
+      }
+    }
+  }, [location.search, location.pathname]);
+
   const handleTabChange = (tab: string) => {
     setActiveTab(tab);
     // 导航到对应的路由

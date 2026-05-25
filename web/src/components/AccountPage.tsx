@@ -93,9 +93,9 @@ export function AccountPage() {
 
   const handleGitHubLogin = () => {
     // GitHub 登录逻辑
-    // 使用绝对 URL 避免 React Router 拦截
-    const apiUrl = `${window.location.origin}/api/auth/github`;
-    window.location.href = apiUrl;
+    // 直接使用 Worker URL 避免被 React Router 或 Pages 拦截
+    const workerUrl = 'https://mindweaver-auth.pages.dev/api/auth/github';
+    window.location.href = workerUrl;
   };
 
   const handleLogout = async () => {

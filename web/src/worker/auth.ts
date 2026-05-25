@@ -970,7 +970,8 @@ export async function handleGitHubCallback(request: Request, env: Env): Promise<
     };
     
     // 重定向回前端，携带 token 和用户信息
-    const frontendUrl = `${new URL(request.url).origin}`;
+    // 注意：Worker 和前端可能部署在不同域名，需要使用正确的前端 URL
+    const frontendUrl = 'https://mindweaver-2c6.pages.dev';
     const redirectUrl = `${frontendUrl}?token=${token}&user=${encodeURIComponent(JSON.stringify(userResponseData))}`;
     
     return new Response(null, {
